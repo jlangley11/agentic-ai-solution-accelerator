@@ -32,15 +32,15 @@ If you're following the linear walkthrough, here's where each agent shows up. Op
 |---|---|
 | 1. Get oriented | — |
 | 2. Set up your machine | — |
-| 3. Rehearse in a sandbox | [`/scaffold-from-brief`](../agents/scaffold-from-brief.agent.md) |
+| 3. Rehearse in a sandbox | [`/scaffold-from-brief`](../.github/agents/scaffold-from-brief.agent.md) |
 | 4. Clone for the customer | — |
-| **5. Discover with the customer** | [`/ingest-prd`](../agents/ingest-prd.agent.md) *(opt)* → [`/discover-scenario`](../agents/discover-scenario.agent.md) |
-| **6. Scaffold from the brief** | [`/scaffold-from-brief`](../agents/scaffold-from-brief.agent.md) → [`/define-grounding`](../agents/define-grounding.agent.md) → [`/implement-workers`](../agents/implement-workers.agent.md) (or [`/implement-worker`](../agents/implement-worker.agent.md) one-at-a-time) · [`/switch-to-variant`](../agents/switch-to-variant.agent.md) *(opt)* |
-| **7. Provision the customer's Azure** | [`/configure-landing-zone`](../agents/configure-landing-zone.agent.md) → [`/deploy-to-env`](../agents/deploy-to-env.agent.md) |
-| **8. Iterate & evaluate** | [`/add-tool`](../agents/add-tool.agent.md) · [`/add-worker-agent`](../agents/add-worker-agent.agent.md) · [`/implement-worker(s)`](../agents/implement-worker.agent.md) · [`/explain-change`](../agents/explain-change.agent.md) · [`/switch-to-variant`](../agents/switch-to-variant.agent.md) |
+| **5. Discover with the customer** | [`/ingest-prd`](../.github/agents/ingest-prd.agent.md) *(opt)* → [`/discover-scenario`](../.github/agents/discover-scenario.agent.md) |
+| **6. Scaffold from the brief** | [`/scaffold-from-brief`](../.github/agents/scaffold-from-brief.agent.md) → [`/define-grounding`](../.github/agents/define-grounding.agent.md) → [`/implement-workers`](../.github/agents/implement-workers.agent.md) (or [`/implement-worker`](../.github/agents/implement-worker.agent.md) one-at-a-time) · [`/switch-to-variant`](../.github/agents/switch-to-variant.agent.md) *(opt)* |
+| **7. Provision the customer's Azure** | [`/configure-landing-zone`](../.github/agents/configure-landing-zone.agent.md) → [`/deploy-to-env`](../.github/agents/deploy-to-env.agent.md) |
+| **8. Iterate & evaluate** | [`/add-tool`](../.github/agents/add-tool.agent.md) · [`/add-worker-agent`](../.github/agents/add-worker-agent.agent.md) · [`/implement-worker(s)`](../.github/agents/implement-worker.agent.md) · [`/explain-change`](../.github/agents/explain-change.agent.md) · [`/switch-to-variant`](../.github/agents/switch-to-variant.agent.md) |
 | 9. UAT & handover | — (manual) |
 | 10. Operate (Day 2) | — (manual) |
-| Any time | [`/delivery-guide`](../agents/delivery-guide.agent.md) — engagement-wide co-pilot |
+| Any time | [`/delivery-guide`](../.github/agents/delivery-guide.agent.md) — engagement-wide co-pilot |
 
 For full inputs/outputs of each agent, see the detailed table below.
 
