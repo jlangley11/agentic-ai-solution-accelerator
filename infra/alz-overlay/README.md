@@ -100,7 +100,12 @@ to the privatized back-ends:
 ## Deploy sequence
 
 ```bash
-# Step 1 — subscription-scope overlay (one-time per spoke)
+# Step 0 - validate the parameter file before doing anything destructive
+python scripts/validate-alz.py
+# Catches unfilled CHANGEME-* placeholders, undersized workload subnet,
+# and unreachable hub resource IDs. Exits 0 -> proceed; 1 -> fix first.
+
+# Step 1 - subscription-scope overlay (one-time per spoke)
 az deployment sub create \
   --location <region> \
   --template-file infra/alz-overlay/main.bicep \

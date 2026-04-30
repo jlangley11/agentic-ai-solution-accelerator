@@ -112,6 +112,8 @@ nav:
       - Engineering reference:
           - Agent specs: agent-specs/README.md
           - Tool catalog: foundry-tool-catalog.md
+          - RBAC roles: references/rbac-roles.md
+          - Security review checklist: references/security-review-checklist.md
           - Version matrix: version-matrix.md
       - Frontend starter: patterns/sales-research-frontend/README.md
       - Reference scenarios:

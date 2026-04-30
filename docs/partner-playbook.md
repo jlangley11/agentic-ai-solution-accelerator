@@ -424,6 +424,7 @@ no spreadsheets, no screenshots of runs.
 | Choose landing-zone tier / reconfigure infra | `/configure-landing-zone`                                            |
 | Register a new GitHub Environment            | `/deploy-to-env`                                                     |
 | Preflight the deploy before `azd up`         | `python scripts/preflight-deploy.py --region <region>`               |
+| Validate the ALZ overlay (Tier 3)            | `python scripts/validate-alz.py`                                     |
 | Decommission the engagement safely           | `/teardown` (or `python scripts/teardown-preflight.py --env <name>`) |
 | Preflight the current diff / see which CI checks will fire | `/explain-change`                                                    |
 | Full engagement companion                    | `/delivery-guide`                                                    |

@@ -65,6 +65,11 @@ For regulated customers: set `controls.private_endpoints = required` (implies Ti
 
 → Detail: [Reference → Architecture & governance → Azure AI landing zone](../../patterns/azure-ai-landing-zone/README.md).
 
+!!! tip "Walk the security review checklist with the customer's CCoE before `azd up`"
+    [Reference → Security review checklist](../../references/security-review-checklist.md) is a 6-section walkthrough designed for the customer's security reviewer. Most items are pre-satisfied by the accelerator (each row links to where the control is enforced); the ones that aren't — rotation cadence, allowed locations, breakglass — are decisions you record in the handover packet. Doing this *before* `azd up` avoids re-cutting the deploy after a late-arriving policy ask.
+
+    For Tier 3 (`alz-integrated`) specifically, also run `python scripts/validate-alz.py` after filling `infra/alz-overlay/main.parameters.json` — it catches unfilled placeholders and unreachable hub resource IDs before they fail mid-deploy.
+
 ## Preflight: register the customer environment
 
 ```
