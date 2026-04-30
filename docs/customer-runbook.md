@@ -594,6 +594,40 @@ Destructive — tears down every resource in the environment. Use
 only when decommissioning or recovering from a corrupted
 environment.
 
+**Run the teardown preflight first.** It walks a 6-item checklist
+(KPI/cost export, customer signoff, HITL approver disable, final eval
+archive) and exits non-zero if anything is unacknowledged:
+
+```bash
+python scripts/teardown-preflight.py --env <env-name>
+```
+
+Then run `azd down -e <env-name> --purge --force`.
+
+**Cognitive Services accounts and Key Vaults survive `azd down --purge`
+in soft-delete.** Default retention is 7 days for Cognitive Services
+and 7–90 days for Key Vault depending on tenant policy. While
+soft-deleted, those resources block re-creation in the same name+region
+— a fresh `azd up` with the same env name in the same region will fail
+with a name collision.
+
+After `azd down` completes, run the soft-delete sweep:
+
+```bash
+python scripts/teardown-preflight.py --env <env-name> --post-teardown
+```
+
+The sweep lists soft-deleted Cognitive Services accounts and Key
+Vaults whose name contains the env name and prints the exact
+`az ... purge` command for each. The sweep is read-only — purges are
+operator-run after explicit customer / DR confirmation.
+
+The `/teardown` custom agent walks both steps interactively:
+
+```
+/teardown
+```
+
 ### Rolling back code
 
 `git revert` in the fork + `azd deploy`. Prompt/spec changes

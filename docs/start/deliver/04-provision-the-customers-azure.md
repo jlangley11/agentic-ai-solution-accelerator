@@ -114,6 +114,18 @@ At handover, the federated credential is re-pointed to the customer's own repo �
 az login --tenant <customer-tenant-id>
 azd auth login
 azd env new <customer-short-name>-dev
+```
+
+!!! tip "Run the deploy preflight before `azd up`"
+    `azd up` takes 10–15 minutes; if it fails 8 minutes in on a missing resource provider or a model not offered in your region, you've burned the time twice. The preflight runs `az`-based checks against your current login and surfaces the documented failure modes (RPs, region validity, Foundry availability, default-model availability, quota probe) up front:
+
+    ```bash
+    python scripts/preflight-deploy.py --region <region> [--tenant <guid>] [--subscription <guid>]
+    ```
+
+    All ✅ → run `azd up`. Any ❌ → the script prints the remediation command. Warnings (⚠️) are best-effort — review and proceed if you know better.
+
+```bash
 azd up
 ```
 
@@ -200,6 +212,9 @@ Customer deploys hit a small set of repeatable failure modes. Try these in order
     ```
 
     For per-machine prerequisites that look broken (Python, gh, az, azd), see the Get-ready troubleshooting in [2. Set up your machine](../ready/02-set-up-your-machine.md#troubleshooting--top-5-per-machine).
+
+!!! note "When the engagement ends"
+    Decommissioning a deployed environment isn't `azd down` alone. Cognitive Services accounts and Key Vaults survive `--purge` in soft-delete and block re-creation in the same name+region. Run `/teardown` (or `python scripts/teardown-preflight.py --env <name>`) at engagement end — it walks the pre-teardown checklist and the post-teardown soft-delete sweep. Full reference: [Customer runbook → Re-provisioning and rollback](../../customer-runbook.md#azd-down---purge).
 
 ---
 

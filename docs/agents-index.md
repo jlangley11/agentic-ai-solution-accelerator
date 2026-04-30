@@ -40,6 +40,7 @@ If you're following the linear walkthrough, here's where each agent shows up. Op
 | **8. Iterate & evaluate** | [`/add-tool`](../.github/agents/add-tool.agent.md) · [`/add-worker-agent`](../.github/agents/add-worker-agent.agent.md) · [`/implement-worker(s)`](../.github/agents/implement-worker.agent.md) · [`/explain-change`](../.github/agents/explain-change.agent.md) · [`/switch-to-variant`](../.github/agents/switch-to-variant.agent.md) |
 | 9. UAT & handover | — (manual) |
 | 10. Operate (Day 2) | — (manual) |
+| **End of engagement** | [`/teardown`](../.github/agents/teardown.agent.md) — pre-teardown checklist + soft-delete sweep |
 | Any time | [`/delivery-guide`](../.github/agents/delivery-guide.agent.md) — engagement-wide co-pilot |
 
 For full inputs/outputs of each agent, see the detailed table below.
@@ -63,6 +64,7 @@ For full inputs/outputs of each agent, see the detailed table below.
 | [8. Iterate](start/deliver/05-iterate-and-evaluate.md) | [`/explain-change`](../.github/agents/explain-change.agent.md) | Preflight: maps your current diff to lint rules, evals, deploy steps that will fire | (Reads current git diff) | Read-only readout — does not modify files |
 | [8. Iterate](start/deliver/05-iterate-and-evaluate.md) | [`/switch-to-variant`](../.github/agents/switch-to-variant.agent.md) | Walks through re-authoring the scenario as `single-agent` or `chat-with-actioning` | Target variant + scenario id | New `src/scenarios/<id>/` package shaped for the variant; manual follow-ups for prompts/tests |
 | Any (engagement-wide) | [`/delivery-guide`](../.github/agents/delivery-guide.agent.md) | End-to-end engagement co-pilot — answers "what's next?" across the whole motion | Free-form question | No file writes; conversational guidance |
+| End of engagement | [`/teardown`](../.github/agents/teardown.agent.md) | Pre-teardown checklist (KPI/cost export, customer signoff, HITL approver disable) + post-teardown soft-delete sweep for Cognitive Services accounts and Key Vaults that survive `azd down --purge` | `--env <env-name>` matching `deploy/environments.yaml` | No file writes; surfaces destructive `azd down` and `az ... purge` commands for the operator to run manually |
 
 ---
 

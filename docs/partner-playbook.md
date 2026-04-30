@@ -423,6 +423,8 @@ no spreadsheets, no screenshots of runs.
 | Swap from flagship to a variant pattern      | `/switch-to-variant`                                                 |
 | Choose landing-zone tier / reconfigure infra | `/configure-landing-zone`                                            |
 | Register a new GitHub Environment            | `/deploy-to-env`                                                     |
+| Preflight the deploy before `azd up`         | `python scripts/preflight-deploy.py --region <region>`               |
+| Decommission the engagement safely           | `/teardown` (or `python scripts/teardown-preflight.py --env <name>`) |
 | Preflight the current diff / see which CI checks will fire | `/explain-change`                                                    |
 | Full engagement companion                    | `/delivery-guide`                                                    |
 | Scaffold a scenario from the CLI             | `python scripts/scaffold-scenario.py <id>`                           |
