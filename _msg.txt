@@ -1,0 +1,26 @@
+docs: clarify that slash autocomplete may not list custom agents
+
+Smoke-test on a fresh clone confirmed: VS Code's / autocomplete in
+Copilot Chat does not always surface custom agents from .github/agents/.
+The agents dropdown is the documented primary entry point per
+https://code.visualstudio.com/docs/copilot/customization/custom-agents
+- there is no frontmatter field or VS Code setting to add custom agents
+to the slash autocomplete dropdown.
+
+Slash invocation still works when the slug is typed in full
+(/scaffold-from-brief, /discover-scenario, etc.). This commit:
+
+- adds a callout in docs/start/ready/02-set-up-your-machine.md (setup
+  step) so first-time partners aren't surprised when autocomplete is
+  silent
+- updates the troubleshooting entry in the same file to explicitly
+  call out 'agents dropdown is primary; type the full slug if
+  autocomplete doesn't surface it'
+
+No change to invocation contract or agent files; agents-index.md and
+QUICKSTART.md already document the dual-invocation pattern.
+
+Validation: prepare-pages clean, mkdocs strict clean, accelerator-lint
+0/0.
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

@@ -40,7 +40,10 @@ azd version
 python --version    # only if you installed Python locally
 ```
 
-Open VS Code, install the **GitHub Copilot Chat** extension, sign in. Confirm the chat sidebar opens (`Ctrl+Alt+I` or the 💬 icon) and the agents dropdown lists the repo's custom agents (or typing `/` brings up the slash equivalents).
+Open VS Code, install the **GitHub Copilot Chat** extension, sign in. Confirm the chat sidebar opens (`Ctrl+Alt+I` or the 💬 icon) and the agents dropdown lists the repo's custom agents.
+
+!!! note "About slash invocation"
+    The agents dropdown is the **primary** way to invoke a custom agent. Slash invocation (`/scaffold-from-brief`, `/discover-scenario`, etc.) also works — but VS Code's `/` autocomplete may not list custom agents from `.github/agents/`. If you don't see them in autocomplete, type the full slug; it will still route to the right agent. This is a VS Code behavior, not a repo issue.
 
 ## Sign into a sandbox subscription
 
@@ -79,7 +82,7 @@ If you stumble on those names while reading other pages, that's where they're co
 1. **`azd up` complains about model deployment not found** — the FastAPI startup bootstrap (`src/bootstrap.py`) verifies the deployment exists before agents are created. Confirm Foundry quota in the target region; edit `accelerator.yaml`'s `models:` block if you need a different SKU; re-run `azd up`.
 2. **`az login` opens a browser but nothing happens** — most often a stale `~/.azure` cache. `az logout` then `az login --use-device-code` from the same shell.
 3. **`gh repo create` fails with auth error** — `gh auth login` and pick **GitHub.com → HTTPS → Login with a web browser**. Confirm `gh auth status` shows your account.
-4. **Copilot Chat sidebar doesn't show the agents dropdown** — Confirm the GitHub Copilot Chat extension is installed (not just GitHub Copilot — they're two extensions). Restart VS Code after install. Open the agents dropdown at the top of the chat panel, or type `/` in the chat input to see the slash equivalents.
+4. **Copilot Chat sidebar doesn't show the agents dropdown** — Confirm the GitHub Copilot Chat extension is installed (not just GitHub Copilot — they're two extensions). Restart VS Code after install. Open the agents dropdown at the top of the chat panel; that's the primary entry point. Slash invocation (typing the full slug like `/scaffold-from-brief`) also works, but VS Code's `/` autocomplete may not list custom agents — type the slug in full when autocomplete doesn't surface it.
 5. **`pwsh` not found on Windows** — Install PowerShell 7 from `winget install Microsoft.PowerShell`. The Windows-built-in `powershell.exe` (5.1) is not enough; `azd` lifecycle hooks call `pwsh` explicitly.
 
 ---
