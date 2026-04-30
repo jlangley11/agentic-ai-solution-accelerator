@@ -16,7 +16,7 @@
 
 **👉 Scan the full workflow first:** [`docs/partner-workflow.md`](docs/partner-workflow.md) — one-page visual of all 7 stages (discover → scaffold → provision → iterate → UAT → handover → measure) across the three responsibilities. Use it to orient yourself, then come back here and open your lane below.
 
-> **Doc precedence:** when two sources conflict, the more specific one wins — chatmode > playbook / QUICKSTART > this README. Pages and this README render the same markdown, so "the doc you're reading" is never the conflict; it's always the linked chatmode or playbook that supersedes. Full chain: [Reference material](#reference-material).
+> **Doc precedence:** when two sources conflict, the more specific one wins — custom agent > playbook / QUICKSTART > this README. Pages and this README render the same markdown, so "the doc you're reading" is never the conflict; it's always the linked custom agent or playbook that supersedes. Full chain: [Reference material](#reference-material).
 
 ### 🧭 Delivery Lead — scope, discovery, UAT, handover, value review
 - **Start with:** [`docs/partner-playbook.md`](docs/partner-playbook.md) — end-to-end 7-stage motion, SOW guidance, "what good looks like" per stage
@@ -100,7 +100,7 @@ agentic-ai-solution-accelerator/
 │   └── version-matrix.md         known-good SDK pins (weekly CI validates against latest)
 ├── .github/
 │   ├── copilot-instructions.md   hard rules: Agent Framework, MI, HITL, evals, RAI
-│   ├── chatmodes/                discover-scenario, scaffold-from-brief, delivery-guide, add-*, switch-to-variant
+│   ├── agents/                   discover-scenario, scaffold-from-brief, delivery-guide, add-*, switch-to-variant (.agent.md)
 │   └── workflows/                lint, evals, deploy, version-matrix (weekly pinned-latest)
 ├── AGENTS.md                     IDE-agnostic mirror of copilot-instructions (Cursor/Claude/Codex)
 └── scripts/

@@ -14,7 +14,7 @@ reads well but doesn't tie to measurable ROI.
 | 1 | [`use-case-canvas.md`](use-case-canvas.md) | 1-page exec alignment before you spend workshop time | Partner lead + customer sponsor, async |
 | 2 | [`SOLUTION-BRIEF-GUIDE.md`](SOLUTION-BRIEF-GUIDE.md) | How to run the discovery workshop that fills the brief | Read by partner lead; optional coaching for junior facilitators |
 | 3 | [`discovery-workbook.csv`](discovery-workbook.csv) — *download* | Structured capture during the live workshop | Partner facilitator (typing) + customer SMEs (answering) |
-| 4 | [`solution-brief.md`](solution-brief.md) | Canonical engagement doc — every downstream artifact derives from it | Output of `/discover-scenario` Copilot chatmode (or manually from workbook) |
+| 4 | [`solution-brief.md`](solution-brief.md) | Canonical engagement doc — every downstream artifact derives from it | Output of `/discover-scenario` Copilot custom agent (or manually from workbook) |
 | 5 | [`roi-calculator.xlsx`](roi-calculator.xlsx) — *download* | Quantifies the hypothesis in Section 4 of the brief | Partner lead, after Section 3 of the brief is filled |
 
 > **Downloads:** the workbook ([`discovery-workbook.csv`](discovery-workbook.csv)) and ROI calculator ([`roi-calculator.xlsx`](roi-calculator.xlsx)) are partner-fillable templates — click to download, fork per engagement.
@@ -43,7 +43,7 @@ Flow:
 
 1. **Run `/ingest-prd`** in Copilot Chat and give it the file path.
    - **Where:** GitHub Copilot Chat sidebar in VS Code — point Copilot at the PRD/BRD file already in your repo or a local path.
-   The chatmode invokes `scripts/extract-brief-from-doc.py`, maps
+   The custom agent invokes `scripts/extract-brief-from-doc.py`, maps
    evidence to the 7-section brief schema, and writes a **draft**
    `docs/discovery/solution-brief.md` with:
    - A `> **STATUS: AI-extracted draft**` banner at the top.
@@ -92,7 +92,7 @@ What `/ingest-prd` does **not** do:
 
 3. **Solution brief** — run `/discover-scenario` in Copilot Chat with
    the filled workbook as context (paste it, or point Copilot at the
-   file). The chatmode produces the 7-section brief at
+   file). The custom agent produces the 7-section brief at
    `docs/discovery/solution-brief.md` **and** updates
    `accelerator.yaml` fields (`solution.*`, `acceptance.*`, `kpis[]`).
    It does **not** touch `scenario:` — that comes from
@@ -156,9 +156,9 @@ What `/ingest-prd` does **not** do:
 - `docs/enablement/hands-on-lab.md` is the sandbox rehearsal; Lab 8
   walks a partner engineer through `/discover-scenario` +
   `scaffold-scenario.py`.
-- `.github/agents/discover-scenario.agent.md` is the chatmode
+- `.github/agents/discover-scenario.agent.md` is the custom agent
   that produces the solution brief from workshop notes or live.
-- `.github/agents/ingest-prd.agent.md` is the chatmode that
+- `.github/agents/ingest-prd.agent.md` is the custom agent that
   pre-drafts the solution brief from a customer PRD/BRD/spec;
   `/discover-scenario` gap-fill mode then fills the TBDs it leaves.
 

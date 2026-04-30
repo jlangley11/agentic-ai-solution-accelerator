@@ -63,7 +63,7 @@ After finishing the sandbox rehearsal you can:
 
 | Where | What you do there |
 |---|---|
-| **VS Code** | Run repo-local commands in the integrated terminal (`` Ctrl+` ``); edit files; talk to GitHub Copilot Chat in the right sidebar (chatmodes via `/`) |
+| **VS Code** | Run repo-local commands in the integrated terminal (`` Ctrl+` ``); edit files; talk to GitHub Copilot Chat in the right sidebar (custom agents via the agents dropdown or `/` slash equivalents) |
 | **GitHub web** | Watch Actions runs (optional in the lab; required in real engagements) |
 | **Azure portal** | Resource group, App Insights logs and dashboards, Foundry quota |
 | **Foundry portal** (ai.azure.com) | Visually confirm agents (Lab 5 demonstrates that portal edits get overwritten by spec files on next `azd provision`) |

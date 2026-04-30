@@ -19,7 +19,7 @@ This step is **one-time per partner machine**. You do not re-do it per customer 
 
 | Tool | Why | Minimum |
 |------|-----|---------|
-| **VS Code** with **GitHub Copilot Chat** extension | Editor + Copilot is required for every chatmode (`/discover-scenario`, `/scaffold-from-brief`, etc.) | Latest |
+| **VS Code** with **GitHub Copilot Chat** extension | Editor + Copilot is required for every custom agent (`/discover-scenario`, `/scaffold-from-brief`, etc.) | Latest |
 | **Azure CLI** (`az`) | Tenant login + targeted `az` calls | `>= 2.55` |
 | **Azure Developer CLI** (`azd`) | One-shot `azd up` provision + deploy | `>= 1.10` |
 | **GitHub CLI** (`gh`) | Template clone + repo bootstrap | `>= 2.50` |
@@ -40,7 +40,7 @@ azd version
 python --version    # only if you installed Python locally
 ```
 
-Open VS Code, install the **GitHub Copilot Chat** extension, sign in. Confirm the chat sidebar opens (`Ctrl+Alt+I` or the 💬 icon) and typing `/` shows a chatmode picker.
+Open VS Code, install the **GitHub Copilot Chat** extension, sign in. Confirm the chat sidebar opens (`Ctrl+Alt+I` or the 💬 icon) and the agents dropdown lists the repo's custom agents (or typing `/` brings up the slash equivalents).
 
 ## Sign into a sandbox subscription
 
@@ -79,7 +79,7 @@ If you stumble on those names while reading other pages, that's where they're co
 1. **`azd up` complains about model deployment not found** — the FastAPI startup bootstrap (`src/bootstrap.py`) verifies the deployment exists before agents are created. Confirm Foundry quota in the target region; edit `accelerator.yaml`'s `models:` block if you need a different SKU; re-run `azd up`.
 2. **`az login` opens a browser but nothing happens** — most often a stale `~/.azure` cache. `az logout` then `az login --use-device-code` from the same shell.
 3. **`gh repo create` fails with auth error** — `gh auth login` and pick **GitHub.com → HTTPS → Login with a web browser**. Confirm `gh auth status` shows your account.
-4. **Copilot Chat sidebar doesn't show chatmode picker** — Confirm the GitHub Copilot Chat extension is installed (not just GitHub Copilot — they're two extensions). Restart VS Code after install. Type `/` in the chat input to see the picker.
+4. **Copilot Chat sidebar doesn't show the agents dropdown** — Confirm the GitHub Copilot Chat extension is installed (not just GitHub Copilot — they're two extensions). Restart VS Code after install. Open the agents dropdown at the top of the chat panel, or type `/` in the chat input to see the slash equivalents.
 5. **`pwsh` not found on Windows** — Install PowerShell 7 from `winget install Microsoft.PowerShell`. The Windows-built-in `powershell.exe` (5.1) is not enough; `azd` lifecycle hooks call `pwsh` explicitly.
 
 ---

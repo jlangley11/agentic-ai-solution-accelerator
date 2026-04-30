@@ -24,7 +24,7 @@ Foundry agent with retrieval and one or two read-only tools is sufficient.
 /switch-to-variant single-agent
 ```
 
-That chat mode:
+That custom agent:
 
 1. Copies `patterns/single-agent/src/agent.py` over `src/main.py`.
 2. Strips flagship workers (`src/scenarios/sales_research/agents/{icp_fit_analyst,competitive_context,outreach_personalizer,supervisor}`)

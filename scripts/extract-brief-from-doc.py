@@ -1,6 +1,6 @@
 """
 extract-brief-from-doc.py — extract structured chunks from a PRD / BRD /
-functional spec for downstream ingestion by the /ingest-prd chatmode.
+functional spec for downstream ingestion by the /ingest-prd custom agent.
 
 Usage:
     python scripts/extract-brief-from-doc.py <path-to-doc>
@@ -30,7 +30,7 @@ Exit codes:
     3 — file read error
     4 — missing optional dependency
 
-Citation contract (consumed by /ingest-prd chatmode):
+Citation contract (consumed by /ingest-prd custom agent):
     - .md / .txt        → heading + chunk_id
     - .docx             → heading + chunk_id (page is null)
     - .pdf              → page + chunk_id (heading best-effort, may be null)

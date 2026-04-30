@@ -10,7 +10,7 @@ Use this when deploying the accelerator to a **new Azure environment** — a par
 
 ## When NOT to use this
 - Routine infra tweaks to an existing env → edit `infra/*.bicep` and re-run `azd up -e <existing-env>`.
-- Cross-tenant customer deploys via Azure Lighthouse / ARM delegation → out of scope for this chatmode; a separate bootstrap.
+- Cross-tenant customer deploys via Azure Lighthouse / ARM delegation → out of scope for this custom agent; a separate bootstrap.
 - Forking the repo for a customer who wants the source code → also out of scope.
 
 ## Inputs to gather

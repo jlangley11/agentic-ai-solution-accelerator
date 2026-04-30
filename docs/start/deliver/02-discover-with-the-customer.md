@@ -9,12 +9,12 @@
 
     **💻 Where you'll work** — Customer workshop room (or Teams) for the conversation; the cloned customer repo in VS Code + Copilot Chat to drive `/discover-scenario` after the workshop.
 
-    **✅ Done when** — `docs/discovery/solution-brief.md` has zero `TBD`; success criteria are numeric (baseline → target with %); 3–6 KPI events named; solution shape chosen; 3–5 RAI risks listed; `accelerator.yaml` updated by the chatmode.
+    **✅ Done when** — `docs/discovery/solution-brief.md` has zero `TBD`; success criteria are numeric (baseline → target with %); 3–6 KPI events named; solution shape chosen; 3–5 RAI risks listed; `accelerator.yaml` updated by the custom agent.
 
-!!! tip "Chatmodes used here"
+!!! tip "Custom agents used here"
     [`/ingest-prd`](../../../.github/agents/ingest-prd.agent.md) *(optional, if customer provided a PRD)* · [`/discover-scenario`](../../../.github/agents/discover-scenario.agent.md)
 
-    Full reference: [Chatmodes overview](../../agents-index.md).
+    Full reference: [Custom agents overview](../../agents-index.md).
 
 ---
 
@@ -46,7 +46,7 @@ If the customer handed you a written spec **before** the workshop, you can pre-d
 /ingest-prd
 ```
 
-…in Copilot Chat, pointed at the file (path inside the cloned repo or local path). Supported formats: `.md`, `.txt`, `.docx`, text-extractable `.pdf`. The chatmode runs `scripts/extract-brief-from-doc.py`, maps evidence to the 7-section brief schema, and writes a **draft** `docs/discovery/solution-brief.md` with a `STATUS: AI-extracted draft` banner and per-section `<!-- evidence: ... -->` comment blocks.
+…in Copilot Chat, pointed at the file (path inside the cloned repo or local path). Supported formats: `.md`, `.txt`, `.docx`, text-extractable `.pdf`. The custom agent runs `scripts/extract-brief-from-doc.py`, maps evidence to the 7-section brief schema, and writes a **draft** `docs/discovery/solution-brief.md` with a `STATUS: AI-extracted draft` banner and per-section `<!-- evidence: ... -->` comment blocks.
 
 Treat every CONFIRMED field as a hypothesis (the LLM read the PRD, not the customer). Run the workshop on the remaining `TBD`s.
 
@@ -64,7 +64,7 @@ The full PRD-ingestion flow lives in [Reference → Discovery how-to → "If the
    /discover-scenario
    ```
 
-   The chatmode produces the 7-section brief at `docs/discovery/solution-brief.md` **and** updates `accelerator.yaml` fields (`solution.*`, `acceptance.*`, `kpis[]`). It does **not** touch `scenario:` — that comes from `/scaffold-from-brief` in the next step.
+   The custom agent produces the 7-section brief at `docs/discovery/solution-brief.md` **and** updates `accelerator.yaml` fields (`solution.*`, `acceptance.*`, `kpis[]`). It does **not** touch `scenario:` — that comes from `/scaffold-from-brief` in the next step.
 
    If you ran `/ingest-prd` first, `/discover-scenario` detects the draft banner and enters **gap-fill mode** — asks only about `TBD` fields, preserves every confirmed field byte-for-byte, strips the banner and evidence comments on exit.
 

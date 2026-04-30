@@ -11,10 +11,10 @@
 
     **✅ Done when** — Resource group exists in customer tenant; `/healthz` returns 200; Foundry agents are reachable; App Insights is wired; HITL approver endpoint is configured for the environment.
 
-!!! tip "Chatmodes used here"
+!!! tip "Custom agents used here"
     [`/configure-landing-zone`](../../../.github/agents/configure-landing-zone.agent.md) · [`/deploy-to-env`](../../../.github/agents/deploy-to-env.agent.md)
 
-    Full reference: [Chatmodes overview](../../agents-index.md).
+    Full reference: [Custom agents overview](../../agents-index.md).
 
 ??? success "What success looks like"
     `azd up` ends with a summary like:
@@ -36,7 +36,7 @@
 
 ---
 
-This step is two preflight chatmodes plus one `azd up`. The chatmodes do the GitHub plumbing (manifest entry, GitHub Environment, OIDC federated credential) so CI can deploy without a service-principal secret.
+This step is two preflight custom agents plus one `azd up`. The custom agents do the GitHub plumbing (manifest entry, GitHub Environment, OIDC federated credential) so CI can deploy without a service-principal secret.
 
 ## Preflight: pick a landing-zone tier
 
@@ -44,7 +44,7 @@ This step is two preflight chatmodes plus one `azd up`. The chatmodes do the Git
 /configure-landing-zone
 ```
 
-The chatmode walks the partner through three tiers:
+The custom agent walks the partner through three tiers:
 
 - **Tier 1 — `standalone`** — single-RG, public endpoints, Entra-only. For pilots and SMB.
 - **Tier 2 — `avm`** — Azure Verified Modules + private endpoints + private DNS. For mid-market.
@@ -62,7 +62,7 @@ For regulated customers: set `controls.private_endpoints = required` (implies Ti
 /deploy-to-env <env-name>      # e.g., dev, uat, prod
 ```
 
-The chatmode adds an entry to `deploy/environments.yaml`, creates the matching **GitHub Environment**, wires the OIDC federated credential between the customer's Entra app registration and the GitHub Environment, scopes the per-environment secrets (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`) and variable (`AZURE_LOCATION`), and dispatches a first deploy.
+The custom agent adds an entry to `deploy/environments.yaml`, creates the matching **GitHub Environment**, wires the OIDC federated credential between the customer's Entra app registration and the GitHub Environment, scopes the per-environment secrets (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`) and variable (`AZURE_LOCATION`), and dispatches a first deploy.
 
 !!! warning "Never hand-edit `deploy.yml` to add envs"
     The manifest + the `resolve-env` job is the contract; the `deploy_matrix_matches_azure_envs` lint rule rejects drift. The azd environment name is **always** derived from `deploy/environments.yaml` — never set `vars.AZURE_ENV_NAME`.

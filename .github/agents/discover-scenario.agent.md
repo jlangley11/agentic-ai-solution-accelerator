@@ -22,7 +22,7 @@ First, ask: **"Are we running this live with the customer, are you briefing me f
 ## Gap-fill mode (only when the brief is an /ingest-prd draft)
 
 This mode preserves confirmed values and asks **only** about
-the fields the ingest chatmode marked `TBD`. Use it when the brief starts
+the fields the ingest custom agent marked `TBD`. Use it when the brief starts
 with the `STATUS: AI-extracted draft` banner.
 
 1. **Parse the draft.**
@@ -51,11 +51,11 @@ with the `STATUS: AI-extracted draft` banner.
    a. Strip the `> **STATUS: AI-extracted draft...**` banner from the top
       of the brief.
    b. Strip **every** `<!-- evidence: ... -->` HTML comment block from
-      the brief — they were scaffolding for this chatmode and must not
+      the brief — they were scaffolding for this custom agent and must not
       leak into `accelerator.yaml`, prompts, or partner-facing renders.
       The `/ingest-prd` contract guarantees each evidence block is a
       single line and contains no `-->` inside its quote (the ingest
-      chatmode escapes any source `-->` as `--&gt;`), so a **line-scoped**
+      custom agent escapes any source `-->` as `--&gt;`), so a **line-scoped**
       strip is safe and preferred over a DOTALL sweep. Use Python:
       ```python
       import re
@@ -163,7 +163,7 @@ Derived from section 3 and section 6. Produce concrete thresholds:
 1. **If you ran in gap-fill mode, follow the gap-fill write-back steps above instead of this section.**
 2. Write the filled brief to `docs/discovery/solution-brief.md` (overwrite the template).
 3. Update `accelerator.yaml` — copy:
-   - Section 5 → `solution.pattern`, `solution.hitl`, and the `ux_shape` value into the `## UX shape` section of the brief (no `accelerator.yaml` field — the brief is canonical for downstream chatmodes)
+   - Section 5 → `solution.pattern`, `solution.hitl`, and the `ux_shape` value into the `## UX shape` section of the brief (no `accelerator.yaml` field — the brief is canonical for downstream custom agents)
    - Section 6 → `solution.data_residency`, `solution.identity`
    - Section 7 → `acceptance.*` thresholds
    - Section 4 KPI names → `kpis[].name` (leave baseline/target numbers blank for later fill)

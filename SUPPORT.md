@@ -9,7 +9,7 @@
 ### 1. Repo-level (what Microsoft provides)
 
 - **GitHub issues** on this repo — bug reports, pattern questions, content gaps, scenario requests.
-- **Releases + release notes** for the accelerator template (flagship code, scenario framework, Bicep modules, accelerator-lint, chat modes).
+- **Releases + release notes** for the accelerator template (flagship code, scenario framework, Bicep modules, accelerator-lint, custom agents).
 - **Security vulnerabilities** — report privately per [SECURITY.md](SECURITY.md).
 - **Office hours** (if your partner org is onboarded) — periodic sync with the accelerator engineering team.
 

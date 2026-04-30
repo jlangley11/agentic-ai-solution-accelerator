@@ -53,7 +53,7 @@ Two simpler shapes are also supported via `/switch-to-variant`:
 
 | The accelerator ships | You still own |
 |---|---|
-| Discovery chatmode, brief template, ROI calculator | Customer workshop facilitation |
+| Discovery custom agent, brief template, ROI calculator | Customer workshop facilitation |
 | Scaffolders for new scenarios, agents, tools | Scenario-specific prompts, retrieval schema |
 | Bicep infra (AVM-based) + `azd up` | Customer network / private-link overlay (if regulated) |
 | CI gates: lint + quality evals + redteam | Branch protection, required reviewers |

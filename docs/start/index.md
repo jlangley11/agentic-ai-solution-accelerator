@@ -25,7 +25,7 @@ Jump in at the step that matches your current state.
 | Evals green, heading into UAT | [UAT & handover](deliver/06-uat-and-handover.md) |
 | Already in production | [Operate (Day 2)](deliver/07-operate-day-2.md) |
 
-Reference material — Architecture, Responsible AI, agent specs, tool catalog, chatmodes, frontend starter, alternate scenarios — sits **outside the walkthrough** under the **Reference** top-nav group. Open it when a step in the walkthrough sends you there.
+Reference material — Architecture, Responsible AI, agent specs, tool catalog, custom agents, frontend starter, alternate scenarios — sits **outside the walkthrough** under the **Reference** top-nav group. Open it when a step in the walkthrough sends you there.
 
 ---
 

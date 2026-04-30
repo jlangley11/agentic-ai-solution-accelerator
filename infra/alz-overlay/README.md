@@ -15,7 +15,7 @@ runs the workload `infra/main.bicep` with the Tier-3 parameter file.
 
 This folder ships as a **skeleton** — it compiles and has the right
 shape, but the hub resource IDs are placeholders. The partner fills
-them in via the `/configure-landing-zone` chatmode.
+them in via the `/configure-landing-zone` custom agent.
 
 ## Pre-requisites (partner collects from customer CCoE)
 
@@ -83,7 +83,7 @@ to the privatized back-ends:
 2. **Internal env + vNet integration.** Partner enlarges
    `workloadSubnetPrefix` to `/23`, sets `externalIngress: false`, and
    adds `vnetConfiguration` + a PE on the managed env. The
-   `/configure-landing-zone` chatmode walks through subnet enlargement;
+   `/configure-landing-zone` custom agent walks through subnet enlargement;
    the PE + DNS link are authored by hand.
 
 ## What the overlay still does NOT do
@@ -138,4 +138,4 @@ The `landing_zone_mode_consistent` lint rule asserts that when
   PE registers into three hub zones). `infra/main.bicep` threads the
   overlay outputs into the PE resources.
 
-Fix lint findings by completing the chatmode walkthrough.
+Fix lint findings by completing the custom agent walkthrough.

@@ -54,7 +54,7 @@ dependencies = [
   "pyyaml>=6.0.2,<7.0.0",
   "httpx>=0.28.0,<1.0.0",
   # Used by scripts/extract-brief-from-doc.py (driver for /ingest-prd).
-  # Kept in base deps (not an extra) so the chatmode "just works" on a
+  # Kept in base deps (not an extra) so the custom agent "just works" on a
   # fresh clone without partners needing to install optional extras.
   "python-docx>=1.1.0,<2.0.0",
   "pypdf>=6.10.2,<7.0.0",

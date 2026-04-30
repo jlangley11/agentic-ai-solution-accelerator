@@ -22,7 +22,7 @@ ticket, write CRM record) mid-conversation.
 /switch-to-variant chat-with-actioning
 ```
 
-That chat mode:
+That custom agent:
 1. Replaces `src/main.py` with this pattern's `chat.py`.
 2. Adds `src/scenarios/<scenario>/agents/chat_assistant/` (3-layer shape).
 3. Keeps the `hitl.checkpoint` gate on every side-effect tool.

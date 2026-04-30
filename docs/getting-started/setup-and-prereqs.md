@@ -2,7 +2,7 @@
 
 > **Walkthrough version:** [*Get ready → 2. Set up your machine*](../start/ready/02-set-up-your-machine.md) covers the same setup with the linear-flow framing. This page remains the **authoritative deep reference** for prereqs, secrets, and troubleshooting — bookmark it.
 
-**One-time** workstation + subscription readiness.Run this once per partner machine and once per Azure subscription you'll deploy into; you do not re-read this every customer engagement. This is the authoritative reference for **setup, prereqs, secrets, and troubleshooting** — when this page and a chatmode disagree on setup mechanics, this page wins.
+**One-time** workstation + subscription readiness.Run this once per partner machine and once per Azure subscription you'll deploy into; you do not re-read this every customer engagement. This is the authoritative reference for **setup, prereqs, secrets, and troubleshooting** — when this page and a custom agent disagree on setup mechanics, this page wins.
 
 ## Where you'll work
 
@@ -64,7 +64,7 @@ This template supports **multi-environment BYO-Azure deploys**: `deploy/environm
 lists every Azure environment the pipeline can target, and each entry maps to a
 **GitHub Environment** (repo → Settings → Environments) that holds its own scoped
 OIDC credentials and region. Out of the box, the `dev` environment is registered.
-Add more via the `/deploy-to-env` chat mode — never by hand-editing `deploy.yml`.
+Add more via the `/deploy-to-env` custom agent — never by hand-editing `deploy.yml`.
 
 ### Environment-scoped secrets (repo → Settings → Environments → `<env>` → Environment secrets)
 

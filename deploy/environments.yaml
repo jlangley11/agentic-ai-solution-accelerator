@@ -7,7 +7,7 @@
 # plus a scoped variable (`AZURE_LOCATION`). The azd environment name
 # comes from this file's `name:` field — not from any `vars.AZURE_ENV_NAME`.
 #
-# To add a new environment, follow the `/deploy-to-env` chat mode; it
+# To add a new environment, follow the `/deploy-to-env` custom agent; it
 # walks through the manifest entry, GitHub Environment creation, OIDC
 # federated-credential setup, and a first workflow_dispatch run.
 #

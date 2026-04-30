@@ -12,7 +12,7 @@ Bicep block** showing the AVM module reference, the canonical
 parameters, and inline comments pointing at the AVM docs.
 
 These files are **NOT wired into `infra/main.bicep`**. They do not
-deploy on their own. The `/configure-landing-zone` chatmode walks the
+deploy on their own. The `/configure-landing-zone` custom agent walks the
 partner through copying them in.
 
 ## What's in here today

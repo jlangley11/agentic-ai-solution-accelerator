@@ -11,12 +11,12 @@
 
     **✅ Done when** — `/scaffold-from-brief` has run; the diff is reviewed and committed; `python scripts/accelerator-lint.py` passes.
 
-!!! tip "Chatmodes used here"
+!!! tip "Custom agents used here"
     [`/scaffold-from-brief`](../../../.github/agents/scaffold-from-brief.agent.md) → [`/define-grounding`](../../../.github/agents/define-grounding.agent.md) → [`/implement-workers`](../../../.github/agents/implement-workers.agent.md)
 
     Run them in that order. `/scaffold-from-brief` lays down the structural shape (folders, stub three-layer files, manifest skeleton). `/define-grounding` wires FoundryIQ + AI Search indexes + catalog tools into each worker declaratively. `/implement-workers` walks the supervisor DAG and fills every stub `prompt.py` / `transform.py` / `validate.py` + Foundry agent spec in dependency order.
 
-    Full reference: [Chatmodes overview](../../agents-index.md).
+    Full reference: [Custom agents overview](../../agents-index.md).
 
 ??? success "What success looks like"
     `git status` after the scaffold run shows changes spread across (typical):
@@ -83,7 +83,7 @@ Re-run `/scaffold-from-brief` whenever the brief changes — the same expansion 
 
 ## Wire grounding & implement workers
 
-`/scaffold-from-brief` only materialises the **structural** shape — folders, stub three-layer files, manifest skeleton. Two follow-up chatmodes turn the stubs into a working scenario, and they're the natural next steps before you commit:
+`/scaffold-from-brief` only materialises the **structural** shape — folders, stub three-layer files, manifest skeleton. Two follow-up custom agents turn the stubs into a working scenario, and they're the natural next steps before you commit:
 
 ```
 /define-grounding

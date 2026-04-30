@@ -75,7 +75,7 @@ You'll move between four places as you go through the lab. Every lab below opens
 
 | Where | What you do there | How to open it |
 |---|---|---|
-| **VS Code** | Run all repo-local commands in the integrated terminal (`` Ctrl+` ``), edit files (`accelerator.yaml`, agent specs, evals, prompts), and talk to GitHub Copilot Chat in the right sidebar (💬 icon or `Ctrl+Alt+I`; type `/` to see chatmodes like `/discover-scenario` and `/add-tool`) | After cloning, `code .` from any shell opens it on the repo |
+| **VS Code** | Run all repo-local commands in the integrated terminal (`` Ctrl+` ``), edit files (`accelerator.yaml`, agent specs, evals, prompts), and talk to GitHub Copilot Chat in the right sidebar (💬 icon or `Ctrl+Alt+I`; pick a custom agent from the agents dropdown, or type `/` for the slash equivalents like `/discover-scenario` and `/add-tool`) | After cloning, `code .` from any shell opens it on the repo |
 | **GitHub web (github.com)** | Watch Actions runs (optional in the lab; required for the real partner motion) | Your browser, on the cloned repo |
 | **Azure portal (portal.azure.com)** | Inspect the resource group, App Insights logs and dashboards, Foundry quota | Your browser, signed into the same tenant `azd` deployed to |
 | **Foundry portal (ai.azure.com)** | Visually confirm agents (Lab 5 demonstrates that portal edits get overwritten by spec files) | Your browser → https://ai.azure.com → sign in with the same tenant → select the project named in `azd env get-values` (look for `AZURE_AI_FOUNDRY_PROJECT_NAME`) → **Agents** in the left nav |
@@ -110,7 +110,7 @@ Lab 2 also has you open a local browser tab at `http://localhost:5173` for the r
    **About preflight:** the partner motion in `QUICKSTART.md` Step 4 has you run
    `/configure-landing-zone` and `/deploy-to-env` before `azd up`. The lab skips
    both: it deploys Tier 1 (`standalone`) into a sandbox where evals run locally,
-   so a GitHub Environment isn't required yet. You'll meet both chatmodes during
+   so a GitHub Environment isn't required yet. You'll meet both custom agents during
    your first real customer deploy. Cross-reference `QUICKSTART.md` Step 4 for
    the production motion.
 
@@ -495,11 +495,11 @@ try again. The acceptance gate is the contract.
 
 ## Lab 7 — Add a side-effect tool with `/add-tool`
 
-**Where:** VS Code — Copilot Chat sidebar for the chatmode, editor for any post-generation edits and the redteam case authoring, integrated terminal for `accelerator-lint.py` / `pytest` / the eval chain.
+**Where:** VS Code — Copilot Chat sidebar for the custom agent, editor for any post-generation edits and the redteam case authoring, integrated terminal for `accelerator-lint.py` / `pytest` / the eval chain.
 
 **Goal:** experience the scaffolded-with-HITL contract.
 
-1. In Copilot Chat, invoke `/add-tool`. The chatmode (see
+1. In Copilot Chat, invoke `/add-tool`. The custom agent (see
    `.github/agents/add-tool.agent.md`) asks for seven inputs:
    tool name, external system, operation, reversibility, HITL
    policy, which worker uses it, and auth approach.
@@ -510,14 +510,14 @@ try again. The acceptance gate is the contract.
    scaffolding and nudges you to register it on the appropriate
    worker, add a unit test, and add a redteam case under
    `evals/redteam/`. Confirm the worker registration actually
-   landed — the chatmode instructs it but partners have to verify.
+   landed — the custom agent instructs it but partners have to verify.
 4. Run `python scripts/accelerator-lint.py` — it must report
    `0 blocking, 0 warning findings`.
 5. Run `pytest -q` — the new test must pass.
 
 ### Author + run the redteam case
 
-The `/add-tool` chatmode tells you to add a redteam case for the new tool — that's
+The `/add-tool` custom agent tells you to add a redteam case for the new tool — that's
 the contract. Before calling the lab done, do both halves:
 
 1. Add a case to `evals/redteam/cases.jsonl` exercising prompt-injection or
@@ -562,7 +562,7 @@ didn't regress the scenario.
 
 1. In Copilot Chat, run `/discover-scenario` against a realistic
    sandbox scenario you make up (e.g. "summarize support tickets
-   weekly"). Answer the questions. The chatmode writes
+   weekly"). Answer the questions. The custom agent writes
    `docs/discovery/solution-brief.md` and updates
    `accelerator.yaml` `solution.*`, `acceptance.*`, and `kpis[]`
    from your answers — it does **not** touch the `scenario:`
@@ -570,7 +570,7 @@ didn't regress the scenario.
 
 2. In Copilot Chat, run `/scaffold-from-brief`. When prompted, give
    it a scenario id (e.g. `ticket-summary`) and a display name
-   (e.g. `Ticket Summary`). The chatmode calls
+   (e.g. `Ticket Summary`). The custom agent calls
    `scripts/scaffold-scenario.py` to materialise
    `src/scenarios/ticket_summary/` (schema, workflow, retrieval,
    supervisor agent package) plus the supervisor spec stub at
@@ -585,7 +585,7 @@ didn't regress the scenario.
 
 !!! info "Behind the scenes / fallback path"
     `/scaffold-from-brief` is a thin wrapper over a Python script.
-    If the chatmode fails midway, or if you're working without
+    If the custom agent fails midway, or if you're working without
     Copilot Chat (Codex CLI, Claude Code, Cursor, etc.), run the
     script directly:
 
@@ -642,7 +642,7 @@ didn't regress the scenario.
   `0 blocking, 0 warning findings`.
 - Decision rule for future engagements: **default path is
   `/scaffold-from-brief`; the Python script is the debug / fallback
-  mechanic.** Knowing both matters when a chatmode run fails
+  mechanic.** Knowing both matters when a custom agent run fails
   partway and you have to finish by hand.
 
 ---

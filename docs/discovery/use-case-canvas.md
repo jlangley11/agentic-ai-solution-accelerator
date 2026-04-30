@@ -95,7 +95,7 @@ that's fine; note the pattern as **single-agent** in Section 8.
 ## 8. Expected solution shape (partner hypothesis)
 
 The partner's guess before the workshop validates it. Three shapes
-ship in the template; the chatmode `/discover-scenario` will
+ship in the template; the custom agent `/discover-scenario` will
 recommend one after the workshop.
 
 - [ ] **supervisor-routing** — multiple specialists + aggregator +

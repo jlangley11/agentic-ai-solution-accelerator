@@ -6,7 +6,7 @@ tools: ['codebase', 'editFiles', 'search', 'runCommands']
 
 # /implement-worker — fill in a scaffolded worker
 
-Use this after a worker has been **structurally** added (by `/add-worker-agent` or as part of `/scaffold-from-brief`) but the three layer files (`prompt.py`, `transform.py`, `validate.py`) and the Foundry agent spec are still stubs. This chatmode produces a working, validated worker — no manual code-writing required.
+Use this after a worker has been **structurally** added (by `/add-worker-agent` or as part of `/scaffold-from-brief`) but the three layer files (`prompt.py`, `transform.py`, `validate.py`) and the Foundry agent spec are still stubs. This custom agent produces a working, validated worker — no manual code-writing required.
 
 ## Preconditions
 - `accelerator.yaml -> scenario.agents[]` lists the worker.
@@ -116,4 +116,4 @@ If the worker drifts another worker's quality numbers, the supervisor is mis-rou
 - **Never** mutate `request_data` inside `build_prompt`; treat it as read-only.
 - **Never** raise from `transform_response`; let the validator surface the failure.
 - **Never** call out to Foundry, AI Search, or any external system from these three files. The supervisor + `_invoke_agent` are the only orchestration points.
-- **Never** edit `accelerator.yaml -> scenario.agents[]` from this chatmode — that's `/define-grounding`.
+- **Never** edit `accelerator.yaml -> scenario.agents[]` from this custom agent — that's `/define-grounding`.

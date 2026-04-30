@@ -11,10 +11,10 @@
 
     **✅ Done when** — Quality evals ≥ acceptance thresholds in `accelerator.yaml`; redteam green; lint green; KPI events emitting in App Insights against real traffic.
 
-!!! tip "Chatmodes used here"
+!!! tip "Custom agents used here"
     [`/add-tool`](../../../.github/agents/add-tool.agent.md) · [`/add-worker-agent`](../../../.github/agents/add-worker-agent.agent.md) · [`/implement-worker`](../../../.github/agents/implement-worker.agent.md) · [`/explain-change`](../../../.github/agents/explain-change.agent.md) · [`/switch-to-variant`](../../../.github/agents/switch-to-variant.agent.md)
 
-    Full reference: [Chatmodes overview](../../agents-index.md).
+    Full reference: [Custom agents overview](../../agents-index.md).
 
 ??? success "What success looks like"
     `python scripts/enforce-acceptance.py` against the customer environment finishes with:

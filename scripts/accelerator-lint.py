@@ -2399,7 +2399,7 @@ def doc_links_resolve(ctx: Ctx) -> list[Finding]:
         slugs_by_path[p.resolve()] = slugs
 
     # Pages-only files use site-relative paths (QUICKSTART.md,
-    # chatmodes/..., about/...) that resolve only after the
+    # agents/..., about/...) that resolve only after the
     # prepare-pages.py staging step (custom agents are sourced from
     # .github/agents/<slug>.agent.md and staged into
     # docs-build/agents/<slug>.md — the .agent.md suffix is dropped
@@ -2444,7 +2444,7 @@ def doc_links_resolve(ctx: Ctx) -> list[Finding]:
 # ---------------------------------------------------------------------------
 _MKDOCS_EXCLUDED_FROM_NAV: set[str] = {
     # Canonical docs intentionally not in the site nav (deep-linked only,
-    # chatmodes included wholesale (sourced from .github/agents/), or flowchart source of truth):
+    # custom agents included wholesale (sourced from .github/agents/), or flowchart source of truth):
     "docs/partner-workflow.md",
     "docs/discovery/prd-conversion-prompt.md",
     "docs/discovery/solution-brief.md",

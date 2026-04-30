@@ -60,7 +60,7 @@ Copilot interviews you (in a workshop or live in the room) and writes `docs/disc
 
 ## Step 3 — Scaffold the solution from the brief
 
-**Where:** VS Code (Copilot Chat sidebar). The chatmode writes files into the open repo; review the diff in VS Code's Source Control panel afterwards.
+**Where:** VS Code (Copilot Chat sidebar). The custom agent writes files into the open repo; review the diff in VS Code's Source Control panel afterwards.
 
 ```
 /scaffold-from-brief
@@ -88,7 +88,7 @@ Commit the scaffolded changes. CI lint now runs; it will flag anything missing.
 
 ## Step 4 — Preflight: landing zone + GitHub Environment
 
-**Where:** VS Code (Copilot Chat sidebar) for both chatmodes. `/deploy-to-env` will also have you confirm settings on github.com → your repo → Settings → Environments at the end.
+**Where:** VS Code (Copilot Chat sidebar) for both custom agents. `/deploy-to-env` will also have you confirm settings on github.com → your repo → Settings → Environments at the end.
 
 Before `azd up`, make two decisions and wire one piece of OIDC plumbing. These take 5–15 minutes and prevent the most common first-deploy failures.
 

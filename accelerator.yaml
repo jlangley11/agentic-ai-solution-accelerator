@@ -1,7 +1,7 @@
 # accelerator.yaml — engagement manifest
 #
 # One source of truth for the engagement. Filled by the partner during the
-# discovery workshop (or by `/scaffold-from-brief` chat mode reading
+# discovery workshop (or by `/scaffold-from-brief` custom agent reading
 # docs/discovery/solution-brief.md). Read by:
 #   - scripts/accelerator-lint.py (policy checks in CI)
 #   - infra/ (some fields flow to Bicep parameters)
@@ -47,7 +47,7 @@ models:
 # -----------------------------------------------------------------------------
 # landing_zone:  AZURE AI LANDING ZONE alignment tier for the engagement.
 # Picked by the partner during discovery (or via /configure-landing-zone
-# chatmode). Read by scripts/accelerator-lint.py (mode-consistency rule)
+# custom agent). Read by scripts/accelerator-lint.py (mode-consistency rule)
 # and referenced from docs/patterns/azure-ai-landing-zone/README.md.
 #
 # Modes (pick ONE):
@@ -72,7 +72,7 @@ models:
 # Changing this value does NOT auto-rewrite infra/ — the lint rule
 # `landing_zone_mode_consistent` just asserts that the infra/ shape
 # matches the declared mode. Make the switch in Copilot Chat with the
-# /configure-landing-zone chatmode or use the AVM reference modules in
+# /configure-landing-zone custom agent or use the AVM reference modules in
 # infra/avm-reference/ and the overlay skeleton in infra/alz-overlay/.
 # -----------------------------------------------------------------------------
 landing_zone:

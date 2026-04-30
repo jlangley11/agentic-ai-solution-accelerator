@@ -39,7 +39,7 @@ TOOL_NAME = "<tool_name>"
 # scans every `src/tools/*.py` file for `HITL_POLICY` to identify
 # side-effect tools — without it, the file is treated as read-only and
 # the HITL gate is not enforced. Set to "always" / "never" /
-# "threshold(<field> < N)" per the chatmode prompt above.
+# "threshold(<field> < N)" per the custom agent prompt above.
 HITL_POLICY = "<always | never | threshold(<field> < N)>"
 
 

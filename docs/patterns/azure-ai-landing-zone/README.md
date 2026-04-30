@@ -10,7 +10,7 @@ leaving the enterprise partner to rewrite the infra.
 This pattern defines **three landing-zone tiers** the partner picks in
 `accelerator.yaml` (`landing_zone.mode`). The framework ships reference
 artifacts for each tier; Copilot helps the partner move between tiers
-via the `/configure-landing-zone` chatmode.
+via the `/configure-landing-zone` custom agent.
 
 ## Tier status
 
@@ -32,7 +32,7 @@ Tier 3 today gets you partway: when the overlay outputs are wired through `azd e
 **The shipped Container App is NOT vNet-integrated.** The managed environment ships in Azure's default (non-vNet) mode, which means: (a) the app container cannot reach the privatized back-end PEs from inside the spoke vNet, and (b) ingress cannot be routed through the hub firewall. The partner picks one of:
 
 1. **External env + App Gateway / Front Door fronted by the hub firewall** (simplest; `externalIngress: true` and public traffic traverses the hub). Requires partner to provision AGW/AFD.
-2. **Internal env + vNet integration.** Partner enlarges `workloadSubnetPrefix` to `/23`, sets `externalIngress: false`, and adds `vnetConfiguration` + a PE on the managed env. The `/configure-landing-zone` chatmode walks through subnet enlargement; the PE + DNS link are authored by hand.
+2. **Internal env + vNet integration.** Partner enlarges `workloadSubnetPrefix` to `/23`, sets `externalIngress: false`, and adds `vnetConfiguration` + a PE on the managed env. The `/configure-landing-zone` custom agent walks through subnet enlargement; the PE + DNS link are authored by hand.
 
 If you set `mode: alz-integrated`, deploy, and skip the overlay output wiring, the workload will be provisioned with public access off and the PEs uncreated — services become **unreachable**. That fails closed (intentional).
 
@@ -80,7 +80,7 @@ enterprise.
 ## Tier 2 — `avm` (AVM-aligned standalone)
 
 > **What's shipped today vs partner-authored:**
-> - **Shipped:** AVM exemplars in `infra/avm-reference/{key-vault,ai-search,container-app,monitor}.bicep` (each compiles standalone with `az bicep build`); the `landing_zone_mode_consistent` lint rule; `/configure-landing-zone` chatmode for the migration walk-through.
+> - **Shipped:** AVM exemplars in `infra/avm-reference/{key-vault,ai-search,container-app,monitor}.bicep` (each compiles standalone with `az bicep build`); the `landing_zone_mode_consistent` lint rule; `/configure-landing-zone` custom agent for the migration walk-through.
 > - **Partner authors:** the `cp` of each exemplar into `infra/modules/`, validation against their region/quota, the new vNet + subnet + private DNS zones in their subscription, and the `landing_zone.avm_services` declaration in `accelerator.yaml`. Foundry stays hand-rolled (intentionally not in AVM).
 > - **Reach for:** mid-market with PEs and AVM cadence; no hub yet.
 
@@ -120,7 +120,7 @@ inherits from AVM's opinions.
 ## Tier 3 — `alz-integrated` (Azure AI Landing Zone)
 
 > **What's shipped today vs partner-authored:**
-> - **Shipped:** `infra/alz-overlay/main.bicep` subscription-scope deploy (spoke RG + vNet + NSG + peering, opt-in hub DNS zone vNet-link); `infra/main.parameters.alz.json` pre-baked Tier 3 workload parameters; `/configure-landing-zone` chatmode that fills in hub resource IDs.
+> - **Shipped:** `infra/alz-overlay/main.bicep` subscription-scope deploy (spoke RG + vNet + NSG + peering, opt-in hub DNS zone vNet-link); `infra/main.parameters.alz.json` pre-baked Tier 3 workload parameters; `/configure-landing-zone` custom agent that fills in hub resource IDs.
 > - **Partner authors:** coordination with the customer's CCoE for subscription vending; the UDR (route table on spoke subnet → hub firewall) — overlay provisions the subnet + NSG, but **the UDR is not shipped**; MG placement; hub DNS zone identity access; engagement-specific env-var defaults.
 > - **Reach for:** regulated enterprise; customers with an existing AI ALZ or general ALZ; Financial Services / Health / Public Sector.
 

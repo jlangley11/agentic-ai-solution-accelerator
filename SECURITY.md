@@ -15,7 +15,7 @@ In-scope:
 - Shipped Bicep modules + azd templates (`infra/`)
 - Accelerator lint (`scripts/accelerator-lint.py`), scaffold CLI (`scripts/scaffold-scenario.py`), in-app FastAPI startup bootstrap (`src/bootstrap.py`)
 - Schema files (`accelerator.yaml` contract) and the manifest loader (`src/workflow/registry.py`)
-- Copilot instructions + chat modes (for prompt-injection-enabling issues)
+- Copilot instructions + custom agents (for prompt-injection-enabling issues)
 - Eval runners (`evals/quality/`, `evals/redteam/`)
 
 **Out of scope:**

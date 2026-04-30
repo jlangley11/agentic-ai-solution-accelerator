@@ -28,7 +28,7 @@ have a clear tier:
    - Yes → Tier 1 (`standalone`). Skip to step 3.
 4. **Unknown / not decided?**
    - Default to Tier 1 (`standalone`). Call out that moving to Tier 2
-     or Tier 3 later is supported via this same chatmode.
+     or Tier 3 later is supported via this same custom agent.
 
 ## 2. Confirm before making changes
 State the target tier and the files you will touch. Wait for explicit

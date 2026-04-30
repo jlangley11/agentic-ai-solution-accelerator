@@ -122,7 +122,7 @@ These happen inside the stages above but aren't first-order navigation targets:
 
 - **ROI quantification** — fill `docs/discovery/roi-calculator.xlsx` after solution brief Section 3 / Section 4 are confirmed, during D1. Feeds telemetry KPI names in E1. See [`discovery/how-to-use.md`](discovery/how-to-use.md).
 - **Pattern switch** — if the brief's solution shape isn't supervisor-routing, run `/switch-to-variant` during E1 before scaffolding. See [`.github/agents/switch-to-variant.agent.md`](../.github/agents/switch-to-variant.agent.md).
-- **Incident feedback loop** — the dashed arrow `C2 ⇢ D7` represents customer ops surfacing incidents or usage gaps back to the delivery lead for next-engagement learnings; no dedicated chatmode.
+- **Incident feedback loop** — the dashed arrow `C2 ⇢ D7` represents customer ops surfacing incidents or usage gaps back to the delivery lead for next-engagement learnings; no dedicated custom agent.
 
 ---
 
@@ -131,7 +131,7 @@ These happen inside the stages above but aren't first-order navigation targets:
 - [`partner-playbook.md`](partner-playbook.md) — narrative companion; the 7-stage motion in prose, with "what good looks like" per stage.
 - [`../QUICKSTART.md`](../QUICKSTART.md) — 15-minute mechanics summary (for the engineer persona).
 - [`../README.md`](../README.md) — the repo-level router.
-- [`../.github/agents/delivery-guide.agent.md`](../.github/agents/delivery-guide.agent.md) — the delivery-guide entry point; other chatmodes sit alongside it and win on conflict with narrative docs.
+- [`../.github/agents/delivery-guide.agent.md`](../.github/agents/delivery-guide.agent.md) — the delivery-guide entry point; other custom agents sit alongside it and win on conflict with narrative docs.
 
 ---
 

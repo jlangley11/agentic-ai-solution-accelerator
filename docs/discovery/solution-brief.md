@@ -1,6 +1,6 @@
 # Solution Brief — <Customer>
 
-> **STATUS: TEMPLATE.** This is the unmodified template shipped with the accelerator. Fill it via `/discover-scenario` (or `/ingest-prd` then `/discover-scenario` for gap-fill). The chatmodes overwrite this banner on completion; lint exempts the brief while the banner is present.
+> **STATUS: TEMPLATE.** This is the unmodified template shipped with the accelerator. Fill it via `/discover-scenario` (or `/ingest-prd` then `/discover-scenario` for gap-fill). The custom agents overwrite this banner on completion; lint exempts the brief while the banner is present.
 
 <!-- Template-fill marker: Replace `<customer-slug>` with the engagement slug (e.g., contoso-q4-research) and `<Customer>` with the customer display name. -->
 

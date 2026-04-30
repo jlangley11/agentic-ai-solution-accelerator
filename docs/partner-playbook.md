@@ -1,6 +1,6 @@
 # Partner playbook — end-to-end delivery motion
 
-This playbook is the narrative companion to the `/delivery-guide` chatmode. It
+This playbook is the narrative companion to the `/delivery-guide` custom agent. It
 is written for a **Microsoft partner delivery lead** running an engagement from
 SOW to production handover using this accelerator. It explains **why** the
 motion is shaped this way and **what "done" looks like** at each stage.
@@ -35,7 +35,7 @@ This matters for scoping the SOW honestly.
 
 | Concern                      | In the accelerator                                                                 | Partner owns                                        |
 |------------------------------|-------------------------------------------------------------------------------------|-----------------------------------------------------|
-| Discovery structure          | `/discover-scenario` chatmode + `docs/discovery/solution-brief.md` template         | Customer workshop facilitation, stakeholder map     |
+| Discovery structure          | `/discover-scenario` custom agent + `docs/discovery/solution-brief.md` template         | Customer workshop facilitation, stakeholder map     |
 | Scenario scaffold            | `/scaffold-from-brief` + `scripts/scaffold-scenario.py` + `scripts/scaffold-agent.py` | Scenario-specific prompts, tools, grounding sources |
 | Infra                        | `infra/` (AVM-based) + `azure.yaml` + `deploy/environments.yaml`                     | Customer network / private-link overlay if required |
 | CI / CD                      | `.github/workflows/{deploy,evals,lint}.yml` + `scripts/accelerator-lint.py`         | Branch protection, required reviewers               |
@@ -65,7 +65,7 @@ their branding) — not the template itself.
 `accelerator.yaml` so the scaffolding step has everything it needs.
 
 **How:** run `/discover-scenario` in GitHub Copilot Chat (or any chat-mode-aware
-IDE). The chatmode walks you (or you + customer live) through 7
+IDE). The custom agent walks you (or you + customer live) through 7
 sections: business context, personas, measurable success criteria, ROI
 hypothesis, solution shape, constraints/risks, acceptance evals.
 
@@ -99,12 +99,12 @@ hypothesis, solution shape, constraints/risks, acceptance evals.
 
 ## Stage 2 — Scaffold
 
-**Where:** VS Code throughout — Copilot Chat sidebar (open via `Ctrl+Alt+I`; pick a chatmode from the **agents dropdown** at the top of the panel), editor for diff review, integrated terminal for the lint/test/preflight commands.
+**Where:** VS Code throughout — Copilot Chat sidebar (open via `Ctrl+Alt+I`; pick a custom agent from the **agents dropdown** at the top of the panel), editor for diff review, integrated terminal for the lint/test/preflight commands.
 
 **Goal:** adapt the repo to the customer's scenario — a clean diff reviewers
 can follow.
 
-**How:** run three chatmodes in sequence. Each chatmode is declarative — it
+**How:** run three custom agents in sequence. Each custom agent is declarative — it
 edits files and updates the manifest; you review the diff after each step
 before moving to the next.
 
@@ -119,7 +119,7 @@ the script and the `scaffold-agent.py` it pairs with auto-seed
 `evals/quality/golden_cases.jsonl` with a stub `q-001` so lint stays green
 without manual eval-file edits.
 
-**What `/scaffold-from-brief` materializes** (one chatmode invocation;
+**What `/scaffold-from-brief` materializes** (one custom agent invocation;
 the underlying CLI is `python scripts/scaffold-scenario.py <scenario-id>`):
 
 - `src/scenarios/<package>/{__init__,schema,workflow,retrieval}.py`
@@ -148,7 +148,7 @@ scaffolded-but-unfinished worker, walked in dependency order off the
 `/implement-worker <worker_id>` to fill a single worker (same code path,
 narrower scope).
 
-**Manual touch-ups after the chatmode trio runs:**
+**Manual touch-ups after the custom-agent trio runs:**
 
 - Paste the `scenario:` snippet into `accelerator.yaml` and re-sync
   `solution.*`, `acceptance.*`, and `kpis[]` from the brief
@@ -161,10 +161,10 @@ narrower scope).
 - Create `src/tools/<tool_name>.py` per side-effect tool via `/add-tool`
   (each wrapped in `hitl.checkpoint(...)`)
 
-**Escape hatch (advanced / fallback):** if a chatmode fails midway, the
+**Escape hatch (advanced / fallback):** if a custom agent fails midway, the
 underlying scripts run directly — `python scripts/scaffold-scenario.py
 <id>`, `python scripts/scaffold-agent.py <agent_id> --scenario <scenario-id>
---capability "<one-liner>"`. The chatmodes wrap these with brief-driven
+--capability "<one-liner>"`. The custom agents wrap these with brief-driven
 customization; the scripts alone only do the structural scaffold.
 
 **What "good" looks like:**
@@ -184,7 +184,7 @@ customization; the scripts alone only do the structural scaffold.
 **If the pattern is single-agent or chat-with-actioning** instead of the
 flagship supervisor pattern, run `/switch-to-variant` to swap in the stub
 scaffold from `patterns/single-agent/` or `patterns/chat-with-actioning/`
-(each ships a single source file + a chatmode that copies it over
+(each ships a single source file + a custom agent that copies it over
 `src/main.py`, prunes flagship workers, and updates
 `accelerator.yaml.solution.pattern`). Then finish re-authoring under
 `src/scenarios/<new-id>/` using the flagship as the reference shape.
@@ -204,7 +204,7 @@ named environment.
 **How:**
 
 1. `/configure-landing-zone` to pick the Azure AI Landing Zone tier and
-   update `accelerator.yaml` + `infra/` accordingly. The chatmode covers
+   update `accelerator.yaml` + `infra/` accordingly. The custom agent covers
    three tiers:
    - **Tier 1 — `standalone`** (default; pilot / SMB greenfield / partner
      self-host): public endpoints, minimal infra.
@@ -289,7 +289,7 @@ the **authoring source of truth**; `src/bootstrap.py` syncs the spec verbatim
 to the Foundry portal at FastAPI startup on every `azd up` / `azd deploy`.
 Treat the repo as the audit trail — every PR that edits a `prompt.py`, an
 agent spec, a tool, or an acceptance threshold is the durable record. The
-`/explain-change` chatmode is a **read-only CI preflight** — it tells you
+`/explain-change` custom agent is a **read-only CI preflight** — it tells you
 which lint rules and evals will fire for the current diff; it does not write
 changelogs.
 
@@ -341,7 +341,7 @@ safety pass, P50/P95 latency, cost per call.
 
 **When UAT fails:** it is almost always one of (1) grounding source coverage,
 (2) prompt specificity, or (3) tool guard strictness. The delivery-guide
-chatmode has a triage tree for each.
+custom agent has a triage tree for each.
 
 ---
 
@@ -380,7 +380,7 @@ path, customer-specific deviations from shipped defaults, SLAs, contacts).
 **What "good" looks like:**
 
 - Zero manual steps outside the documented scripts — anything that isn't in
-  a script or chatmode is a risk item in the handover
+  a script or custom agent is a risk item in the handover
 - Customer can repro `azd up` from scratch against a new env without
   partner assistance
 - The handover packet lists owner, SLA, alerting, and rollback — no
@@ -409,7 +409,7 @@ no spreadsheets, no screenshots of runs.
 
 ---
 
-## Chatmodes and scripts at a glance
+## Custom agents and scripts at a glance
 
 | When you need to…                            | Use                                                                  |
 |----------------------------------------------|----------------------------------------------------------------------|

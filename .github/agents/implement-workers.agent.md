@@ -6,7 +6,7 @@ tools: ['codebase', 'editFiles', 'search', 'runCommands']
 
 # /implement-workers — finish every scaffolded worker in one pass
 
-Use this when `/scaffold-from-brief` (or a sequence of `/add-worker-agent` calls) has stood up the structural shape of a multi-worker scenario but the three-layer files are still stubs. This chatmode delegates to `/implement-worker` for each worker, walking the supervisor DAG in dependency order so upstream context is always available before downstream workers are filled in.
+Use this when `/scaffold-from-brief` (or a sequence of `/add-worker-agent` calls) has stood up the structural shape of a multi-worker scenario but the three-layer files are still stubs. This custom agent delegates to `/implement-worker` for each worker, walking the supervisor DAG in dependency order so upstream context is always available before downstream workers are filled in.
 
 ## Preconditions
 - `accelerator.yaml -> scenario.agents[]` lists every worker.
@@ -65,4 +65,4 @@ python scripts/enforce-acceptance.py
 ## Guardrails
 - Never run multiple `/implement-worker` invocations in parallel — they need to read each other's specs to wire build_input correctly.
 - Never skip the per-worker validation step. A regression caught after worker N+1 is implemented costs N+1 hours to bisect.
-- Never re-run this chatmode after partial completion; re-invoke `/implement-worker` directly for the specific worker that failed. This chatmode is for the **clean-slate** fill-in.
+- Never re-run this custom agent after partial completion; re-invoke `/implement-worker` directly for the specific worker that failed. This custom agent is for the **clean-slate** fill-in.
