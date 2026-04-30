@@ -185,11 +185,22 @@ events they wired, if any.
 
 ### Dashboard
 
-`infra/dashboards/roi-kpis.json` is a paste-ready Azure Monitor Workbook
-(Advanced Editor JSON). It is **not auto-deployed**. To install it:
-in your Application Insights resource go to Workbooks → New → click the
-`</>` Advanced Editor icon → replace the default contents with this
-file's JSON → Apply → Save. Lab 3 walks through this end-to-end.
+`infra/dashboards/roi-kpis.json` is an Azure Monitor Workbook
+(Advanced Editor JSON) **auto-deployed by `infra/modules/monitor.bicep`**
+on every `azd provision`. Open your Application Insights resource →
+**Workbooks → Shared workbooks → "Agentic AI Accelerator — ROI KPIs"**.
+
+The portal copy is fully editable — partner customizations stay until
+the next `azd provision`, which overwrites it from the source-of-truth
+JSON (same pattern as the Foundry content-filter policy). To customize
+durably, edit `infra/dashboards/roi-kpis.json` and re-provision.
+
+??? note "Manual paste-install (legacy / non-azd path)"
+    If you're working against an environment that wasn't deployed via
+    `azd up` (for example a pre-existing App Insights), open Workbooks
+    → New → click the `</>` Advanced Editor icon → replace the default
+    contents with the file's JSON → Apply → Save. Lab 3 walks this
+    end-to-end as a fallback.
 
 It ships 5 live-traffic panels — every one populates after a single
 end-to-end smoke test through the frontend:
@@ -215,6 +226,30 @@ land there with `message == event.name` and attributes in
 `customDimensions`). The latency panel queries `requests`. If the
 resource is shared with other workloads, add a `cloud_RoleName` filter
 before operationalizing.
+
+### From KPI to trace
+
+When a workbook panel shows a failure, the goal is the full distributed
+trace for that one request. The shipped workflow:
+
+1. **Spot the red bar.** "Responses by outcome" or "Workers completed
+   by agent" shows a non-zero failure count.
+2. **Scroll to "Latest failures and rejected actions".** Sorted newest
+   first; the failing request is at the top of the panel.
+3. **Click the `operation_Id` cell.** The link button opens Application
+   Insights → Transaction Search. Paste the operation_Id into the
+   Operation ID filter to load the end-to-end transaction.
+4. **Read the waterfall.** Spans are emitted by Foundry + tool calls;
+   accelerator KPI events appear as `traces` rows correlated by the
+   same `operation_Id` (see `src/accelerator_baseline/telemetry.py`
+   for why `emit_event` doesn't double-count). The supervisor decision
+   record (`supervisor.routed`) names which workers it dispatched and
+   why.
+
+If the workbook link doesn't open Transaction Search (e.g. a sovereign
+or older portal build), the fallback is identical: copy the
+`operation_Id` value, open Application Insights → Transaction Search
+from the left nav, paste into the Operation ID filter.
 
 ### Alerts
 

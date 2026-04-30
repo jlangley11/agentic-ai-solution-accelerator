@@ -37,8 +37,8 @@ After `azd up` the accelerator emits and gates without partner intervention:
 
 ## When something breaks
 
-1. **Open App Insights.** Filter on `severityLevel >= 3` for the failing time window.
-2. **Find the trace.** Each end-to-end request emits a trace with the supervisor decision record + every worker invocation + every tool call (with HITL outcome).
+1. **Open App Insights.** Filter on `severityLevel >= 3` for the failing time window. The auto-deployed **ROI KPIs workbook** ([Section 2 — Dashboard](../../customer-runbook.md#dashboard)) is the fastest entry point — the "Latest failures and rejected actions" panel sorts the latest failures with a one-click `operation_Id` jump to Transaction Search.
+2. **Find the trace.** Each end-to-end request emits a trace with the supervisor decision record + every worker invocation + every tool call (with HITL outcome). The from-KPI-to-trace recipe lives in [Section 2 — From KPI to trace](../../customer-runbook.md#from-kpi-to-trace).
 3. **Check the lint + eval status on `main`.** If the post-deploy regression suite is red, that's where the regression entered.
 4. **Roll back if needed.** `azd deploy` against a tagged commit; document in the packet's rollback section.
 5. **File a PR with the fix.** PR-gated CI (lint + quality evals + redteam) blocks merge until green.

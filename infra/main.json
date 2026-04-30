@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "4448132981423367287"
+      "templateHash": "11468785648868958131"
     }
   },
   "parameters": {
@@ -88,7 +88,7 @@
       "type": "string",
       "defaultValue": "accel-search",
       "metadata": {
-        "description": "Name of the project-level Cognitive Search connection inside the Foundry project. Bootstrap (FoundryIQ Index asset) references this name when wiring the agent tool."
+        "description": "Name of the project-level Cognitive Search connection inside the Foundry project. Used for AAD-based search access from the project."
       }
     },
     "kbMcpConnectionName": {
@@ -164,7 +164,11 @@
             {
               "name": "accounts",
               "seed": "data/samples/accounts.json",
-              "schema": "retrieval:index_definition"
+              "schema": "retrieval:index_definition",
+              "source_data_fields": [
+                "source",
+                "company_name"
+              ]
             }
           ]
         },
@@ -196,8 +200,8 @@
       "acceptance": {
         "quality_threshold": "[json('0.75')]",
         "groundedness_threshold": "[json('0.85')]",
-        "p95_latency_ms": 90000,
-        "cost_per_call_usd": "[json('0.4')]",
+        "p95_latency_ms": 180000,
+        "cost_per_call_usd": "[json('0.55')]",
         "redteam_must_pass": true
       },
       "controls": {
@@ -455,7 +459,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "17750689644413382546"
+              "templateHash": "17639907669160377849"
             }
           },
           "parameters": {
@@ -471,6 +475,9 @@
             "tags": {
               "type": "object"
             }
+          },
+          "variables": {
+            "$fxv#0": "{\r\n  \"version\": \"Notebook/1.0\",\r\n  \"items\": [\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"## Agentic AI Accelerator — Live telemetry\\n\\nPaste-ready Azure Monitor Workbook for the accelerator's flagship scenario. Every panel is backed by an event that fires on a normal end-to-end request, so a single smoke test through the frontend should populate them.\\n\\n**How to use:** in your Application Insights resource, open **Workbooks → New → Advanced Editor** (the `</>` icon), replace the default JSON with this file's contents, then click **Apply**. Save with a descriptive name per engagement.\\n\\n**Where the data comes from:** every panel queries the `traces` table (or `requests` for latency) for events emitted by `src/accelerator_baseline/telemetry.py::emit_event`. The `isnotempty(customDimensions.event_name)` filter scopes results to accelerator events specifically (and not generic FastAPI/uvicorn/OTel rows that also land in `traces`). Use the **Time Range** picker below to widen or narrow the window across all panels at once.\\n\\n**Cost-per-call and groundedness aren't shipped here** because they aren't emitted by live frontend traffic — cost requires partner-wired `record_call_cost(...)` calls and groundedness comes from `evals/quality/` runs. Acceptance gates for both still live in `accelerator.yaml -> acceptance`. Wire those panels in when the underlying events fire.\\n\\n**To add a KPI:** append a new `KqlItem/1.0` entry under `items[]` below — same shape as the existing query items. Set `timeContextFromParameter` to `TimeRange` so the new panel honors the global picker. Keep the `resourceType` as `microsoft.insights/components` so the panel binds to whichever Application Insights instance the workbook is opened against.\"\r\n      },\r\n      \"name\": \"title-and-context\"\r\n    },\r\n    {\r\n      \"type\": 9,\r\n      \"content\": {\r\n        \"version\": \"KqlParameterItem/1.0\",\r\n        \"parameters\": [\r\n          {\r\n            \"id\": \"0a0a0a0a-0000-4000-8000-000000000001\",\r\n            \"version\": \"KqlParameterItem/1.0\",\r\n            \"name\": \"TimeRange\",\r\n            \"label\": \"Time Range\",\r\n            \"type\": 4,\r\n            \"isRequired\": true,\r\n            \"value\": {\r\n              \"durationMs\": 86400000\r\n            },\r\n            \"typeSettings\": {\r\n              \"selectableValues\": [\r\n                {\"durationMs\": 900000},\r\n                {\"durationMs\": 3600000},\r\n                {\"durationMs\": 14400000},\r\n                {\"durationMs\": 43200000},\r\n                {\"durationMs\": 86400000},\r\n                {\"durationMs\": 172800000},\r\n                {\"durationMs\": 604800000},\r\n                {\"durationMs\": 2592000000}\r\n              ]\r\n            }\r\n          }\r\n        ]\r\n      },\r\n      \"name\": \"time-range-parameter\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"### Responses by outcome\\n\\nTwo bars per day, side-by-side: **successful responses** (green) and **failed responses** (red). Each end-to-end frontend request emits exactly one `response.returned` event when the orchestrator finishes. If you see red here, jump straight to **Latest failures and rejected actions** at the bottom for the actual error message and the component that raised it.\\n\\nThis is the partner-facing health signal you want to wire into Azure Monitor alerts (see `customer-runbook.md` Section 2).\"\r\n      },\r\n      \"name\": \"responses-by-outcome-explainer\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"traces\\n| where message == 'response.returned'\\n| where isnotempty(customDimensions.event_name)\\n| extend ok = tobool(customDimensions.ok)\\n| summarize success = countif(ok == true), failure = countif(ok == false) by bin(timestamp, 1d)\\n| render columnchart\",\r\n        \"size\": 0,\r\n        \"title\": \"Responses by outcome\",\r\n        \"noDataMessage\": \"No response.returned events in the selected window. Run the flagship scenario once through the frontend.\",\r\n        \"noDataMessageStyle\": 3,\r\n        \"timeContextFromParameter\": \"TimeRange\",\r\n        \"queryType\": 0,\r\n        \"resourceType\": \"microsoft.insights/components\",\r\n        \"chartSettings\": {\r\n          \"seriesLabelSettings\": [\r\n            {\"seriesName\": \"success\", \"label\": \"success\", \"color\": \"green\"},\r\n            {\"seriesName\": \"failure\", \"label\": \"failure\", \"color\": \"redBright\"}\r\n          ]\r\n        }\r\n      },\r\n      \"name\": \"responses-by-outcome\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"### Workflow runs (supervisor routed)\\n\\nThe supervisor agent decides which specialist workers to invoke for each request. It emits one `supervisor.routed` event per request — so this panel should equal the number of requests that successfully reached the orchestrator (typically matches **success + failure** in the panel above).\\n\\nA gap between this and **Responses by outcome** means a request died before reaching the supervisor (auth, validation, frontend error).\"\r\n      },\r\n      \"name\": \"workflow-runs-explainer\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"traces\\n| where message == 'supervisor.routed'\\n| where isnotempty(customDimensions.event_name)\\n| summarize workflow_runs = count() by bin(timestamp, 1d)\\n| render timechart\",\r\n        \"size\": 0,\r\n        \"title\": \"Workflow runs (supervisor routed)\",\r\n        \"noDataMessage\": \"No supervisor.routed events. Each end-to-end request emits exactly one — populates after a smoke test.\",\r\n        \"noDataMessageStyle\": 3,\r\n        \"timeContextFromParameter\": \"TimeRange\",\r\n        \"queryType\": 0,\r\n        \"resourceType\": \"microsoft.insights/components\"\r\n      },\r\n      \"name\": \"workflow-runs\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"### Workers completed by agent\\n\\nThe flagship scenario fans out a single request across multiple specialist workers in parallel (e.g. `account_planner`, `news_signals`, `competitive_landscape`). Each emits a `worker.completed` event when it finishes. Bars are grouped by worker name (`customDimensions.external_system`) and split into **succeeded** (green) vs **failed** (red).\\n\\n**Reading this panel:** if a worker you expected is missing, the supervisor skipped it (intent didn't match) or an upstream dependency failed. If a bar is mostly red, the failure pattern is concentrated in one specialist — its prompt or tool config is the place to look.\"\r\n      },\r\n      \"name\": \"workers-by-agent-explainer\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"traces\\n| where message == 'worker.completed'\\n| where isnotempty(customDimensions.event_name)\\n| extend agent = tostring(customDimensions.external_system), ok = tobool(customDimensions.ok)\\n| summarize succeeded = countif(ok == true), failed = countif(ok == false) by bin(timestamp, 1d), agent\\n| render columnchart\",\r\n        \"size\": 0,\r\n        \"title\": \"Workers completed by agent\",\r\n        \"noDataMessage\": \"No worker.completed events. Populates per worker (account_planner, news_signals, ...) after a smoke test.\",\r\n        \"noDataMessageStyle\": 3,\r\n        \"timeContextFromParameter\": \"TimeRange\",\r\n        \"queryType\": 0,\r\n        \"resourceType\": \"microsoft.insights/components\",\r\n        \"chartSettings\": {\r\n          \"seriesLabelSettings\": [\r\n            {\"seriesName\": \"succeeded\", \"label\": \"succeeded\", \"color\": \"green\"},\r\n            {\"seriesName\": \"failed\", \"label\": \"failed\", \"color\": \"redBright\"}\r\n          ]\r\n        }\r\n      },\r\n      \"name\": \"workers-by-agent\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"### P95 end-to-end latency\\n\\n95th-percentile time the **full orchestration** took, by hour. \\\"P95\\\" means 95% of requests completed faster than this value — the standard partner-facing SLA signal (less noisy than max, less hand-wavy than average).\\n\\nThis is measured from when the workflow received the request to when it emits `response.returned`, so it includes every specialist worker, retrieval call, and aggregation. The FastAPI ``requests`` table can't capture this because the SSE handler returns near-instantly while the briefing streams in the background — partners chasing real latency want this number, not the handler latency.\\n\\nThe target lives in `accelerator.yaml -> acceptance.p95_latency_ms` (default: 90 seconds per briefing). If this trends above target, cross-reference with **Workers completed by agent** to identify the slow specialist.\"\r\n      },\r\n      \"name\": \"p95-request-latency-explainer\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"traces\\n| where message == 'response.returned'\\n| where isnotempty(customDimensions.event_name)\\n| extend elapsed_s = todouble(customDimensions.value) / 1000.0\\n| where isnotnull(elapsed_s)\\n| summarize p95_latency_s = percentile(elapsed_s, 95) by bin(timestamp, 1h)\\n| render timechart\",\r\n        \"size\": 0,\r\n        \"title\": \"P95 end-to-end latency (s)\",\r\n        \"noDataMessage\": \"No response.returned events with elapsed_ms in window. Run the flagship scenario once.\",\r\n        \"noDataMessageStyle\": 3,\r\n        \"timeContextFromParameter\": \"TimeRange\",\r\n        \"queryType\": 0,\r\n        \"resourceType\": \"microsoft.insights/components\"\r\n      },\r\n      \"name\": \"p95-request-latency\"\r\n    },\r\n    {\r\n      \"type\": 1,\r\n      \"content\": {\r\n        \"json\": \"### Latest failures and rejected actions\\n\\nThe first place to look when a smoke test misbehaves. Surfaces five categories of \\\"something went wrong\\\":\\n\\n- `tool.failed` — a tool the supervisor invoked threw an exception\\n- `tool.hitl_misconfigured` — a side-effect tool was triggered but no HITL approver is wired (sandbox / partner-starter mode)\\n- `tool.hitl_rejected` — a human approver explicitly said no\\n- `response.returned ok=false` — the workflow died before producing a briefing\\n- `worker.completed ok=false` / `retrieval.returned ok=false` / `tool.executed ok=false` — a specific component failed\\n\\nEach row shows the timestamp, event name, the component that raised it (`external_system`), the error message, and the **`operation_Id`**. Click the operation_Id cell — workbooks open Transaction Search; paste the value into the Operation ID box for the full distributed-trace waterfall (supervisor decision → worker spans → tool calls). See `customer-runbook.md` Section 2 for the from-KPI-to-trace recipe. Empty = all green in the selected window.\"\r\n      },\r\n      \"name\": \"latest-failures-explainer\"\r\n    },\r\n    {\r\n      \"type\": 3,\r\n      \"content\": {\r\n        \"version\": \"KqlItem/1.0\",\r\n        \"query\": \"traces\\n| where isnotempty(customDimensions.event_name)\\n| extend ok_str = tostring(customDimensions.ok)\\n| extend ok = iff(isempty(ok_str), dynamic(null), tobool(ok_str))\\n| where message in ('tool.failed', 'tool.hitl_misconfigured', 'tool.hitl_rejected')\\n    or (message in ('response.returned', 'worker.completed', 'retrieval.returned', 'tool.executed') and ok == false)\\n| project timestamp, event = message, component = tostring(customDimensions.external_system), error = tostring(customDimensions.error), operation_Id\\n| order by timestamp desc\",\r\n        \"size\": 0,\r\n        \"title\": \"Latest failures and rejected actions\",\r\n        \"noDataMessage\": \"No failures or rejected actions in window — all green.\",\r\n        \"noDataMessageStyle\": 3,\r\n        \"timeContextFromParameter\": \"TimeRange\",\r\n        \"queryType\": 0,\r\n        \"resourceType\": \"microsoft.insights/components\",\r\n        \"gridSettings\": {\r\n          \"formatters\": [\r\n            {\r\n              \"columnMatch\": \"operation_Id\",\r\n              \"formatter\": 7,\r\n              \"formatOptions\": {\r\n                \"linkTarget\": \"OpenBlade\",\r\n                \"linkLabel\": \"View transaction\",\r\n                \"linkIsContextBlade\": true,\r\n                \"bladeOpenContext\": {\r\n                  \"bladeName\": \"ResourceMenuBlade\",\r\n                  \"extensionName\": \"Microsoft_Azure_Monitoring\",\r\n                  \"parameters\": {\r\n                    \"menuid\": \"transactionSearch\"\r\n                  }\r\n                }\r\n              }\r\n            }\r\n          ]\r\n        }\r\n      },\r\n      \"name\": \"latest-failures\"\r\n    }\r\n  ],\r\n  \"fallbackResourceIds\": [],\r\n  \"$schema\": \"https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json\"\r\n}\r\n"
           },
           "resources": [
             {
@@ -501,6 +508,24 @@
               "dependsOn": [
                 "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
               ]
+            },
+            {
+              "type": "Microsoft.Insights/workbooks",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, 'roi-kpis', parameters('appInsightsName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "shared",
+              "properties": {
+                "displayName": "Agentic AI Accelerator — ROI KPIs",
+                "serializedData": "[variables('$fxv#0')]",
+                "sourceId": "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]",
+                "category": "workbook",
+                "version": "1.0"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]"
+              ]
             }
           ],
           "outputs": {
@@ -511,6 +536,10 @@
             "logAnalyticsId": {
               "type": "string",
               "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+            },
+            "roiWorkbookId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/workbooks', guid(resourceGroup().id, 'roi-kpis', parameters('appInsightsName')))]"
             }
           }
         }
@@ -1484,7 +1513,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.40.2.10011",
-              "templateHash": "7293719527169707312"
+              "templateHash": "17763523576558313025"
             }
           },
           "parameters": {
@@ -1545,7 +1574,7 @@
             "foundrySearchConnectionName": {
               "type": "string",
               "metadata": {
-                "description": "Project-level connection name of the AI Search connection inside the Foundry project. Surfaced to the workload as AZURE_AI_FOUNDRY_SEARCH_CONNECTION_NAME so bootstrap can reference the connection when creating the FoundryIQ Index asset."
+                "description": "Project-level connection name of the AI Search connection inside the Foundry project. Surfaced to the workload as AZURE_AI_FOUNDRY_SEARCH_CONNECTION_NAME for AAD-based search access."
               }
             },
             "kbMcpConnectionName": {
