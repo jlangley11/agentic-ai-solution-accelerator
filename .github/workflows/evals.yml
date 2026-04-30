@@ -43,4 +43,9 @@ jobs:
         run: python evals/redteam/run.py --api-url "${{ vars.EVALS_API_URL }}"
       - name: Enforce full acceptance block from accelerator.yaml
         run: python scripts/enforce-acceptance.py
+      - name: Regression baseline check (opt-in)
+        # Skips silently if evals/baseline/ is empty. Snapshot a baseline once
+        # the eval set stabilises: `python scripts/eval-baseline.py --snapshot`
+        # then commit evals/baseline/.
+        run: python scripts/eval-baseline.py --check
 
