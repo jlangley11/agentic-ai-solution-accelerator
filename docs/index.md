@@ -29,6 +29,7 @@ Roles are skim guidance, not separate paths:
 | **Solo partner** | All 10 steps | — |
 
 [:material-rocket-launch: Start with **1. Get oriented** →](start/ready/01-get-oriented.md){ .md-button .md-button--primary }
+[:material-robot-outline: Browse the 13 custom agents →](agents-index.md){ .md-button }
 
 ```mermaid
 flowchart LR
@@ -68,11 +69,11 @@ Jump in at the step that matches your current state.
 
 Deep dives that sit **outside** the walkthrough — open them when a step sends you there.
 
-### Common tasks (jump straight to the chatmode or page you need)
+### Common tasks (jump straight to the custom agent or page you need)
 
 | If you want to… | Go to |
 |---|---|
-| See which chatmode runs at which step | [Chatmodes overview](agents-index.md) |
+| See which custom agent runs at which step | [Custom agents overview](agents-index.md) |
 | Add a side-effect tool with HITL baked in | [`/add-tool`](../.github/agents/add-tool.agent.md) (used in step 8) |
 | Add a specialist worker agent | [`/add-worker-agent`](../.github/agents/add-worker-agent.agent.md) (used in step 8) |
 | Scaffold the customer's repo from a filled brief | [`/scaffold-from-brief`](../.github/agents/scaffold-from-brief.agent.md) (used in step 6) |
