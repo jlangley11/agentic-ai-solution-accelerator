@@ -162,7 +162,7 @@ traces | where operation_Name == "lifespan.startup"
 
 ## Troubleshooting `azd up` and first boot
 
-Customer deploys hit a small set of repeatable failure modes. Try these in order before re-running `azd up`.
+Customer deploys hit a small set of repeatable failure modes. Try these in order before re-running `azd up`. For other symptoms not listed here see the [troubleshooting cookbook](../../references/troubleshooting.md).
 
 ??? failure "RBAC role hasn't propagated yet (most common)"
     **Symptom.** `/healthz` returns 503; App Insights `traces` show `Forbidden` from Cognitive Services or AI Search during `lifespan.startup`.

@@ -27,6 +27,9 @@ discover ──► scaffold ──► provision ──► iterate ──► UAT 
 Stages **1–2** are partner-facing ("co-build with the customer in real time"). Stages
 **3–7** are engineering execution with the customer's Azure tenant in the loop.
 
+!!! info "Why is the accelerator shaped this way?"
+    The seven non-obvious decisions — MAF + Foundry, portal-owned instructions, supervisor + workers, HITL as a primitive, AI Search only, ABAC-constrained RBAC, three-layer agent module — are recorded in [Architecture decision records](adr/index.md). Read those before deviating from a default; each ADR documents what breaks if you flip it.
+
 ---
 
 ## What the accelerator gives you vs. what you still own

@@ -58,6 +58,9 @@ Detail: [Section 3 — Killswitch](#killswitch). Re-enable by setting the var ba
 
 Disengage the killswitch only after evals pass ([Section 5 — Re-running evals](#5-re-running-evals-against-the-deployed-environment)).
 
+!!! tip "Symptom-keyed lookup"
+    Don't have the symptom memorised? The [troubleshooting cookbook](references/troubleshooting.md) is a flat index across this runbook + the deploy-step + machine-prep page. Faster than scrolling.
+
 ---
 
 ## Daily ops
