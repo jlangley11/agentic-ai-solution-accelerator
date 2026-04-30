@@ -26,7 +26,7 @@ The full prompt for each agent is published in the navigation under [Reference â
 
 ## When to run which â€” by walkthrough step
 
-| Walkthrough step | Chatmode | What it does | Inputs you provide | What it writes |
+| Walkthrough step | Custom agent | What it does | Inputs you provide | What it writes |
 |---|---|---|---|---|
 | [5. Discover with the customer](start/deliver/02-discover-with-the-customer.md) | [`/ingest-prd`](../.github/agents/ingest-prd.agent.md) *(optional)* | Pre-drafts the brief from a customer PRD / BRD / spec | Path to PRD (`.md` / `.txt` / `.docx` / `.pdf`) | Draft `docs/discovery/solution-brief.md` with `STATUS: AI-extracted draft` banner + per-section evidence comments |
 | [5. Discover](start/deliver/02-discover-with-the-customer.md) | [`/discover-scenario`](../.github/agents/discover-scenario.agent.md) | Runs the structured discovery interview; fills `solution-brief.md` and `accelerator.yaml` | Live workshop answers, notes, or PRD-draft TBDs | `docs/discovery/solution-brief.md` (canonical), `accelerator.yaml` (`solution.*`, `acceptance.*`, `kpis[]`) |
