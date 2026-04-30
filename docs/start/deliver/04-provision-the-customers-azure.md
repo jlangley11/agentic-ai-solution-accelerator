@@ -34,6 +34,15 @@
 
     The customer's resource group lists at least: AIServices account · model deployment · Foundry project · Container App · App Insights · Log Analytics · AI Search · Key Vault · User-Assigned MI.
 
+!!! tip "30-second smoke test before you move on"
+    `/healthz` proves the container is alive — it does **not** prove the agent answers a customer question correctly. Before moving to step 8 (where you'll author the full eval set), run a 30-second smoke check against the deployed API:
+
+    ```bash
+    python evals/quality/run.py --api-url <api-url> --smoke
+    ```
+
+    This runs 2 representative cases from `evals/quality/golden_cases.jsonl`, prints a `✅ READY` / `❌ NEEDS ATTENTION` verdict, and points at the most common deployment-time issues if anything fails (RBAC propagation lag, AI Search index not seeded, Foundry agent not bootstrapped). If green, you have real confidence the deployment is sound; if red, you have a small set of failing cases to triage before authoring the full suite.
+
 ---
 
 This step is two preflight custom agents plus one `azd up`. The custom agents do the GitHub plumbing (manifest entry, GitHub Environment, OIDC federated credential) so CI can deploy without a service-principal secret.

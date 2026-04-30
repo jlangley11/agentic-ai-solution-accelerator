@@ -49,3 +49,8 @@ infra/modules/*.json
 !infra/main.parameters.json
 infra/avm-reference/*.json
 
+
+# Eval runner outputs (generated locally; not committed)
+evals/quality/results.jsonl
+evals/quality/smoke-results.jsonl
+evals/redteam/results.jsonl

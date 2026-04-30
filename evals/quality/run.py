@@ -5,6 +5,10 @@ Usage:
     python evals/quality/run.py --api-url $API_URL --out results.jsonl
     python evals/quality/run.py --model gpt-5-mini  # pricing table
 
+    # 30-second post-deploy smoke (after `azd up` + `/healthz` green,
+    # before authoring the full customer eval set):
+    python evals/quality/run.py --api-url $API_URL --smoke
+
 Each case is a JSON line. The runner is scenario-agnostic:
 
 * Payload: every case field except the reserved eval-control keys
@@ -236,10 +240,32 @@ async def main() -> int:
         default=_DEFAULT_COST_PER_SECOND_USD,
         help="Latency-based fallback rate when token usage is unavailable.",
     )
+    p.add_argument(
+        "--limit", type=int, default=None,
+        help="Run only the first N cases (smoke testing / debugging). "
+             "Default: run all cases.",
+    )
+    p.add_argument(
+        "--smoke", action="store_true",
+        help="30-second smoke test mode for the partner-facing post-deploy "
+             "confidence check. Implies --limit 2 (unless --limit is set "
+             "explicitly), suppresses per-case JSONL on stdout, writes "
+             "results to smoke-results.jsonl, and prints a friendly "
+             "summary table. Use after `azd up` succeeds and `/healthz` "
+             "is green, BEFORE authoring the full customer eval set.",
+    )
     args = p.parse_args()
+
+    if args.smoke:
+        if args.limit is None:
+            args.limit = 2
+        if args.out == str(HERE / "results.jsonl"):
+            args.out = str(HERE / "smoke-results.jsonl")
 
     endpoint_path = _load_endpoint_path()
     cases = [json.loads(line) for line in CASES.read_text().splitlines() if line.strip()]
+    if args.limit is not None:
+        cases = cases[: args.limit]
     async with httpx.AsyncClient() as client:
         await warmup_endpoint(client, args.api_url)
         results = []
@@ -251,11 +277,57 @@ async def main() -> int:
                 cost_per_second=args.cost_per_second,
             )
             results.append(r)
-            print(json.dumps(r))
+            if not args.smoke:
+                print(json.dumps(r))
 
     pathlib.Path(args.out).write_text("\n".join(json.dumps(r) for r in results) + "\n")
     failed = [r for r in results if not r["passed"]]
+    if args.smoke:
+        _print_smoke_summary(results, args.out)
     return 1 if failed else 0
+
+
+def _print_smoke_summary(results: list[dict], out_path: str) -> None:
+    """Partner-facing 30-second post-deploy confidence summary.
+
+    Stdout-only. Writes the same per-case JSONL to ``out_path`` for
+    inspection / attachment to a triage thread when something fails.
+    """
+    total = len(results)
+    if total == 0:
+        print("smoke: no cases ran (cases file empty?)", file=sys.stderr)
+        return
+    passed = sum(1 for r in results if r.get("passed"))
+    avg_latency = sum(int(r.get("latency_ms") or 0) for r in results) // total
+    citations_ok = sum(1 for r in results if (r.get("groundedness") or 0) >= 0.8)
+    verdict = "✅ READY" if passed == total else "❌ NEEDS ATTENTION"
+    print()
+    print("─" * 60)
+    print(f" Smoke test verdict: {verdict}")
+    print("─" * 60)
+    print(f"  Cases run            : {total}")
+    print(f"  Passed               : {passed}/{total}")
+    print(f"  Citations present    : {citations_ok}/{total}")
+    print(f"  Avg latency          : {avg_latency} ms")
+    print(f"  Per-case JSONL       : {out_path}")
+    print("─" * 60)
+    if passed < total:
+        print(" Failed cases:")
+        for r in results:
+            if not r.get("passed"):
+                print(f"   - {r['case_id']}: {r.get('reason') or 'no reason recorded'}")
+        print("─" * 60)
+        print(" Next step: open the JSONL above, or check App Insights")
+        print(" `traces` for the matching correlation IDs. Common causes:")
+        print("   - RBAC propagation lag (wait 3 min, retry)")
+        print("   - AI Search index not seeded (restart Container App revision)")
+        print("   - Foundry agent not yet bootstrapped (check /healthz)")
+    else:
+        print(" The agent answered the smoke cases correctly with citations.")
+        print(" You're ready to author the full customer eval set in")
+        print(" evals/quality/golden_cases.jsonl and run the full suite:")
+        print(" `python evals/quality/run.py --api-url <url>`")
+    print()
 
 
 if __name__ == "__main__":

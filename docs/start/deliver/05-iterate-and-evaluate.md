@@ -5,7 +5,7 @@
 !!! info "Step at a glance"
     **🎯 Goal** — Customise prompts, tools, and retrieval; grow the eval suite; ship through PR-gated CI until acceptance thresholds from `accelerator.yaml` are green and KPI events are emitting in App Insights.
 
-    **📋 Prerequisite** — [7. Provision the customer's Azure](04-provision-the-customers-azure.md) complete — `/healthz` returns 200; API URL captured.
+    **📋 Prerequisite** — [7. Provision the customer's Azure](04-provision-the-customers-azure.md) complete — `/healthz` returns 200; API URL captured. Recommended: 30-second smoke test in step 7 returned `✅ READY` (`python evals/quality/run.py --api-url <url> --smoke`) so you start this step from a known-good baseline.
 
     **💻 Where you'll work** — VS Code (Copilot Chat for the agent edits, integrated terminal for `git push`); GitHub web (PRs + Actions runs).
 
