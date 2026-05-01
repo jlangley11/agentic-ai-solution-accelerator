@@ -22,3 +22,6 @@ environments:
   - name: dev
     github_environment: dev
     description: Default partner sandbox — deployed automatically on push to main.
+  - name: partner-dev
+    github_environment: partner-dev
+    description: Contoso supplier-risk test engagement (jlangley11 fork; subscription MCAPS-Hybrid-REQ-70944-2024-jlangley).
