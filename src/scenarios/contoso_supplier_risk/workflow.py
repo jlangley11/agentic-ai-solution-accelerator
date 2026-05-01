@@ -144,7 +144,7 @@ class ContosoSupplierRiskWorkflow:
     than on first request.
     """
 
-    def __init__(self, *, primary_index_name: str = "supplier_evidence") -> None:
+    def __init__(self, *, primary_index_name: str = "supplier-evidence") -> None:
         self._credential = DefaultAzureCredential()
         self._primary_index_name = primary_index_name
         self._agent_versions: dict[str, str] = {}
@@ -690,5 +690,5 @@ def build_workflow(context: Any) -> BaseWorkflow:
     ``build_workflow(ScenarioContext) -> BaseWorkflow``.
     """
     indexes = getattr(context, "retrieval_indexes", ()) or ()
-    primary = indexes[0].name if indexes else "supplier_evidence"
+    primary = indexes[0].name if indexes else "supplier-evidence"
     return ContosoSupplierRiskWorkflow(primary_index_name=primary)

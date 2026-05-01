@@ -122,13 +122,13 @@ scenario:
         # it pulls 4-8 evidence items per request to seed the evidence pack
         # consumed by risk_scorer + case_drafter.
         mode: foundry_tool
-        index: supplier_evidence
+        index: supplier-evidence
         top_k: 8
         query_type: vector_semantic_hybrid
     - id: risk_scorer
       foundry_name: accel-contoso-supplier-risk-risk-scorer
       retrieval:
-        # risk_scorer also reads from supplier_evidence to verify the
+        # risk_scorer also reads from supplier-evidence to verify the
         # category-risk matrix and SOX control PR-04 are present and to
         # add precise policy citations to each risk factor (brief §5d
         # `policy_matrix_match` + per-factor `policy_reference`). top_k
@@ -136,13 +136,13 @@ scenario:
         # not a breadth retrieval — the bulk of evidence comes from the
         # upstream evidence_retriever output already in scope.
         mode: foundry_tool
-        index: supplier_evidence
+        index: supplier-evidence
         top_k: 3
         query_type: vector_semantic_hybrid
     - { id: case_drafter, foundry_name: accel-contoso-supplier-risk-case-drafter }
   retrieval:
     indexes:
-      - name: supplier_evidence
+      - name: supplier-evidence
         seed: data/samples/contoso_supplier_risk.json
         schema: retrieval:index_definition
         # FoundryIQ Knowledge Source per-document metadata fields (citations).
@@ -170,7 +170,7 @@ solution:
     - create_supplier_risk_case            # ServiceNow procurement-risk case (HITL required)
     - update_supplier_review_status        # Dynamics 365 Finance supplier onboarding note (HITL required)
   grounding_sources:
-    - ai_search_index: supplier_evidence   # SharePoint policy + Azure SQL supplier master + uploaded evidence
+    - ai_search_index: supplier-evidence   # SharePoint policy + Azure SQL supplier master + uploaded evidence
     - dynamics_365_finance: supplier_profile_api
     - servicenow: procurement_risk_workspace
 

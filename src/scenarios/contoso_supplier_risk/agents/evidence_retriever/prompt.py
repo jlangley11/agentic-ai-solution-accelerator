@@ -6,7 +6,7 @@ the supplier under review.
 System instructions live in
 ``docs/agent-specs/accel-contoso-supplier-risk-evidence-retriever.md``
 and are synced to Foundry by ``src/bootstrap.py``. The agent has a
-FoundryIQ knowledge tool attached to the ``supplier_evidence`` index
+FoundryIQ knowledge tool attached to the ``supplier-evidence`` index
 (declared in ``accelerator.yaml``); this module only builds the
 per-request input message.
 """
@@ -52,7 +52,7 @@ def build_prompt(request_data: dict[str, Any]) -> str:
     intake = _compact(request_data.get("intake_validator"))
     req = request_data.get("request", {})
     return (
-        "Retrieve cited evidence from the supplier_evidence FoundryIQ "
+        "Retrieve cited evidence from the supplier-evidence FoundryIQ "
         "Knowledge Base for the supplier under review. Use the knowledge "
         "tool exposed to you; do NOT reach out to the public web or any "
         "unsanctioned third-party API.\n\n"

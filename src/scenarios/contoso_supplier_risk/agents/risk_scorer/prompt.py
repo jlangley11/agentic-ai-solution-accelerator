@@ -6,7 +6,7 @@ references.
 System instructions live in
 ``docs/agent-specs/accel-contoso-supplier-risk-risk-scorer.md`` and are
 synced to Foundry by ``src/bootstrap.py``. The agent has a FoundryIQ
-knowledge tool attached to the ``supplier_evidence`` index (top_k=3,
+knowledge tool attached to the ``supplier-evidence`` index (top_k=3,
 declared in ``accelerator.yaml``); this module only builds the
 per-request input message.
 """
