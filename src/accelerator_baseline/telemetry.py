@@ -49,6 +49,12 @@ KPI_EVENTS: set[str] = {
     "tool.hitl_rejected",
     "aggregator.composed",
     "response.returned",
+    # contoso-supplier-risk KPIs (accelerator.yaml -> kpis[]).
+    # Wire emitters from src/scenarios/contoso_supplier_risk/workflow.py
+    # and the case_drafter HITL aggregator.
+    "supplier_review_cycle_time",
+    "autonomous_triage_coverage",
+    "hitl_approval_rate",
 }
 
 

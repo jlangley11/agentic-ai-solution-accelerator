@@ -1,0 +1,74 @@
+[
+  {
+    "id": "policy-cat-risk-matrix-2026q1",
+    "content": "Contoso Procurement Policy 4.2 (effective 2026-01-15): the category-risk matrix maps procurement category x supplier country to a baseline risk tier. Raw materials sourced from CN, RU, IR are Tier 3 (high) and require an OFAC sanctions screen plus an executive-sponsored exception. Capital equipment and components from EU/US are Tier 1 (low) absent country-risk overrides. Logistics suppliers in BR, MX, VN are Tier 2 (medium) and require a current SOC 2 Type II attestation no older than 24 months.",
+    "source": "https://contoso.sharepoint.com/sites/proc-policy/Shared%20Documents/category-risk-matrix-2026q1.docx",
+    "source_system": "sharepoint",
+    "supplier_id": "",
+    "category": "*",
+    "country": "*"
+  },
+  {
+    "id": "supplier-master-SUP-100231",
+    "content": "Northwind Polymers (SUP-100231) is a US-based raw-materials supplier active since 2019. Annual spend in 2025 was $1.7M. Onboarding history shows two prior reviews with no findings. SOC 2 Type II attestation on file, dated 2025-08-12, valid through 2027-08-11.",
+    "source": "azuresql://contoso-supplier-master/dbo.SupplierProfile/SUP-100231",
+    "source_system": "azure_sql",
+    "supplier_id": "SUP-100231",
+    "category": "raw_materials",
+    "country": "US"
+  },
+  {
+    "id": "supplier-master-SUP-204117",
+    "content": "Fabrikam Logistics SA (SUP-204117) is a Brazil-based logistics supplier active since 2022. Annual spend in 2025 was $4.0M. Two ServiceNow incidents in the last 12 months: PRR-22841 (delayed customs clearance, closed) and PRR-23114 (sub-tier carrier compliance, open). SOC 2 Type II attestation expired on 2025-09-01.",
+    "source": "azuresql://contoso-supplier-master/dbo.SupplierProfile/SUP-204117",
+    "source_system": "azure_sql",
+    "supplier_id": "SUP-204117",
+    "category": "logistics",
+    "country": "BR"
+  },
+  {
+    "id": "country-risk-bulletin-br-2026-04",
+    "content": "Country-risk bulletin (Procurement Operations, 2026-04-12): Brazil moved to elevated logistics risk following a regulatory change to AEO certifications. All Tier 2 logistics suppliers in BR require a refreshed AEO attestation by 2026-06-30 to continue active status.",
+    "source": "https://contoso.sharepoint.com/sites/proc-risk/Shared%20Documents/country-risk-br-2026-04.docx",
+    "source_system": "sharepoint",
+    "supplier_id": "",
+    "category": "logistics",
+    "country": "BR"
+  },
+  {
+    "id": "supplier-master-SUP-309882",
+    "content": "Adventure Works Capital (SUP-309882) is a Germany-based capital-equipment supplier active since 2017. Annual spend in 2025 was $0.9M. Three prior renewals with clean findings. SOC 2 Type II attestation on file, dated 2025-11-04.",
+    "source": "azuresql://contoso-supplier-master/dbo.SupplierProfile/SUP-309882",
+    "source_system": "azure_sql",
+    "supplier_id": "SUP-309882",
+    "category": "capital_equipment",
+    "country": "DE"
+  },
+  {
+    "id": "supplier-master-SUP-410992",
+    "content": "Wide World Importers (SUP-410992) is a Vietnam-based components supplier active since 2021. Annual spend in 2025 was $5.1M (proposed 2026: $7.8M, +53%). Tier 2 dependency identified in 2024 audit: 70% of sub-supply concentrated with one upstream supplier in CN. SOC 2 Type II attestation on file, dated 2025-06-22.",
+    "source": "azuresql://contoso-supplier-master/dbo.SupplierProfile/SUP-410992",
+    "source_system": "azure_sql",
+    "supplier_id": "SUP-410992",
+    "category": "components",
+    "country": "VN"
+  },
+  {
+    "id": "d365-onboarding-note-SUP-410992",
+    "content": "Dynamics 365 Finance onboarding note (SUP-410992, 2024-09-15): conditional approval pending supplier-of-supplier diversification plan. Plan due 2025-Q4; status as of 2026-04-30: not yet submitted.",
+    "source": "d365fo://contoso-finance/VendorOnboardingNotes/SUP-410992/note-2024-09-15",
+    "source_system": "dynamics_365_finance",
+    "supplier_id": "SUP-410992",
+    "category": "components",
+    "country": "VN"
+  },
+  {
+    "id": "policy-sox-control-procurement-write",
+    "content": "SOX Control PR-04 (Internal Audit, last reviewed 2026-02-01): every procurement-risk write to ServiceNow or Dynamics 365 Finance must be initiated by a named human reviewer; agentic systems are permitted to draft but not to write directly. Bypassing the human approval step is a SOX violation.",
+    "source": "https://contoso.sharepoint.com/sites/internal-audit/Shared%20Documents/sox-control-pr-04.docx",
+    "source_system": "sharepoint",
+    "supplier_id": "",
+    "category": "*",
+    "country": "*"
+  }
+]

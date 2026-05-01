@@ -103,41 +103,55 @@ landing_zone:
 #   scenario. Evals + smoke tests read this so nothing hardcodes `/research`.
 # -----------------------------------------------------------------------------
 scenario:
-  id: sales-research
-  package: src.scenarios.sales_research
-  request_schema: schema:ResearchRequest
+  id: contoso-supplier-risk
+  package: src.scenarios.contoso_supplier_risk
+  request_schema: schema:ScenarioRequest
   workflow_factory: workflow:build_workflow
   endpoint:
-    path: /research/stream
+    path: /contoso_supplier_risk/stream
   agents:
-    - { id: supervisor,            foundry_name: accel-sales-research-supervisor }
-    - id: account_planner
-      foundry_name: accel-account-planner
+    - { id: supervisor, foundry_name: accel-contoso-supplier-risk-supervisor }
+    - { id: intake_validator, foundry_name: accel-contoso-supplier-risk-intake-validator }
+    - id: evidence_retriever
+      foundry_name: accel-contoso-supplier-risk-evidence-retriever
       retrieval:
         # FoundryIQ Knowledge Base pattern — bootstrap creates a Knowledge
         # Source + Knowledge Base on AI Search, then wires the agent with an
         # MCPTool pointing at the Bicep-provisioned RemoteTool MCP connection.
-        # AI Search shows under the agent's **Knowledge** section in the
-        # Foundry portal. The supervisor does NOT inject Python grounding
-        # into the prompt for this agent.
+        # The evidence_retriever is the breadth-first grounding worker:
+        # it pulls 4-8 evidence items per request to seed the evidence pack
+        # consumed by risk_scorer + case_drafter.
         mode: foundry_tool
-        index: accounts
-        top_k: 5
+        index: supplier_evidence
+        top_k: 8
         query_type: vector_semantic_hybrid
-    - { id: icp_fit_analyst,       foundry_name: accel-icp-fit-analyst }
-    - { id: competitive_context,   foundry_name: accel-competitive-context }
-    - { id: outreach_personalizer, foundry_name: accel-outreach-personalizer }
+    - id: risk_scorer
+      foundry_name: accel-contoso-supplier-risk-risk-scorer
+      retrieval:
+        # risk_scorer also reads from supplier_evidence to verify the
+        # category-risk matrix and SOX control PR-04 are present and to
+        # add precise policy citations to each risk factor (brief §5d
+        # `policy_matrix_match` + per-factor `policy_reference`). top_k
+        # is intentionally small (3) because this is a targeted lookup,
+        # not a breadth retrieval — the bulk of evidence comes from the
+        # upstream evidence_retriever output already in scope.
+        mode: foundry_tool
+        index: supplier_evidence
+        top_k: 3
+        query_type: vector_semantic_hybrid
+    - { id: case_drafter, foundry_name: accel-contoso-supplier-risk-case-drafter }
   retrieval:
     indexes:
-      - name: accounts
-        seed: data/samples/accounts.json
+      - name: supplier_evidence
+        seed: data/samples/contoso_supplier_risk.json
         schema: retrieval:index_definition
         # FoundryIQ Knowledge Source per-document metadata fields (citations).
-        # Defaults to ["source"] when omitted. Flagship cites company_name as
-        # additional account-level metadata alongside the source URL.
+        # Each evidence chunk carries provenance back to the originating
+        # system so the analyst can trust the cited fact.
         source_data_fields:
           - source
-          - company_name
+          - source_system
+          - category
   evals:
     quality_dataset: evals/quality/golden_cases.jsonl
     redteam_dataset: evals/redteam/cases.jsonl
@@ -146,28 +160,29 @@ scenario:
 # solution:  WHO + WHAT — derived from docs/discovery/solution-brief.md
 # -----------------------------------------------------------------------------
 solution:
-  name: "sales-research-outreach"          # flagship default; rename per engagement
+  name: "contoso-supplier-risk"            # engagement slug from solution-brief.md
   brief: docs/discovery/solution-brief.md  # canonical engagement doc
   pattern: supervisor-routing              # supervisor-routing (flagship) | single-agent | chat-with-actioning
   hitl: required                           # required | optional | none
-  data_residency: unset                    # unset | us | eu | apac | custom
+  data_residency: us                       # unset | us | eu | apac | custom
   identity: entra-id                       # entra-id | external-id | custom
   side_effect_tools:                       # every name here must exist in src/tools/ and pass HITL
-    - crm_write_contact
-    - send_email
+    - create_supplier_risk_case            # ServiceNow procurement-risk case (HITL required)
+    - update_supplier_review_status        # Dynamics 365 Finance supplier onboarding note (HITL required)
   grounding_sources:
-    - ai_search_index: accounts            # declared in infra/modules/ai-search.bicep
-    - web_search: bing                     # partner-scoped allow-list
+    - ai_search_index: supplier_evidence   # SharePoint policy + Azure SQL supplier master + uploaded evidence
+    - dynamics_365_finance: supplier_profile_api
+    - servicenow: procurement_risk_workspace
 
 # -----------------------------------------------------------------------------
 # acceptance:  MEASURABLE GATES — lint verifies each has a matching eval
 # -----------------------------------------------------------------------------
 acceptance:
-  quality_threshold: 0.75      # avg golden-case score (0..1)
-  groundedness_threshold: 0.85 # avg groundedness on RAG cases (0..1)
-  p95_latency_ms: 180000       # 180s — flagship 4-worker fan-out baseline; tighten as you optimise
-  cost_per_call_usd: 0.55      # $ per briefing at average; baselined against the flagship Sonnet/4o-mini mix
-  redteam_must_pass: true      # XPIA + jailbreak suite must pass — zero tolerance
+  quality_threshold: 0.90      # ≥ 0.90 reviewer agreement on supplier-risk golden cases (brief §7)
+  groundedness_threshold: 0.92 # ≥ 0.92 on RAG cases; every factual risk claim must cite an approved source
+  p95_latency_ms: 120000       # 120s P95 per brief §7 (P50 target 45s)
+  cost_per_call_usd: 0.42      # $ per supplier review (brief §7)
+  redteam_must_pass: true      # XPIA + jailbreak + HITL-bypass — zero tolerance
 
 # -----------------------------------------------------------------------------
 # controls:  NON-NEGOTIABLES — enforced by lint + infra
@@ -184,15 +199,15 @@ controls:
 # kpis:  ROI INSTRUMENTATION — typed events emitted by accelerator_baseline.telemetry
 # -----------------------------------------------------------------------------
 kpis:
-  - name: briefing_production_time
+  - name: supplier_review_cycle_time
     type: duration_ms
-    baseline: 10800000         # 3 hours manual research
-    target:   90000            # 90 seconds agent briefing
-  - name: outreach_reply_rate
+    baseline: 6600000          # 110 minutes manual median (brief §3)
+    target:   1080000          # 18 minutes target median (brief §3)
+  - name: autonomous_triage_coverage
     type: ratio
-    baseline: 0.02             # cold baseline
-    target:   0.08             # personalised agent outreach
+    baseline: 0.00             # no autonomous triage today
+    target:   0.72             # 72% of cases drafted end-to-end without analyst rework
   - name: hitl_approval_rate
     type: ratio
-    baseline: 1.0              # 100% manual
-    target:   0.9              # agents surface 90% of drafts that ship as-is
+    baseline: 1.00             # 100% manual approval on every case today
+    target:   0.88             # 88% of agent-drafted cases approved as-presented
