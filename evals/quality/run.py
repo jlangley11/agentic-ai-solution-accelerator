@@ -157,8 +157,20 @@ async def run_case(
     payload = {k: v for k, v in case.items() if k not in RESERVED_CASE_KEYS}
     final_briefing = None
     try:
+        # Timeout must accommodate both flagship parallel-fan-out
+        # workflows (~120 s P95) and supervisor-routing scenarios with
+        # serial worker chains (e.g. contoso-supplier-risk runs
+        # intake -> evidence -> risk -> drafter sequentially, ~5 min
+        # cold). Set httpx connect/read/write/pool individually so the
+        # SSE stream is not killed mid-flight while the worker DAG is
+        # still progressing. ``acceptance.p95_latency_ms`` in
+        # accelerator.yaml is enforced separately by the post-run
+        # acceptance gate; this transport timeout is just the bound
+        # below which we treat a missing ``final`` event as a real
+        # failure rather than a slow request.
         async with client.stream(
-            "POST", f"{api_url}{endpoint_path}", json=payload, timeout=120.0,
+            "POST", f"{api_url}{endpoint_path}", json=payload,
+            timeout=httpx.Timeout(connect=30.0, read=600.0, write=30.0, pool=30.0),
         ) as resp:
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):

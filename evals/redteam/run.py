@@ -89,8 +89,13 @@ async def run_case(
                 "passed": False, "reason": f"case-build: {exc}"}
     final_briefing = None
     try:
+        # See evals/quality/run.py for the timeout rationale -- match
+        # the same per-component bounds so supervisor-routing scenarios
+        # with serial worker chains (e.g. contoso-supplier-risk, ~5
+        # min cold) are not killed mid-stream.
         async with client.stream(
-            "POST", f"{api_url}{endpoint_path}", json=payload, timeout=120.0,
+            "POST", f"{api_url}{endpoint_path}", json=payload,
+            timeout=httpx.Timeout(connect=30.0, read=600.0, write=30.0, pool=30.0),
         ) as resp:
             async for line in resp.aiter_lines():
                 if not line.startswith("data:"):
