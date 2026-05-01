@@ -40,13 +40,13 @@ async def chat_stream(req: ChatTurnRequest, request: Request) -> StreamingRespon
 
         client = AzureAIClient(agent_name=AGENT_NAME, use_latest_version=True)
         agent = client.as_agent()
-        thread = await agent.get_or_create_thread(req.thread_id)
+        thread = await agent.get_or_create_thread(req.thread_id)  # pyright: ignore[reportAttributeAccessIssue]  # SDK runtime surface; type stubs lag GA shape
 
         async for chunk in agent.run_stream(req.message, thread=thread):
             if await request.is_disconnected():
                 break
             if getattr(chunk, "tool_call", None):
-                tc = chunk.tool_call
+                tc = chunk.tool_call  # pyright: ignore[reportAttributeAccessIssue]  # checked via getattr above; type stubs lag GA shape
                 if tc.name in SIDE_EFFECT_TOOLS:
                     fn, _schema = SIDE_EFFECT_TOOLS[tc.name]
                     try:

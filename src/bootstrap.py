@@ -46,7 +46,7 @@ import time
 import uuid
 from typing import Any, Awaitable, Callable
 
-from .workflow.registry import ROOT, ScenarioAgent, ScenarioBundle
+from .workflow.registry import ROOT, ScenarioAgent, ScenarioBundle, ScenarioIndex
 
 logger = logging.getLogger("accelerator.bootstrap")
 
@@ -233,7 +233,7 @@ async def _bootstrap_knowledge(bundle: ScenarioBundle) -> None:
         # index entry that declares them (so we know each index's
         # `sourceDataFields`). Order-stable for deterministic logs.
         seen_indexes: list[str] = []
-        idx_to_entry: dict[str, "ScenarioIndex"] = {  # noqa: F821
+        idx_to_entry: dict[str, ScenarioIndex] = {
             i.name: i for i in bundle.retrieval_indexes
         }
         for agent in foundry_tool_agents:
@@ -514,7 +514,9 @@ async def _grant_agent_search_access(
         return
 
     from azure.core.exceptions import HttpResponseError, ResourceExistsError
-    from azure.mgmt.authorization.aio import AuthorizationManagementClient
+    from azure.mgmt.authorization.aio import (  # pyright: ignore[reportMissingImports]  # azure-mgmt-authorization ships no type stubs
+        AuthorizationManagementClient,
+    )
 
     parts = [p for p in search_resource_id.split("/") if p]
     try:
