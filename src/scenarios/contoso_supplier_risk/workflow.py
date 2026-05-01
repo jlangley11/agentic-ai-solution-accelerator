@@ -226,8 +226,14 @@ class ContosoSupplierRiskWorkflow:
 
                 # Final report is renderable BEFORE side-effect tools so
                 # a HITL rejection / approver outage cannot wipe it from
-                # the analyst UI.
-                await out_q.put({"type": "report_ready", "report": final})
+                # the analyst UI. Wire-format key is ``briefing`` to match
+                # the scenario-agnostic ``evals/quality/run.py`` runner
+                # contract -- the runner reads ``event['briefing']`` on
+                # both ``briefing_ready`` and ``final``. Internally the
+                # supplier-risk report has its own structure (5 §5d
+                # sections plus an audit trail); the wire field name is
+                # only the envelope.
+                await out_q.put({"type": "briefing_ready", "briefing": final})
 
                 approvals_needed = list(final.get("requires_approval", []) or [])
                 tool_args_map = final.get("tool_args", {}) or {}
@@ -316,7 +322,7 @@ class ContosoSupplierRiskWorkflow:
                 ))
                 if tool_results:
                     final["tool_results"] = tool_results
-                await out_q.put({"type": "final", "report": final})
+                await out_q.put({"type": "final", "briefing": final})
             except Exception as exc:
                 # In-band exception so the consumer loop can re-raise on
                 # the same task and FastAPI's outer ``gen()`` emits a
