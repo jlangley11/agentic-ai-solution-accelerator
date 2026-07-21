@@ -1438,12 +1438,11 @@ def dockerfile_copies_manifest(ctx: Ctx) -> list[Finding]:
 def dockerfile_copies_agent_specs(ctx: Ctx) -> list[Finding]:
     """src/Dockerfile must COPY docs/agent-specs into the image.
 
-    ``src.bootstrap`` runs at FastAPI startup (replacing the previous
-    azd ``postprovision`` hook) and reads ``docs/agent-specs/<foundry_name>.md``
-    for every ``scenario.agents[]`` entry to extract the ``## Instructions``
-    body that gets pushed to Foundry's ``create_or_update``. If the image
-    ships without these spec files, bootstrap fails, the startup probe
-    fails its retry budget, and ``azd up`` exits non-zero.
+    ``src.provisioning`` runs through either the self-host startup shim or the
+    provisioning CLI and reads ``docs/agent-specs/<foundry_name>.md`` for every
+    ``scenario.agents[]`` entry. If the image ships without these spec files,
+    self-host startup provisioning fails and the ACA startup probe remains a
+    loud failure signal.
     """
     dockerfile = ROOT / "src" / "Dockerfile"
     if not dockerfile.exists():
@@ -1453,8 +1452,8 @@ def dockerfile_copies_agent_specs(ctx: Ctx) -> list[Finding]:
         return []
     return [Finding(
         "dockerfile-missing-agent-specs", "block", _rel(dockerfile),
-        "Dockerfile does not COPY docs/agent-specs. src.bootstrap reads "
-        "<foundry_name>.md at startup to push agent Instructions to Foundry. "
+        "Dockerfile does not COPY docs/agent-specs. src.provisioning reads "
+        "<foundry_name>.md to push agent Instructions to Foundry. "
         "Add `COPY docs/agent-specs ./docs/agent-specs` before `pip install .`.",
     )]
 
@@ -1463,10 +1462,11 @@ def dockerfile_copies_agent_specs(ctx: Ctx) -> list[Finding]:
 def dockerfile_copies_seed_data(ctx: Ctx) -> list[Finding]:
     """src/Dockerfile must COPY data/ into the image.
 
-    ``src.bootstrap`` uploads seed JSON (e.g. ``data/samples/accounts.json``)
-    declared by ``scenario.retrieval.indexes[].seed`` into AI Search at
-    FastAPI startup. Without these files the index exists but is empty,
-    breaking the demo flow on the first request.
+    ``src.provisioning`` uploads seed JSON (e.g.
+    ``data/samples/accounts.json``) declared by
+    ``scenario.retrieval.indexes[].seed`` into AI Search unless schema-only
+    provisioning is requested. Without these files the default seeded demo
+    flow starts with an empty index.
     """
     dockerfile = ROOT / "src" / "Dockerfile"
     if not dockerfile.exists():
@@ -1476,8 +1476,8 @@ def dockerfile_copies_seed_data(ctx: Ctx) -> list[Finding]:
         return []
     return [Finding(
         "dockerfile-missing-seed-data", "block", _rel(dockerfile),
-        "Dockerfile does not COPY data/. src.bootstrap uploads seed JSON "
-        "to AI Search at startup; without these files the index is empty. "
+        "Dockerfile does not COPY data/. src.provisioning uploads seed JSON "
+        "to AI Search; without these files the index is empty. "
         "Add `COPY data ./data` before `pip install .`.",
     )]
 

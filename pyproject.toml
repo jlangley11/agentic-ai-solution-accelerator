@@ -17,15 +17,15 @@ dependencies = [
   "azure-keyvault-secrets>=4.8.0,<5.0.0",
   # The 12.0 GA models retain the vectorizer API used by scenario schemas.
   "azure-search-documents>=12.0.0,<13.0.0",
-  # Required for bootstrap to embed seed docs at provision time so the
+  # Required for the provisioner to embed seed docs at provision time so the
   # `accounts` index has populated `contentVector` fields. Query-time
   # vectorization fires from the AAD vectorizer in the index schema; this
   # dep is only for the seed path. agent-framework already pulls
   # openai>=2 transitively so this is a free-floating soft pin.
   "openai>=2.0.0,<3.0.0",
   "azure-mgmt-cognitiveservices>=14.1.0,<15.0.0",
-  # Required by src.bootstrap._grant_agent_search_access — at runtime,
-  # bootstrap inspects each Foundry agent's instance_identity.principal_id
+  # Required by src.provisioning._grant_agent_search_access — the provisioner
+  # inspects each Foundry agent's instance_identity.principal_id
   # and uses ARM role-assignments to grant it Search RBAC on the AI Search
   # service. The workload MI has Role Based Access Control Administrator
   # (constrained to the three Search roles via ABAC condition in
@@ -55,7 +55,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+hosted-preview = [
+  "agent-framework-foundry-hosting==1.0.0a260709",
+  "azure-ai-agentserver-core==2.0.0b7",
+  "azure-ai-agentserver-responses==1.0.0b8",
+  "azure-ai-agentserver-invocations==1.0.0b6",
+]
 dev = [
+  # CI type-checks the hosted entrypoint; preview runtime remains an explicit extra.
+  "agent-framework-foundry-hosting==1.0.0a260709",
+  "azure-ai-agentserver-core==2.0.0b7",
+  "azure-ai-agentserver-responses==1.0.0b8",
+  "azure-ai-agentserver-invocations==1.0.0b6",
   "pytest>=8.0",
   "pytest-asyncio>=1.4.0,<2.0.0",
   "ruff>=0.7",
@@ -72,21 +83,13 @@ evals = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# Tell hatchling exactly which directories to ship in the wheel. The project
-# name ("agentic-ai-solution-accelerator") doesn't match a top-level Python
-# package, so hatchling's default file-discovery heuristic fails. Nothing
-# imports `agentic_ai_solution_accelerator` as a package — `src/` is a flat
-# collection of feature modules. Listing them explicitly here unblocks the
-# editable install used by CI to bring in runtime + dev deps.
+# Ship the complete ``src`` package, including entrypoint modules and all
+# current or future subpackages.
 [tool.hatch.build.targets.wheel]
-packages = [
-  "src/accelerator_baseline",
-  "src/config",
-  "src/retrieval",
-  "src/scenarios",
-  "src/tools",
-  "src/workflow",
-]
+packages = ["src"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"accelerator.yaml" = "accelerator.yaml"
 
 [tool.ruff]
 line-length = 100

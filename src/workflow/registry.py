@@ -299,7 +299,7 @@ def read_scenario_raw(
 ) -> dict[str, Any]:
     """Return the raw ``scenario:`` block without resolving imports.
 
-    Used by callers (e.g. evals, scaffolding helpers, ``src.bootstrap``)
+    Used by callers (e.g. evals, scaffolding helpers, ``src.provisioning``)
     that need the declared values without booting the whole app. Raises
     ``ValueError`` if the block is missing or the manifest is unreadable.
     """

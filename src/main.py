@@ -5,36 +5,30 @@ Key properties (enforced by scripts/accelerator-lint.py):
 - OpenTelemetry configured at startup for App Insights correlation.
 - SSE streaming for agent progress; no WebSockets / long polling.
 - Foundry agent system instructions live in `docs/agent-specs/*.md`;
-  bootstrap syncs them on startup.
+  the provisioner syncs them before serving.
 - No scenario-specific imports here - all scenario wiring comes from the
   manifest via :mod:`src.workflow.registry`.
 - CORS allow-list driven by the ``ALLOWED_ORIGINS`` env var (comma-separated
   list of exact origins, or ``*`` for sandbox-only allow-all). Empty default
   is production-safe: no cross-origin browser calls until the deployer opts in.
-- Foundry agents + AI Search index are bootstrapped synchronously inside the
-  ``lifespan`` startup phase by :mod:`src.bootstrap`. The container does not
-  accept requests until bootstrap completes; on persistent failure the
-  exception aborts startup so ACA marks the revision unhealthy and ``azd up``
-  exits non-zero. Replaces the previous postprovision azd hook.
+- The default self-host invokes :mod:`src.bootstrap` synchronously inside the
+  ``lifespan`` startup phase. The same implementation is also callable through
+  :mod:`src.provisioning` before an opt-in hosted runtime starts.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from time import monotonic
 from typing import AsyncIterator
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import ValidationError
 
-from .accelerator_baseline.telemetry import Event, emit_event
 from .bootstrap import bootstrap as run_bootstrap
 from .config.settings import load_settings
-from .workflow.registry import ScenarioBundle, load_scenario
+from .serving.sse import make_fastapi_stream_endpoint as _make_stream_endpoint
+from .workflow.registry import load_scenario
 
 logger = logging.getLogger("accelerator")
 logging.basicConfig(level=logging.INFO)
@@ -66,80 +60,6 @@ def _configure_otel(app: FastAPI) -> None:
     except Exception as exc:  # noqa: BLE001 — instrumentation is best-effort
         logger.warning("FastAPI auto-instrumentation skipped: %s", exc)
         logger.info("App Insights wired up.")
-
-
-def _make_stream_endpoint(bundle: ScenarioBundle):
-    schema_cls = bundle.request_schema
-    workflow = bundle.workflow
-
-    async def stream_endpoint(request: Request) -> StreamingResponse:
-        try:
-            payload = schema_cls.model_validate(await request.json())
-        except ValidationError as exc:
-            raise HTTPException(status_code=422, detail=exc.errors()) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-        async def gen() -> AsyncIterator[bytes]:
-            # Stream protocol contract
-            # ------------------------
-            # Every data event carries a monotonic ``seq`` so the client can
-            # detect truncation by ANY intermediate hop (Vite dev proxy,
-            # ACA ingress, browser fetch). The stream ALWAYS ends with a
-            # terminal ``{"type":"done", "seq":N}`` event — if the client
-            # reads EOF without ``done`` it knows the connection was cut
-            # mid-flight and must surface that to the user instead of
-            # silently treating it as success.
-            #
-            # Heartbeats from the workflow are converted here to SSE
-            # comment lines (``: ka\\n\\n``) which are protocol-level and
-            # do NOT reach the EventSource/onmessage handler — keeping
-            # the data event stream clean for UI consumers.
-            seq = 0
-            stream_start = monotonic()
-            try:
-                async for event in workflow.stream(payload.model_dump()):
-                    if await request.is_disconnected():
-                        break
-                    if isinstance(event, dict) and event.get("type") == "heartbeat":
-                        yield b": ka\n\n"
-                        continue
-                    seq += 1
-                    yield f"data: {json.dumps({**event, 'seq': seq})}\n\n".encode()
-            except Exception as exc:
-                emit_event(Event(
-                    name="response.returned",
-                    ok=False,
-                    error=str(exc),
-                    value=round((monotonic() - stream_start) * 1000.0, 1),
-                    unit="ms",
-                ))
-                seq += 1
-                err = {"type": "error", "message": str(exc), "seq": seq}
-                yield f"data: {json.dumps(err)}\n\n".encode()
-            # Terminal marker — emitted on BOTH the happy path and after a
-            # fatal error. Clients use absence-of-``done`` to detect a
-            # truncated stream.
-            seq += 1
-            yield f"data: {json.dumps({'type': 'done', 'seq': seq})}\n\n".encode()
-
-        return StreamingResponse(
-            gen(),
-            media_type="text/event-stream",
-            headers={
-                # Tell ACA ingress / nginx-style proxies NOT to buffer the
-                # response. Without this some intermediaries hold the body
-                # until close, defeating SSE entirely.
-                "X-Accel-Buffering": "no",
-                # Prevent any cache / transform layer from coalescing or
-                # mangling the chunked body.
-                "Cache-Control": "no-cache, no-transform",
-                "Connection": "keep-alive",
-            },
-        )
-
-    stream_endpoint.__name__ = f"{bundle.id.replace('-', '_')}_stream"
-    return stream_endpoint
 
 
 def _configure_cors(app: FastAPI) -> None:

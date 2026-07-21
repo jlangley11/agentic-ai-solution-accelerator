@@ -43,6 +43,7 @@ except Exception:  # pragma: no cover - SDK may not be installed in lint envs
 
 from src.accelerator_baseline.killswitch import assert_enabled
 from src.accelerator_baseline.telemetry import Event, emit_event
+from src.config.settings import foundry_project_endpoint
 from src.tools import SIDE_EFFECT_TOOLS
 from src.workflow.base import BaseWorkflow
 from src.workflow.supervisor import SupervisorDAG, WorkerSpec, WorkerState
@@ -381,8 +382,9 @@ class SalesResearchWorkflow:
         async with self._version_lock:
             if agent_name in self._agent_versions:
                 return self._agent_versions[agent_name]
-            endpoint = os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT")
-            if not endpoint:
+            try:
+                endpoint = foundry_project_endpoint()
+            except RuntimeError:
                 return None
             try:
                 from azure.ai.projects.aio import AIProjectClient
@@ -443,11 +445,7 @@ class SalesResearchWorkflow:
                 )
             )
             return "{}"
-        project_endpoint = os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT")
-        if not project_endpoint:
-            raise RuntimeError(
-                "AZURE_AI_FOUNDRY_ENDPOINT is not set — required by FoundryAgent"
-            )
+        project_endpoint = foundry_project_endpoint()
         agent_version = await self._resolve_agent_version(agent_name)
         agent = FoundryAgent(
             project_endpoint=project_endpoint,
@@ -684,4 +682,3 @@ def build_workflow(context: Any) -> BaseWorkflow:
     indexes = getattr(context, "retrieval_indexes", ()) or ()
     primary = indexes[0].name if indexes else "accounts"
     return SalesResearchWorkflow(primary_index_name=primary)
-

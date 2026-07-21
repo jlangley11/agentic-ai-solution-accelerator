@@ -29,6 +29,23 @@ Stable packages are pinned in `pyproject.toml`; `ga-versions.yaml` is the manife
 
 Foundry Hosted Agents and the Python serving libraries remain preview as of 2026-07-20. These packages are not part of the GA freshness loop and must not be added to the default runtime until the deployment target has an explicit preview policy.
 
+Install the preview serving entrypoint explicitly with
+`pip install -e ".[hosted-preview]"` (or `".[dev,hosted-preview]"` for
+development). The self-hosted FastAPI application remains the default; importing
+or running `src.agent_host` is an explicit preview opt-in.
+
+Phase 1 keeps provisioning explicit for the hosted preview. Provision the
+selected azd environment before starting the hosted entrypoint:
+
+```powershell
+python scripts/foundry-provision.py --env <env>
+python -m src.agent_host
+```
+
+The hosted process must receive the same environment values. Automatic azd hook
+wiring is intentionally deferred until a hosted-preview deployment target is
+selected in Phase 2; no global hook changes the current self-hosted default.
+
 | Package | Verified version | Status | Revisit |
 |---|---|---|---|
 | `agent-framework-foundry-hosting` | `1.0.0a260709` | Alpha; no GA release | 2026-10 |

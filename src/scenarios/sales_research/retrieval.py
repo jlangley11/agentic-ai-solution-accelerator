@@ -1,10 +1,10 @@
 """Index definitions for the Sales Research & Outreach scenario.
 
 The ``schema`` callable is referenced from ``accelerator.yaml`` and is the
-single source of truth for the AI Search index shape. ``src/bootstrap.py``
-(running inside the Container App at FastAPI startup) calls it to
-create/update the index; at runtime the app doesn't need the schema — it
-only needs the index *name* to query.
+single source of truth for the AI Search index shape. ``src/provisioning.py``
+calls it before serving (through the self-host startup shim or provisioning
+CLI) to create/update the index; at runtime the app only needs the index
+*name* to query.
 
 Index shape (vector + semantic + AAD vectorizer):
     - ``id`` (key)
