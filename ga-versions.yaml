@@ -1,29 +1,61 @@
-# Canonical GA-only SDK version pins for the accelerator.
+# Canonical SDK version policy for the accelerator.
 #
 # The lint (`scripts/accelerator-lint.py`) asserts that `pyproject.toml` pins
 # these exact minimum versions and that the pin specifier contains NO preview
 # / alpha / beta / rc tags. A weekly `ga-sdk-freshness` CI job re-checks PyPI
 # and opens an issue if a newer GA is available.
 #
-# Bumping a version here is the only place a partner (or CI) should do it.
-# The lint will catch drift.
+# Preview-only dependencies are recorded separately with a reason and review
+# date; they are never mixed into the canonical GA set.
 
 sdks:
   agent-framework:
-    min: "1.0.0"
+    min: "1.11.0"
     upper_exclusive: "2.0.0"
   azure-ai-projects:
-    min: "1.0.0"
+    min: "2.3.0"
     upper_exclusive: "3.0.0"
   azure-ai-agents:
-    min: "1.0.0"
+    min: "1.1.0"
     upper_exclusive: "2.0.0"
   azure-identity:
-    min: "1.18.0"
+    min: "1.25.3"
     upper_exclusive: "2.0.0"
   azure-search-documents:
-    min: "11.5.3"
-    upper_exclusive: "11.6.0"
+    min: "12.0.0"
+    upper_exclusive: "13.0.0"
   azure-mgmt-cognitiveservices:
-    min: "13.5.0"
-    upper_exclusive: "14.0.0"
+    min: "14.1.0"
+    upper_exclusive: "15.0.0"
+
+# Hosted-agent serving packages have no GA releases as of 2026-07-20.
+# They are recorded separately so the GA freshness job continues to enforce
+# only stable SDKs. Phase 5 adds lint enforcement for this exception shape.
+prerelease_exceptions:
+  agent-framework-foundry-hosting:
+    version: "1.0.0a260709"
+    classification: alpha
+    reason: >-
+      Required to host Microsoft Agent Framework agents on Foundry Agent
+      Service; no GA release exists.
+    revisit_by: 2026-10
+  azure-ai-agentserver-core:
+    version: "2.0.0b7"
+    classification: beta
+    reason: >-
+      Transitive runtime used by the Foundry hosting package; no GA release
+      exists.
+    revisit_by: 2026-10
+  azure-ai-agentserver-responses:
+    version: "1.0.0b8"
+    classification: beta
+    reason: >-
+      Required for the Responses protocol host; no GA release exists.
+    revisit_by: 2026-10
+  azure-ai-agentserver-invocations:
+    version: "1.0.0b6"
+    classification: beta
+    reason: >-
+      Required for raw Invocations and SSE compatibility; no GA release
+      exists.
+    revisit_by: 2026-10

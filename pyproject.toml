@@ -9,27 +9,21 @@ license = { text = "MIT" }
 # Pinned to a known-good version matrix. See docs/version-matrix.md.
 # Weekly version-matrix.yml CI job re-tests against latest; deprecation policy N-1 minor.
 dependencies = [
-  "agent-framework>=1.0.0,<2.0.0",
-  # Upper bound raised to <3.0.0 because agent-framework-foundry (transitive
-  # dep of agent-framework>=1.0.0) requires azure-ai-projects>=2.0.0. Keeping
-  # >=1.0.0 floor for flexibility; pip will resolve to the 2.x series in
-  # practice to satisfy agent-framework-foundry.
-  "azure-ai-projects>=1.0.0,<3.0.0",
-  "azure-ai-agents>=1.0.0,<2.0.0",
-  "azure-identity>=1.18.0,<2.0.0",
+  "agent-framework>=1.11.0,<2.0.0",
+  # Hosted-agent versioning and code-upload APIs are stable in 2.3.0.
+  "azure-ai-projects>=2.3.0,<3.0.0",
+  "azure-ai-agents>=1.1.0,<2.0.0",
+  "azure-identity>=1.25.3,<2.0.0",
   "azure-keyvault-secrets>=4.8.0,<5.0.0",
-  # Pinned to GA-only (11.5.x) — 11.6.x is a beta line at time of writing
-  # and ships a different vectorizer shape (AzureOpenAIParameters vs
-  # AzureOpenAIVectorizerParameters). Keep the ceiling tight and bump only
-  # when 11.6.0 ships GA.
-  "azure-search-documents>=11.5.3,<11.6.0",
+  # The 12.0 GA models retain the vectorizer API used by scenario schemas.
+  "azure-search-documents>=12.0.0,<13.0.0",
   # Required for bootstrap to embed seed docs at provision time so the
   # `accounts` index has populated `contentVector` fields. Query-time
   # vectorization fires from the AAD vectorizer in the index schema; this
   # dep is only for the seed path. agent-framework already pulls
   # openai>=2 transitively so this is a free-floating soft pin.
   "openai>=2.0.0,<3.0.0",
-  "azure-mgmt-cognitiveservices>=13.5.0,<14.0.0",
+  "azure-mgmt-cognitiveservices>=14.1.0,<15.0.0",
   # Required by src.bootstrap._grant_agent_search_access — at runtime,
   # bootstrap inspects each Foundry agent's instance_identity.principal_id
   # and uses ARM role-assignments to grant it Search RBAC on the AI Search
@@ -63,6 +57,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
+  "pytest-asyncio>=1.4.0,<2.0.0",
   "ruff>=0.7",
   "mypy>=1.13",
   "pyright>=1.1.380",
