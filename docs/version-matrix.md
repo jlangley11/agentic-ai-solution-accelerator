@@ -57,7 +57,11 @@ See [Phase 0 hosted-agent spike report](plans/phase0-spike-report.md) for the li
 
 ## Platform targets
 - Current self-hosted runtime: Python **3.11** and **3.12**.
-- Hosted-agent code runtime: Python **3.13** verified. The current extension rejects Python 3.12; Python 3.14 is documented but was not live-tested.
+- Hosted-agent code runtime: Python **3.14** for the accelerator workspace. Python
+  3.13 starts the protocol server locally, but remote build cannot resolve the
+  current `agent-framework` Hyperlight Linux dependency; 3.14 excludes that
+  conditional package and has been dependency-tested. The extension rejects
+  Python 3.12.
 - Azure Developer CLI: **1.28.0** verified.
 - Foundry extensions: `microsoft.foundry` **1.0.0-beta.1** and `azure.ai.agents` **1.0.0-beta.6** verified.
 - Hosted Agents status: **preview**. Foundry Agent Service GA does not make Hosted Agents GA.

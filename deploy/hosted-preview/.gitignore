@@ -1,0 +1,12 @@
+.azure/
+infra/main.json
+app/src/
+app/accelerator.yaml
+app/pyproject.toml
+app/README.md
+app/.mypy_cache/
+app/.pytest_cache/
+app/.ruff_cache/
+app/.venv/
+app/**/__pycache__/
+app/**/*.py[cod]

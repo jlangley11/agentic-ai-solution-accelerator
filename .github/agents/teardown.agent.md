@@ -17,8 +17,9 @@ and irreversible; this custom agent enforces the safety contract.
 
 ## Inputs to gather
 1. **Env name** — the `azd` environment being destroyed; must match an entry in `deploy/environments.yaml`.
-2. **Confirmation that the customer signed off on destruction** — this is the contract that gates the destructive step.
-3. **Where the partner has archived the engagement deliverables** (KPI exports, cost report, eval results, handover packet). The script's checklist asks about each.
+2. **Deployment target** — `selfhost` or `hosted-preview`, matching the manifest entry.
+3. **Confirmation that the customer signed off on destruction** — this is the contract that gates the destructive step.
+4. **Where the partner has archived the engagement deliverables** (KPI exports, cost report, eval results, handover packet). The script's checklist asks about each.
 
 ## Step 1 — Pre-teardown checklist
 
@@ -26,6 +27,13 @@ Run the read-only preflight that walks 6 acknowledgments:
 
 ```bash
 python scripts/teardown-preflight.py --env <env-name>
+```
+
+For Hosted Agents preview, retain the explicit target:
+
+```bash
+python scripts/teardown-preflight.py --env <env-name> \
+  --deployment-target hosted-preview
 ```
 
 The script asks `[y/N]` for each of:
@@ -44,7 +52,21 @@ outstanding. Do not proceed to step 2 until all are acknowledged.
 The agent does NOT run this. The partner runs it themselves after the
 checklist passes:
 
+The operator identity needs Contributor plus **Role Based Access Control
+Administrator** (or User Access Administrator / Owner) at the deployment
+scope so `azd down` can remove the role assignments created by either target.
+Contributor alone can delete resources but cannot reliably delete their RBAC
+assignments.
+
 ```bash
+azd down -e <env-name> --purge --force
+```
+
+For hosted preview the operator must enter the nested workspace; do not use
+`azd -C`:
+
+```bash
+cd deploy/hosted-preview
 azd down -e <env-name> --purge --force
 ```
 
@@ -58,6 +80,10 @@ takes 5–10 minutes. If it fails partway, re-run it; it is idempotent.
 - **Cognitive Services accounts** go to soft-delete (default 7 days).
 - **Key Vaults** go to soft-delete (default 7–90 days depending on tenant policy).
 
+The hosted-preview workspace does not provision a Key Vault, so Cognitive
+Services is the primary hosted sweep. The script still checks Key Vault as a
+defensive measure for same-named resources created outside that workspace.
+
 Both block re-creation of a resource with the same name+region during
 their retention window. If you tear down `customera-dev` and try to
 re-deploy it with the same env name in the same region, `azd up` will
@@ -69,8 +95,25 @@ Run the sweep:
 python scripts/teardown-preflight.py --env <env-name> --post-teardown
 ```
 
+For hosted preview, append `--deployment-target hosted-preview`. The script
+loads the expected hashed Foundry/Cognitive Services account name from
+`deploy/hosted-preview/.azure/<env-name>/.env` using
+`AZURE_AI_FOUNDRY_ACCOUNT_NAME` or `AZURE_AI_ACCOUNT_NAME`. If that file is no
+longer available, provide the exact name explicitly:
+
+```bash
+python scripts/teardown-preflight.py --env <env-name> --post-teardown \
+  --deployment-target hosted-preview \
+  --cognitive-account-name <exact-account-name>
+```
+
+For selfhost, the same lookup uses the root `.azure/<env-name>/.env`.
+
 The sweep:
-- Lists soft-deleted Cognitive Services accounts whose name contains the env name
+- Matches the exact expected Cognitive Services account name, including hashed
+  hosted names
+- Uses env-name substring matching only when no exact account name is available
+  for a legacy selfhost environment
 - Lists soft-deleted Key Vaults whose name contains the env name
 - Prints the exact `az ... purge` command for each — but does NOT run them
 

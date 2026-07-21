@@ -2,6 +2,13 @@ param name string
 param location string
 param tags object
 param rbacPrincipalId string
+
+@description('Principal type for rbacPrincipalId. Root self-host deployments keep the ServicePrincipal default; hosted preview may pass User for an interactive azd operator.')
+@allowed([
+  'ServicePrincipal'
+  'User'
+])
+param rbacPrincipalType string = 'ServicePrincipal'
 param enablePrivateLink bool = false
 
 @description('Tier 3 only. Resource ID of the spoke subnet that hosts the Search PE.')
@@ -43,22 +50,22 @@ resource search 'Microsoft.Search/searchServices@2023-11-01' = {
 var indexDataContributorId = '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
 var serviceContributorId = '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
 
-resource searchDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource searchDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(rbacPrincipalId)) {
   name: guid(search.id, rbacPrincipalId, indexDataContributorId)
   scope: search
   properties: {
     principalId: rbacPrincipalId
-    principalType: 'ServicePrincipal'
+    principalType: rbacPrincipalType
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', indexDataContributorId)
   }
 }
 
-resource searchContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource searchContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(rbacPrincipalId)) {
   name: guid(search.id, rbacPrincipalId, serviceContributorId)
   scope: search
   properties: {
     principalId: rbacPrincipalId
-    principalType: 'ServicePrincipal'
+    principalType: rbacPrincipalType
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', serviceContributorId)
   }
 }

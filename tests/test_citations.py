@@ -53,12 +53,21 @@ def test_require_citations_treats_empty_string_as_unpopulated():
     assert ok and msg == ""
 
 
-def test_assert_no_hallucinated_urls_passes_when_host_matches():
+def test_assert_no_hallucinated_urls_passes_when_normalized_url_matches():
     ok, _ = assert_no_hallucinated_urls(
-        [{"url": "https://www.contoso.com/news/1"}],
-        ["https://www.contoso.com/wiki", "https://docs.contoso.com/"],
+        [{"url": "https://WWW.contoso.com/news/1/"}],
+        ["https://www.contoso.com/news/1#retrieved"],
     )
     assert ok
+
+
+def test_assert_no_hallucinated_urls_fails_on_fabricated_same_host_path():
+    ok, msg = assert_no_hallucinated_urls(
+        [{"url": "https://investors.contoso.example/press/fabricated"}],
+        ["https://investors.contoso.example/press/q1-2026"],
+    )
+    assert not ok
+    assert "fabricated" in msg
 
 
 def test_assert_no_hallucinated_urls_fails_on_unknown_host():
@@ -124,6 +133,28 @@ def test_extract_tool_trace_uris_collects_single_citation():
         ]),
     ])
     assert extract_tool_trace_uris(resp) == {"https://contoso.example/a"}
+
+
+def test_extract_tool_trace_uris_collects_foundryiq_source_metadata():
+    resp = _ns_response([
+        _ns_message([
+            _ns_content([
+                {
+                    "type": "citation",
+                    "url": "mcp://searchindex/contoso-ltd-01",
+                    "additional_properties": {
+                        "mcp_document_id": "contoso-ltd-01",
+                        "source": "https://investors.contoso.example/press/q1-2026",
+                    },
+                },
+            ]),
+        ]),
+    ])
+
+    assert extract_tool_trace_uris(resp) == {
+        "mcp://searchindex/contoso-ltd-01",
+        "https://investors.contoso.example/press/q1-2026",
+    }
 
 
 def test_extract_tool_trace_uris_dedupes_across_messages():

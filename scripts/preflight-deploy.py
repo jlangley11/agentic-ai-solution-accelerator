@@ -1,13 +1,14 @@
-"""Pre-`azd up` deploy preflight.
+"""Read-only deploy preflight for the selected deployment target.
 
 Runs deterministic ``az`` checks against the partner's currently-logged-in
-Azure context to surface the documented `azd up` failure modes BEFORE the
-12-minute provision burns. Wires into the deliver-step-7 walkthrough as
-"Run this before ``azd up``."
+Azure context to surface documented deployment failures before provisioning.
+The default ``selfhost`` target preserves the root ``azd up`` checks. The
+``hosted-preview`` target adds explicit preview, runtime, CLI, extension, and
+region gates for the nested Hosted Agents workspace.
 
 Scope:
   - ``az account show`` parity (logged in, expected tenant if --tenant given)
-  - Required-RP registration check
+  - Target-specific required-RP registration check
   - Default-model availability in the chosen region
   - Quota probe for the default model (best-effort)
   - Region capability for AI Foundry projects (best-effort)
@@ -22,10 +23,12 @@ Usage:
     python scripts/preflight-deploy.py --region eastus2
     python scripts/preflight-deploy.py --region westeurope --tenant <guid>
     python scripts/preflight-deploy.py --region eastus2 --subscription <guid>
+    python scripts/preflight-deploy.py --region westus3 \
+      --deployment-target hosted-preview --acknowledge-preview
 
 Exit codes:
   0 — all hard checks pass (warnings allowed)
-  1 — at least one hard check failed; ``azd up`` will likely fail too
+  1 — at least one hard check failed; the selected deployment will likely fail
   2 — preflight itself broke (az CLI missing, accelerator.yaml malformed)
 """
 from __future__ import annotations
@@ -33,10 +36,12 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from functools import total_ordering
 
 import yaml
 
@@ -44,7 +49,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # Resource providers that infra/main.bicep depends on. Missing registrations
 # manifest as `azd up` failures partway through provision.
-REQUIRED_RPS = [
+SELFHOST_REQUIRED_RPS = [
     "Microsoft.CognitiveServices",
     "Microsoft.Search",
     "Microsoft.App",
@@ -53,6 +58,15 @@ REQUIRED_RPS = [
     "Microsoft.KeyVault",
     "Microsoft.ManagedIdentity",
 ]
+
+HOSTED_PREVIEW_REQUIRED_RPS = [
+    "Microsoft.CognitiveServices",
+    "Microsoft.Search",
+    "Microsoft.OperationalInsights",
+    "Microsoft.Insights",
+]
+
+REQUIRED_RPS = SELFHOST_REQUIRED_RPS
 
 # AI Foundry project GA regions as of writing. Best-effort: the list grows
 # over time, so a region that's NOT here gets a WARN, not a FAIL — the
@@ -64,6 +78,43 @@ FOUNDRY_GA_REGIONS = {
     "australiaeast", "japaneast", "swedencentral",
 }
 
+HOSTED_PREVIEW_REGIONS = {
+    "australiaeast",
+    "brazilsouth",
+    "canadacentral",
+    "canadaeast",
+    "eastus",
+    "eastus2",
+    "francecentral",
+    "germanywestcentral",
+    "italynorth",
+    "japaneast",
+    "japanwest",
+    "koreacentral",
+    "northcentralus",
+    "norwayeast",
+    "polandcentral",
+    "southafricanorth",
+    "southcentralus",
+    "southindia",
+    "southeastasia",
+    "spaincentral",
+    "swedencentral",
+    "switzerlandnorth",
+    "switzerlandwest",
+    "uaenorth",
+    "ukwest",
+    "westcentralus",
+    "westeurope",
+    "westus",
+    "westus3",
+}
+
+MIN_AZD_VERSION = "1.27.1"
+RECOMMENDED_AZD_VERSION = "1.28.0"
+MIN_AGENTS_EXTENSION_VERSION = "1.0.0-beta.6"
+MIN_FOUNDRY_EXTENSION_VERSION = "1.0.0-beta.1"
+
 
 @dataclass
 class CheckResult:
@@ -71,6 +122,87 @@ class CheckResult:
     status: str  # "pass" | "warn" | "fail"
     message: str
     fix: str | None = None
+
+
+@total_ordering
+@dataclass(frozen=True)
+class ParsedVersion:
+    major: int
+    minor: int
+    patch: int
+    prerelease_rank: int = 4
+    prerelease_number: int = 0
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, ParsedVersion):
+            return NotImplemented
+        return (
+            self.major,
+            self.minor,
+            self.patch,
+            self.prerelease_rank,
+            self.prerelease_number,
+        ) < (
+            other.major,
+            other.minor,
+            other.patch,
+            other.prerelease_rank,
+            other.prerelease_number,
+        )
+
+
+_VERSION_RE = re.compile(
+    r"(?<!\d)(\d+)\.(\d+)\.(\d+)"
+    r"(?:[-.]?(alpha|a|beta|b|preview|pre|rc)[.-]?(\d+)?)?",
+    re.IGNORECASE,
+)
+_PRERELEASE_RANK = {
+    "alpha": 0,
+    "a": 0,
+    "preview": 1,
+    "pre": 1,
+    "beta": 2,
+    "b": 2,
+    "rc": 3,
+}
+
+
+def parse_version(value: str) -> ParsedVersion | None:
+    """Extract a comparable semantic version from stable or prerelease output."""
+    match = _VERSION_RE.search(value)
+    if not match:
+        return None
+    label = (match.group(4) or "").lower()
+    rank = _PRERELEASE_RANK.get(label, 4)
+    return ParsedVersion(
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3)),
+        rank,
+        int(match.group(5) or 0),
+    )
+
+
+def _command_argv(executable: str, args: list[str]) -> list[str]:
+    """Execute the fully resolved command path with its arguments."""
+    return [executable, *args]
+
+
+def _run_command(command: str, args: list[str]) -> tuple[int, str, str]:
+    executable = shutil.which(command)
+    if not executable:
+        return 127, "", f"{command} not found on PATH"
+    try:
+        cp = subprocess.run(
+            _command_argv(executable, args),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        return cp.returncode, cp.stdout or "", cp.stderr or ""
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 124 if isinstance(exc, subprocess.TimeoutExpired) else 126, "", str(exc)
 
 
 def _az(args: list[str], *, capture: bool = True) -> tuple[int, str, str]:
@@ -81,20 +213,22 @@ def _az(args: list[str], *, capture: bool = True) -> tuple[int, str, str]:
     On Windows ``az`` is a ``.cmd`` shim, so we resolve the full path via
     ``shutil.which`` rather than relying on PATH lookup inside CreateProcess.
     """
-    az_path = shutil.which("az")
-    if not az_path:
+    if capture:
+        return _run_command("az", args)
+    executable = shutil.which("az")
+    if not executable:
         return 127, "", "az CLI not found on PATH"
     try:
         cp = subprocess.run(
-            [az_path, *args],
+            _command_argv(executable, args),
             check=False,
-            capture_output=capture,
+            capture_output=False,
             text=True,
             timeout=60,
         )
-        return cp.returncode, cp.stdout or "", cp.stderr or ""
-    except subprocess.TimeoutExpired:
-        return 124, "", f"az {' '.join(args)} timed out after 60s"
+        return cp.returncode, "", ""
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 124 if isinstance(exc, subprocess.TimeoutExpired) else 126, "", str(exc)
 
 
 def _load_default_model() -> dict | None:
@@ -150,9 +284,14 @@ def check_az_login(expected_tenant: str | None, expected_subscription: str | Non
     return CheckResult("az logged in", "pass", msg)
 
 
-def check_resource_providers() -> CheckResult:
+def check_resource_providers(deployment_target: str = "selfhost") -> CheckResult:
+    required_rps = (
+        HOSTED_PREVIEW_REQUIRED_RPS
+        if deployment_target == "hosted-preview"
+        else SELFHOST_REQUIRED_RPS
+    )
     not_registered: list[str] = []
-    for rp in REQUIRED_RPS:
+    for rp in required_rps:
         rc, out, _ = _az([
             "provider", "show", "-n", rp, "--query", "registrationState", "-o", "tsv",
         ])
@@ -173,7 +312,7 @@ def check_resource_providers() -> CheckResult:
         )
     return CheckResult(
         "Resource providers registered", "pass",
-        f"{len(REQUIRED_RPS)}/{len(REQUIRED_RPS)} registered",
+        f"{len(required_rps)}/{len(required_rps)} registered",
     )
 
 
@@ -202,6 +341,190 @@ def check_foundry_region(region: str) -> CheckResult:
         f"'{region}' is not in the documented Foundry GA region list",
         fix=("If `azd up` fails on Microsoft.CognitiveServices/accounts/projects, "
              "re-run with a region from FOUNDRY_GA_REGIONS in this script."),
+    )
+
+
+def check_hosted_preview_region(region: str) -> CheckResult:
+    normalized = region.strip().lower().replace(" ", "")
+    if normalized in HOSTED_PREVIEW_REGIONS:
+        return CheckResult("Hosted Agents available in region", "pass", normalized)
+    return CheckResult(
+        "Hosted Agents available in region",
+        "fail",
+        f"'{region}' is not in the documented 29-region Hosted Agents preview list",
+        fix=(
+            "Choose a region listed at "
+            "https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents"
+            "#region-availability."
+        ),
+    )
+
+
+def check_preview_acknowledged(acknowledged: bool) -> CheckResult:
+    if acknowledged:
+        return CheckResult(
+            "Hosted preview explicitly acknowledged",
+            "pass",
+            "preview limitations accepted for this deployment",
+        )
+    return CheckResult(
+        "Hosted preview explicitly acknowledged",
+        "fail",
+        "`--acknowledge-preview` is required for hosted-preview",
+        fix=(
+            "Review deploy/hosted-preview/README.md, obtain the engagement's preview "
+            "approval, then re-run with `--acknowledge-preview`."
+        ),
+    )
+
+
+def check_python_version(
+    version_info: tuple[int, int, int] | None = None,
+) -> CheckResult:
+    current = version_info or (
+        sys.version_info.major,
+        sys.version_info.minor,
+        sys.version_info.micro,
+    )
+    rendered = ".".join(str(part) for part in current[:3])
+    if current[:2] >= (3, 13):
+        return CheckResult("Python >= 3.13", "pass", rendered)
+    return CheckResult(
+        "Python >= 3.13",
+        "fail",
+        f"found Python {rendered}",
+        fix="Install/select Python 3.13 before deploying the hosted preview.",
+    )
+
+
+def check_azd_version() -> CheckResult:
+    rc, out, err = _run_command("azd", ["version"])
+    if rc != 0:
+        return CheckResult(
+            "azd >= 1.27.1",
+            "fail",
+            err.strip() or "could not run `azd version`",
+            fix="Install Azure Developer CLI 1.28.0 (verified) or newer.",
+        )
+    actual = parse_version(out)
+    minimum = parse_version(MIN_AZD_VERSION)
+    recommended = parse_version(RECOMMENDED_AZD_VERSION)
+    if actual is None or minimum is None or recommended is None:
+        return CheckResult(
+            "azd >= 1.27.1",
+            "fail",
+            f"could not parse version from: {out.strip()!r}",
+            fix="Install the stable azd 1.28.0 release.",
+        )
+    if actual < minimum:
+        return CheckResult(
+            "azd >= 1.27.1",
+            "fail",
+            f"found {out.strip()}",
+            fix="Upgrade to azd 1.28.0 (verified) or newer.",
+        )
+    status = "pass" if actual >= recommended else "warn"
+    fix = None if status == "pass" else "Upgrade to the verified azd 1.28.0 release."
+    return CheckResult("azd >= 1.27.1", status, out.strip(), fix=fix)
+
+
+def check_agents_extension_version() -> CheckResult:
+    rc, out, err = _run_command("azd", ["ext", "list", "-o", "json"])
+    if rc != 0:
+        return CheckResult(
+            "azure.ai.agents >= 1.0.0-beta.6",
+            "fail",
+            err.strip() or "could not list azd extensions",
+            fix=(
+                "Run `azd ext install azure.ai.agents "
+                "--version 1.0.0-beta.6 --force`."
+            ),
+        )
+    try:
+        extensions = json.loads(out) or []
+    except json.JSONDecodeError:
+        return CheckResult(
+            "azure.ai.agents >= 1.0.0-beta.6",
+            "fail",
+            "azd extension list returned non-JSON",
+            fix="Reinstall the azure.ai.agents 1.0.0-beta.6 extension.",
+        )
+    entry = next(
+        (
+            item
+            for item in extensions
+            if isinstance(item, dict) and item.get("id") == "azure.ai.agents"
+        ),
+        None,
+    )
+    installed = (entry or {}).get("installedVersion") or ""
+    actual = parse_version(installed)
+    minimum = parse_version(MIN_AGENTS_EXTENSION_VERSION)
+    if actual is None or minimum is None or actual < minimum:
+        found = installed or "not installed"
+        return CheckResult(
+            "azure.ai.agents >= 1.0.0-beta.6",
+            "fail",
+            f"found {found}",
+            fix=(
+                "Run `azd ext install azure.ai.agents "
+                "--version 1.0.0-beta.6 --force`."
+            ),
+        )
+    return CheckResult(
+        "azure.ai.agents >= 1.0.0-beta.6",
+        "pass",
+        installed,
+    )
+
+
+def check_foundry_extension_version() -> CheckResult:
+    rc, out, err = _run_command("azd", ["ext", "list", "-o", "json"])
+    if rc != 0:
+        return CheckResult(
+            "microsoft.foundry >= 1.0.0-beta.1",
+            "fail",
+            err.strip() or "could not list azd extensions",
+            fix=(
+                "Run `azd ext install microsoft.foundry "
+                "--version 1.0.0-beta.1 --force --no-prompt`."
+            ),
+        )
+    try:
+        extensions = json.loads(out) or []
+    except json.JSONDecodeError:
+        return CheckResult(
+            "microsoft.foundry >= 1.0.0-beta.1",
+            "fail",
+            "azd extension list returned non-JSON",
+            fix="Reinstall the microsoft.foundry 1.0.0-beta.1 extension.",
+        )
+    entry = next(
+        (
+            item
+            for item in extensions
+            if isinstance(item, dict) and item.get("id") == "microsoft.foundry"
+        ),
+        None,
+    )
+    installed = (entry or {}).get("installedVersion") or ""
+    actual = parse_version(installed)
+    minimum = parse_version(MIN_FOUNDRY_EXTENSION_VERSION)
+    if actual is None or minimum is None or actual < minimum:
+        found = installed or "not installed"
+        return CheckResult(
+            "microsoft.foundry >= 1.0.0-beta.1",
+            "fail",
+            f"found {found}",
+            fix=(
+                "Run `azd ext install microsoft.foundry "
+                "--version 1.0.0-beta.1 --force --no-prompt`."
+            ),
+        )
+    return CheckResult(
+        "microsoft.foundry >= 1.0.0-beta.1",
+        "pass",
+        installed,
     )
 
 
@@ -307,24 +630,43 @@ def check_model_quota(region: str, model: dict) -> CheckResult:
 # Driver
 # -----------------------------------------------------------------------------
 
-def _print_report(results: list[CheckResult]) -> int:
+def _print_report(
+    results: list[CheckResult],
+    deployment_target: str = "selfhost",
+) -> int:
     icon = {"pass": "[PASS]", "warn": "[WARN]", "fail": "[FAIL]"}
     bar = "-" * 72
     print()
     print(bar)
-    print(" Deploy preflight - read-only checks against your current az context")
+    print(
+        " Deploy preflight - "
+        f"target={deployment_target}, read-only checks against your current az context"
+    )
     print(bar)
     for r in results:
         print(f"  {icon[r.status]} {r.name:<42} {r.message}")
     fails = [r for r in results if r.status == "fail"]
     warns = [r for r in results if r.status == "warn"]
     print(bar)
+    target_command = (
+        "hosted preview provision/deploy"
+        if deployment_target == "hosted-preview"
+        else "selfhost `azd up`"
+    )
     if fails:
-        print(f" Result: [FAIL] {len(fails)} hard failure(s); `azd up` will likely fail.")
+        print(
+            f" Result: [FAIL] {len(fails)} hard failure(s); "
+            f"the selected {target_command} will likely fail."
+        )
     elif warns:
-        print(f" Result: [WARN] {len(warns)} warning(s); `azd up` may proceed but watch for these.")
+        print(
+            f" Result: [WARN] {len(warns)} warning(s); "
+            f"the selected {target_command} may proceed but watch for these."
+        )
     else:
-        print(" Result: [PASS] all checks passed; `azd up` is safe to run.")
+        print(
+            f" Result: [PASS] all checks passed; the selected {target_command} is ready."
+        )
     print(bar)
     if fails or warns:
         print(" Remediation:")
@@ -339,13 +681,24 @@ def _print_report(results: list[CheckResult]) -> int:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    p = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     p.add_argument("--region", required=True,
-                   help="Target Azure region for `azd up` (e.g. eastus2).")
+                   help="Target Azure region for the selected deployment (e.g. eastus2).")
     p.add_argument("--tenant", default=None,
                    help="Expected tenant GUID; preflight fails if mismatched.")
     p.add_argument("--subscription", default=None,
                    help="Expected subscription GUID; preflight fails if mismatched.")
+    p.add_argument(
+        "--deployment-target",
+        choices=("selfhost", "hosted-preview"),
+        default="selfhost",
+        help="Deployment shape to validate (default: selfhost).",
+    )
+    p.add_argument(
+        "--acknowledge-preview",
+        action="store_true",
+        help="Explicitly acknowledge Hosted Agents preview limitations.",
+    )
     args = p.parse_args()
 
     default_model = _load_default_model()
@@ -353,21 +706,35 @@ def main() -> int:
         print("preflight: accelerator.yaml has no `models[]` block", file=sys.stderr)
         return 2
 
-    results: list[CheckResult] = [
-        check_az_login(args.tenant, args.subscription),
-    ]
+    results: list[CheckResult] = []
+    if args.deployment_target == "hosted-preview":
+        results.extend([
+            check_preview_acknowledged(args.acknowledge_preview),
+            check_python_version(),
+            check_azd_version(),
+            check_agents_extension_version(),
+            check_foundry_extension_version(),
+        ])
+        if any(result.status == "fail" for result in results):
+            return _print_report(results, args.deployment_target)
+
+    results.append(check_az_login(args.tenant, args.subscription))
     # If the login check fails, downstream az calls will all fail too; bail early.
-    if results[0].status == "fail":
-        return _print_report(results)
+    if results[-1].status == "fail":
+        return _print_report(results, args.deployment_target)
 
     results.extend([
-        check_resource_providers(),
+        check_resource_providers(args.deployment_target),
         check_region_exists(args.region),
-        check_foundry_region(args.region),
+        (
+            check_hosted_preview_region(args.region)
+            if args.deployment_target == "hosted-preview"
+            else check_foundry_region(args.region)
+        ),
         check_model_available(args.region, default_model),
         check_model_quota(args.region, default_model),
     ])
-    return _print_report(results)
+    return _print_report(results, args.deployment_target)
 
 
 if __name__ == "__main__":

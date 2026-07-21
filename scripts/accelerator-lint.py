@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import sys
@@ -36,17 +37,30 @@ class Ctx:
     files: dict[pathlib.Path, str] = field(default_factory=dict)
 
     def load(self) -> None:
-        for p in ROOT.rglob("*"):
-            if not p.is_file():
-                continue
-            if any(part in {".git", "node_modules", "__pycache__", ".venv"}
-                   for part in p.parts):
-                continue
-            if p.suffix in {".py", ".md", ".yaml", ".yml", ".json", ".bicep", ".toml"}:
-                try:
-                    self.files[p] = p.read_text(encoding="utf-8", errors="ignore")
-                except Exception:
+        skipped_dirs = {".git", "node_modules", "__pycache__", ".venv"}
+        generated_files = {
+            ("deploy", "hosted-preview", "app", "accelerator.yaml"),
+            ("deploy", "hosted-preview", "app", "pyproject.toml"),
+            ("deploy", "hosted-preview", "app", "README.md"),
+        }
+        for dirpath, dirnames, filenames in os.walk(ROOT):
+            directory = pathlib.Path(dirpath)
+            rel_dir_parts = directory.relative_to(ROOT).parts
+            dirnames[:] = [name for name in dirnames if name not in skipped_dirs]
+            if rel_dir_parts == ("deploy", "hosted-preview", "app"):
+                dirnames[:] = [name for name in dirnames if name != "src"]
+            for filename in filenames:
+                p = directory / filename
+                rel_parts = p.relative_to(ROOT).parts
+                if rel_parts in generated_files:
                     continue
+                if p.suffix in {
+                    ".py", ".md", ".yaml", ".yml", ".json", ".bicep", ".toml",
+                }:
+                    try:
+                        self.files[p] = p.read_text(encoding="utf-8", errors="ignore")
+                    except Exception:
+                        continue
 
     def iter(self, *exts: str) -> Iterable[tuple[pathlib.Path, str]]:
         for p, c in self.files.items():
@@ -81,6 +95,290 @@ def manifest_present(ctx: Ctx) -> list[Finding]:
     missing = [k for k in required_keys if k not in txt]
     return [Finding("manifest-required-keys", "block", "accelerator.yaml",
                     f"missing top-level key: {k}") for k in missing]
+
+
+@check
+def hosted_preview_workspace(ctx: Ctx) -> list[Finding]:
+    """Validate the additive Hosted Agents preview without changing root defaults."""
+    rel = "deploy/hosted-preview/azure.yaml"
+    workspace_manifest = ROOT / rel
+    if not workspace_manifest.exists():
+        return []
+    try:
+        import yaml
+        data = yaml.safe_load(workspace_manifest.read_text(encoding="utf-8")) or {}
+        accelerator = yaml.safe_load(
+            (ROOT / "accelerator.yaml").read_text(encoding="utf-8")
+        ) or {}
+        root_azd = yaml.safe_load((ROOT / "azure.yaml").read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        return [Finding("hosted-preview-workspace", "block", rel,
+                        f"hosted preview manifests are not valid YAML: {exc}")]
+
+    out: list[Finding] = []
+
+    def block(path: str, message: str) -> None:
+        out.append(Finding("hosted-preview-workspace", "block", path, message))
+
+    required_files = [
+        "deploy/hosted-preview/app/main.py",
+        "deploy/hosted-preview/app/requirements.txt",
+        "deploy/hosted-preview/app/.agentignore",
+        "deploy/hosted-preview/hooks/bootstrap.py",
+        "deploy/hosted-preview/hooks/normalize_env.py",
+        "deploy/hosted-preview/hooks/prepare.py",
+        "deploy/hosted-preview/hooks/postdeploy.py",
+        "deploy/hosted-preview/infra/main.bicep",
+        "deploy/hosted-preview/infra/main.parameters.json",
+        "deploy/hosted-preview/infra/modules/resources.bicep",
+        "deploy/hosted-preview/README.md",
+    ]
+    for required in required_files:
+        if not (ROOT / required).is_file():
+            block(required, "required hosted-preview workspace file is missing")
+
+    root_api = (root_azd.get("services") or {}).get("api") or {}
+    if root_api.get("host") != "containerapp":
+        block("azure.yaml", "root deployment must remain the self-hosted containerapp default")
+
+    extensions = (data.get("requiredVersions") or {}).get("extensions") or {}
+    if extensions.get("azure.ai.agents") != ">=1.0.0-beta.6":
+        block(rel, "azure.ai.agents must require >=1.0.0-beta.6")
+
+    infra = data.get("infra") or {}
+    if infra.get("provider") != "microsoft.foundry" or infra.get("path") != "infra":
+        block(rel, "infra must use microsoft.foundry with the on-disk infra directory")
+
+    services = data.get("services") or {}
+    projects = [service for service in services.values()
+                if isinstance(service, dict) and service.get("host") == "azure.ai.project"]
+    agents = [service for service in services.values()
+              if isinstance(service, dict) and service.get("host") == "azure.ai.agent"]
+    if len(projects) != 1 or len(agents) != 1:
+        block(rel, "workspace must declare exactly one azure.ai.project and one azure.ai.agent")
+        return out
+
+    project = projects[0]
+    agent = agents[0]
+    manifest_defaults = [
+        model for model in accelerator.get("models", [])
+        if isinstance(model, dict) and model.get("default") is True
+    ]
+    declared = project.get("deployments") or []
+    if manifest_defaults and declared:
+        expected = manifest_defaults[0]
+        actual = declared[0]
+        actual_model = actual.get("model") or {}
+        actual_sku = actual.get("sku") or {}
+        if (
+            actual.get("name") != expected.get("deployment_name")
+            or actual_model.get("name") != expected.get("model")
+            or actual_model.get("version") != expected.get("version")
+            or actual_sku.get("capacity") != expected.get("capacity")
+        ):
+            block(rel, "azure.ai.project default deployment must match accelerator.yaml")
+
+    prompt_agent_names = {
+        entry.get("foundry_name")
+        for entry in ((accelerator.get("scenario") or {}).get("agents") or [])
+        if isinstance(entry, dict)
+    }
+    if agent.get("name") in prompt_agent_names:
+        block(rel, "hosted agent name must be distinct from prompt-agent names")
+    code = agent.get("codeConfiguration") or {}
+    if (
+        agent.get("kind") != "hosted"
+        or agent.get("project") != "app"
+        or code.get("runtime") != "python_3_14"
+        or code.get("entryPoint") != "main.py"
+        or code.get("dependencyResolution") != "remote_build"
+    ):
+        block(rel, "hosted agent must use app/main.py, Python 3.14, and remote_build")
+
+    protocols = {
+        (entry.get("protocol"), entry.get("version"))
+        for entry in agent.get("protocols") or []
+        if isinstance(entry, dict)
+    }
+    if protocols != {("responses", "2.0.0"), ("invocations", "2.0.0")}:
+        block(rel, "hosted agent must declare responses and invocations protocol 2.0.0")
+
+    required_env = {
+        "AZURE_AI_MODEL_DEPLOYMENT_NAME",
+        "FOUNDRY_PROJECT_ENDPOINT",
+        "AZURE_AI_FOUNDRY_ENDPOINT",
+        "AZURE_AI_FOUNDRY_MODEL",
+        "AZURE_AI_FOUNDRY_MODEL_MAP",
+        "AZURE_AI_SEARCH_ENDPOINT",
+        "AZURE_AI_SEARCH_RESOURCE_ID",
+        "AZURE_AI_FOUNDRY_SEARCH_CONNECTION_NAME",
+        "AZURE_AI_FOUNDRY_KB_MCP_CONNECTION_NAME",
+        "AZURE_AI_FOUNDRY_KB_NAME",
+        "APPLICATIONINSIGHTS_CONNECTION_STRING",
+        "HOSTED_AGENT",
+    }
+    env_entries = agent.get("environmentVariables") or []
+    env_map = {
+        entry.get("name"): entry.get("value")
+        for entry in env_entries
+        if isinstance(entry, dict)
+    }
+    missing_env = sorted(required_env - env_map.keys())
+    if missing_env:
+        block(rel, f"hosted runtime environment mappings missing: {missing_env}")
+    for name, value in env_map.items():
+        if value != f"${{{name}}}":
+            block(rel, f"environment mapping {name} must come from the same-named Bicep output")
+
+    hooks = data.get("hooks") or {}
+    predeploy = hooks.get("predeploy") or []
+    expected_predeploy = [
+        ("python hooks/bootstrap.py", False),
+        ("python hooks/prepare.py", False),
+    ]
+    actual_predeploy = [
+        (entry.get("run"), entry.get("continueOnError", False))
+        for entry in predeploy
+        if isinstance(entry, dict)
+    ] if isinstance(predeploy, list) else []
+    if actual_predeploy != expected_predeploy:
+        block(
+            rel,
+            "predeploy must run bootstrap.py then prepare.py as a fail-fast ordered sequence",
+        )
+    if (hooks.get("postprovision") or {}).get("run") != "python hooks/normalize_env.py":
+        block(rel, "postprovision must normalize custom provider output names")
+    if (hooks.get("postdeploy") or {}).get("run") != "python hooks/postdeploy.py":
+        block(rel, "postdeploy must run the shared Python provisioner hook")
+
+    bootstrap_path = ROOT / "deploy/hosted-preview/hooks/bootstrap.py"
+    if bootstrap_path.exists():
+        bootstrap_text = bootstrap_path.read_text(encoding="utf-8")
+        for token in (
+            "sys.executable",
+            '"-m"',
+            '"pip"',
+            '".[hosted-preview]"',
+            "cwd=repo",
+            "check=True",
+        ):
+            if token not in bootstrap_text:
+                block(
+                    _rel(bootstrap_path),
+                    "bootstrap hook must install the root editable hosted-preview "
+                    f"extra with the current Python and fail loudly; missing {token!r}",
+                )
+
+    prepare_path = ROOT / "deploy/hosted-preview/hooks/prepare.py"
+    if prepare_path.exists():
+        prepare_text = prepare_path.read_text(encoding="utf-8")
+        for generated in ("accelerator.yaml", "pyproject.toml", "README.md"):
+            if generated not in prepare_text:
+                block(_rel(prepare_path), f"prepare hook must stage root {generated}")
+
+    ignore_path = ROOT / "deploy/hosted-preview/.gitignore"
+    if ignore_path.exists():
+        ignored = {
+            line.strip()
+            for line in ignore_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        required_generated_ignores = {
+            "app/src/",
+            "app/accelerator.yaml",
+            "app/pyproject.toml",
+            "app/README.md",
+        }
+        missing_ignores = sorted(required_generated_ignores - ignored)
+        if missing_ignores:
+            block(_rel(ignore_path), f"generated staging ignores missing: {missing_ignores}")
+
+    bicep_path = ROOT / "deploy/hosted-preview/infra/main.bicep"
+    if bicep_path.exists():
+        bicep = bicep_path.read_text(encoding="utf-8")
+        required_outputs = {
+            "AZURE_RESOURCE_GROUP",
+            "AZURE_AI_PROJECT_ID",
+            "AZURE_AI_ACCOUNT_NAME",
+            "AZURE_AI_PROJECT_NAME",
+            "AZURE_OPENAI_ENDPOINT",
+            "FOUNDRY_PROJECT_ENDPOINT",
+            "AZURE_AI_FOUNDRY_ENDPOINT",
+            "AZURE_AI_FOUNDRY_MODEL_MAP",
+            "AZURE_AI_SEARCH_ENDPOINT",
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "HOSTED_AGENT",
+        }
+        missing_outputs = sorted(
+            name for name in required_outputs
+            if not re.search(rf"\boutput\s+{re.escape(name)}\b", bicep)
+        )
+        if missing_outputs:
+            block(_rel(bicep_path), f"required Bicep outputs missing: {missing_outputs}")
+        for forbidden in ("container-app.bicep", "acr.bicep", "key-vault.bicep",
+                          "identity.bicep"):
+            if forbidden in bicep:
+                block(_rel(bicep_path), f"hosted preview must not deploy {forbidden}")
+
+    parameters_path = ROOT / "deploy/hosted-preview/infra/main.parameters.json"
+    if parameters_path.exists():
+        try:
+            parameters = json.loads(parameters_path.read_text(encoding="utf-8"))
+            principal_type = (
+                (parameters.get("parameters") or {})
+                .get("principalType", {})
+                .get("value")
+            )
+            principal_id = (
+                (parameters.get("parameters") or {})
+                .get("principalId", {})
+                .get("value")
+            )
+        except (json.JSONDecodeError, AttributeError) as exc:
+            block(_rel(parameters_path), f"hosted parameters are invalid: {exc}")
+        else:
+            if principal_type != "${AZURE_PRINCIPAL_TYPE=User}":
+                block(
+                    _rel(parameters_path),
+                    "principalType must default local interactive deployments to "
+                    "`${AZURE_PRINCIPAL_TYPE=User}`",
+                )
+            if principal_id != "${AZURE_PRINCIPAL_ID}":
+                block(
+                    _rel(parameters_path),
+                    "principalId must require `${AZURE_PRINCIPAL_ID}`",
+                )
+
+    readme_path = ROOT / "deploy/hosted-preview/README.md"
+    if readme_path.exists():
+        readme = readme_path.read_text(encoding="utf-8")
+        if "azd ai agent invoke hosted-supervisor" not in readme:
+            block(
+                _rel(readme_path),
+                "invoke examples must use the azure.yaml service key `hosted-supervisor`",
+            )
+        if "azd ai agent invoke accel-hosted-supervisor" in readme:
+            block(
+                _rel(readme_path),
+                "invoke examples must not use the deployed agent resource name",
+            )
+        bootstrap_command = "python deploy/hosted-preview/hooks/bootstrap.py"
+        preflight_command = "python scripts/preflight-deploy.py"
+        prepare_command = "python deploy/hosted-preview/hooks/prepare.py"
+        if not all(
+            command in readme
+            for command in (bootstrap_command, preflight_command, prepare_command)
+        ) or not (
+            readme.index(bootstrap_command)
+            < readme.index(preflight_command)
+            < readme.index(prepare_command)
+        ):
+            block(
+                _rel(readme_path),
+                "local hosted instructions must run bootstrap before preflight and prepare",
+            )
+
+    return out
 
 
 @check
@@ -943,14 +1241,15 @@ def no_preview_api_versions(ctx: Ctx) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
-# CI chaining: deploy must depend on lint + evals
+# CI chaining: both deploy targets depend on lint; selfhost alone runs evals
 # ---------------------------------------------------------------------------
 @check
 def deploy_gated_on_lint_and_evals(ctx: Ctx) -> list[Finding]:
-    """Lint chain: accelerator-lint -> azd-up -> evals.
+    """Lint target branches and selfhost-only post-deploy evals.
 
-    Evals run *after* azd-up so the API URL comes from the deploy itself;
-    fighting the day-0 chicken-and-egg where no URL exists to eval against.
+    Both deployment jobs depend on accelerator lint + environment resolution.
+    Evals run *after* selfhost azd-up so the API URL comes from the deploy
+    itself. Hosted preview intentionally performs only its deployment smoke.
     """
     f = ROOT / ".github/workflows/deploy.yml"
     if not f.exists():
@@ -969,8 +1268,10 @@ def deploy_gated_on_lint_and_evals(ctx: Ctx) -> list[Finding]:
     out: list[Finding] = []
     expectations = {
         "accelerator-lint": set(),
-        "azd-up": {"accelerator-lint"},
-        "evals": {"azd-up"},
+        "resolve-env": set(),
+        "azd-up": {"accelerator-lint", "resolve-env"},
+        "hosted-preview": {"accelerator-lint", "resolve-env"},
+        "evals": {"azd-up", "resolve-env"},
     }
     for name, required in expectations.items():
         if name not in jobs:
@@ -988,6 +1289,49 @@ def deploy_gated_on_lint_and_evals(ctx: Ctx) -> list[Finding]:
                                ".github/workflows/deploy.yml",
                                f"job '{name}' must have `needs` including "
                                f"{sorted(required)}; missing: {sorted(missing)}"))
+
+    azd_up = jobs.get("azd-up") or {}
+    hosted = jobs.get("hosted-preview") or {}
+    evals = jobs.get("evals") or {}
+    target_ref = "needs.resolve-env.outputs.deployment_target"
+    selfhost_if = str(azd_up.get("if") or "")
+    hosted_if = str(hosted.get("if") or "")
+    evals_if = str(evals.get("if") or "")
+    normalized_selfhost_if = re.sub(r"\s+", "", selfhost_if)
+    normalized_hosted_if = re.sub(r"\s+", "", hosted_if)
+    normalized_evals_if = re.sub(r"\s+", "", evals_if)
+
+    if f"{target_ref}=='selfhost'" not in normalized_selfhost_if:
+        out.append(Finding(
+            "deploy-gate", "block", ".github/workflows/deploy.yml",
+            "job 'azd-up' must run only when resolve-env deployment_target is selfhost",
+        ))
+    if f"{target_ref}=='hosted-preview'" not in normalized_hosted_if:
+        out.append(Finding(
+            "deploy-gate", "block", ".github/workflows/deploy.yml",
+            "job 'hosted-preview' must run only when resolve-env deployment_target "
+            "is hosted-preview",
+        ))
+    if normalized_selfhost_if == normalized_hosted_if:
+        out.append(Finding(
+            "deploy-gate", "block", ".github/workflows/deploy.yml",
+            "selfhost and hosted-preview deploy jobs must have mutually exclusive gates",
+        ))
+    required_eval_tokens = {
+        "always()",
+        "needs.resolve-env.result=='success'",
+        f"{target_ref}=='selfhost'",
+        "needs.azd-up.result=='success'",
+    }
+    missing_eval_tokens = sorted(
+        token for token in required_eval_tokens if token not in normalized_evals_if
+    )
+    if missing_eval_tokens:
+        out.append(Finding(
+            "deploy-gate", "block", ".github/workflows/deploy.yml",
+            "job 'evals' must use an always()-safe, successful selfhost-only gate; "
+            f"missing tokens: {missing_eval_tokens}",
+        ))
     return out
 
 
@@ -1002,14 +1346,20 @@ def deploy_matrix_matches_azure_envs(ctx: Ctx) -> list[Finding]:
     """`deploy/environments.yaml` is the source of truth for BYO-Azure envs.
 
     Enforces:
-      * manifest exists, well-formed, `default_env` is in `environments[]`,
+      * manifest exists, well-formed, `default_env` is a selfhost entry,
         names are unique and match the env-name regex, each entry has a
-        `github_environment`;
+        `github_environment`, and deployment targets are known (missing
+        legacy values fall back to selfhost);
       * `deploy.yml` declares `workflow_dispatch.inputs.env_name`;
       * a `resolve-env` job exists and reads `deploy/environments.yaml`;
+      * resolve-env emits and validates deployment_target;
       * `azd-up.environment` resolves from `needs.resolve-env.outputs.github_environment`;
       * `azd-up` step env `AZURE_ENV_NAME` derives from the resolve-env
         output, not from `vars.AZURE_ENV_NAME` (which would drift).
+      * hosted-preview binds to the resolved GitHub Environment, operates
+        from the nested working directory, installs exact extensions, runs
+        acknowledged preflight, provision/deploy, endpoint extraction, and
+        a fresh-session Responses smoke without using `azd -C`.
     """
     out: list[Finding] = []
     manifest_p = ROOT / "deploy/environments.yaml"
@@ -1039,6 +1389,8 @@ def deploy_matrix_matches_azure_envs(ctx: Ctx) -> list[Finding]:
                            "`default_env` must be a non-empty string"))
 
     names: list[str] = []
+    targets_by_name: dict[str, str] = {}
+    allowed_targets = {"selfhost", "hosted-preview"}
     for i, entry in enumerate(envs if isinstance(envs, list) else []):
         if not isinstance(entry, dict):
             out.append(Finding("deploy-envs", "block",
@@ -1063,11 +1415,34 @@ def deploy_matrix_matches_azure_envs(ctx: Ctx) -> list[Finding]:
                                "deploy/environments.yaml",
                                f"environments[{i}] ({name}) is missing "
                                "`github_environment`"))
+        deployment_target = entry.get("deployment_target", "selfhost")
+        if deployment_target not in allowed_targets:
+            out.append(Finding(
+                "deploy-envs", "block", "deploy/environments.yaml",
+                f"environments[{i}] ({name}) has unsupported deployment_target "
+                f"{deployment_target!r}; allowed: {sorted(allowed_targets)}",
+            ))
+        else:
+            targets_by_name[name] = deployment_target
 
     if isinstance(default_env, str) and default_env and default_env not in names:
         out.append(Finding("deploy-envs", "block", "deploy/environments.yaml",
                            f"default_env={default_env!r} is not in "
                            f"environments[]; known: {names}"))
+    elif (
+        isinstance(default_env, str)
+        and default_env
+        and targets_by_name.get(default_env) != "selfhost"
+    ):
+        out.append(Finding(
+            "deploy-envs", "block", "deploy/environments.yaml",
+            f"default_env={default_env!r} must remain a selfhost deployment target",
+        ))
+    if "hosted-preview" not in targets_by_name.values():
+        out.append(Finding(
+            "deploy-envs", "block", "deploy/environments.yaml",
+            "environments[] must include a non-default hosted-preview target",
+        ))
 
     if not wf_p.exists():
         out.append(Finding("deploy-envs", "block",
@@ -1102,20 +1477,41 @@ def deploy_matrix_matches_azure_envs(ctx: Ctx) -> list[Finding]:
                            ".github/workflows/deploy.yml",
                            "deploy.yml must declare a `resolve-env` job that "
                            "parses deploy/environments.yaml and emits "
-                           "azd_env_name + github_environment outputs"))
+                           "azd_env_name + github_environment + deployment_target outputs"))
     else:
         resolve_text = yaml.safe_dump(jobs["resolve-env"])
+        resolve_runs = "\n".join(
+            str(step.get("run") or "")
+            for step in (jobs["resolve-env"].get("steps") or [])
+            if isinstance(step, dict)
+        )
         if "deploy/environments.yaml" not in resolve_text:
             out.append(Finding("deploy-envs", "block",
                                ".github/workflows/deploy.yml",
                                "the resolve-env job must read "
                                "deploy/environments.yaml"))
-        for required_output in ("azd_env_name", "github_environment"):
+        for required_output in (
+            "azd_env_name",
+            "github_environment",
+            "deployment_target",
+        ):
             if required_output not in resolve_text:
                 out.append(Finding("deploy-envs", "block",
                                    ".github/workflows/deploy.yml",
                                    f"the resolve-env job must emit "
                                    f"`{required_output}` as an output"))
+        for token in (
+            'match.get("deployment_target") or "selfhost"',
+            'allowed_targets = {"selfhost", "hosted-preview"}',
+            "deployment_target not in allowed_targets",
+        ):
+            if token not in resolve_runs:
+                out.append(Finding(
+                    "deploy-envs", "block", ".github/workflows/deploy.yml",
+                    "resolve-env must default legacy deployment_target values to "
+                    "selfhost and reject unknown values; "
+                    f"missing token: {token!r}",
+                ))
 
     azd_up = jobs.get("azd-up") if isinstance(jobs, dict) else None
     if isinstance(azd_up, dict):
@@ -1142,6 +1538,127 @@ def deploy_matrix_matches_azure_envs(ctx: Ctx) -> list[Finding]:
                                ".github/workflows/deploy.yml",
                                f"azd-up must set AZURE_ENV_NAME from "
                                f"`{expected_azd_name_ref}`"))
+
+    hosted = jobs.get("hosted-preview") if isinstance(jobs, dict) else None
+    if not isinstance(hosted, dict):
+        out.append(Finding(
+            "deploy-envs", "block", ".github/workflows/deploy.yml",
+            "deploy.yml must declare the `hosted-preview` deployment job",
+        ))
+        return out
+
+    expected_env = "${{ needs.resolve-env.outputs.github_environment }}"
+    if hosted.get("environment") != expected_env:
+        out.append(Finding(
+            "deploy-envs", "block", ".github/workflows/deploy.yml",
+            f"`hosted-preview.environment` must be {expected_env!r}",
+        ))
+    hosted_steps = hosted.get("steps") or []
+    hosted_text = yaml.safe_dump(hosted_steps)
+    hosted_runs = "\n".join(
+        str(step.get("run") or "")
+        for step in hosted_steps
+        if isinstance(step, dict)
+    )
+    if "azd -C" in hosted_text:
+        out.append(Finding(
+            "deploy-envs", "block", ".github/workflows/deploy.yml",
+            "hosted-preview must select the nested workspace with "
+            "`working-directory`, never `azd -C`",
+        ))
+
+    required_extension_patterns = {
+        "azure.ai.agents 1.0.0-beta.6": (
+            r"azd ext install azure\.ai\.agents "
+            r"--version 1\.0\.0-beta\.6 --force --no-prompt"
+        ),
+        "microsoft.foundry 1.0.0-beta.1": (
+            r"azd ext install microsoft\.foundry "
+            r"--version 1\.0\.0-beta\.1 --force --no-prompt"
+        ),
+    }
+    for label, pattern in required_extension_patterns.items():
+        if not re.search(pattern, hosted_runs):
+            out.append(Finding(
+                "deploy-envs", "block", ".github/workflows/deploy.yml",
+                f"hosted-preview must force-install exact extension {label}",
+            ))
+
+    for token, message in (
+        ("--deployment-target hosted-preview", "select hosted preflight"),
+        ("--acknowledge-preview", "explicitly acknowledge preview limitations"),
+        ("azd provision", "provision the hosted workspace"),
+        ("azd deploy", "deploy the hosted workspace"),
+        ("azd ai agent show hosted-supervisor", "extract hosted endpoints"),
+        ("azd ai agent sessions create -o json", "create a fresh auto-detected hosted session"),
+        ("azd ai agent invoke", "smoke the Responses endpoint"),
+        ("--protocol responses", "select the Responses protocol for the smoke"),
+        ("agent_session_id", "parse the real azd session-create JSON field"),
+        (
+            'azd env set AZURE_PRINCIPAL_ID "$AZURE_PRINCIPAL_ID"',
+            "persist the GitHub OIDC principal object id before provisioning",
+        ),
+        (
+            'azd env set AZURE_PRINCIPAL_TYPE "$AZURE_PRINCIPAL_TYPE"',
+            "persist the GitHub OIDC principal type before provisioning",
+        ),
+        ("azd env list -o json --no-prompt", "inspect existing azd environments safely"),
+        ("azd env select", "select an existing hosted azd environment"),
+        ("azd env new", "create a missing hosted azd environment"),
+    ):
+        if token not in hosted_runs:
+            out.append(Finding(
+                "deploy-envs", "block", ".github/workflows/deploy.yml",
+                f"hosted-preview must {message}; missing `{token}`",
+            ))
+
+    if "AZURE_PRINCIPAL_TYPE: ServicePrincipal" not in hosted_text:
+        out.append(Finding(
+            "deploy-envs", "block", ".github/workflows/deploy.yml",
+            "hosted-preview must type the GitHub OIDC principal as ServicePrincipal",
+        ))
+    if "AZURE_PRINCIPAL_ID: ${{ vars.AZURE_PRINCIPAL_ID }}" not in hosted_text:
+        out.append(Finding(
+            "deploy-envs", "block", ".github/workflows/deploy.yml",
+            "hosted-preview must read AZURE_PRINCIPAL_ID from the GitHub Environment",
+        ))
+
+    principal_set = hosted_runs.find(
+        'azd env set AZURE_PRINCIPAL_TYPE "$AZURE_PRINCIPAL_TYPE"'
+    )
+    provision = hosted_runs.find("azd provision")
+    if principal_set >= 0 and provision >= 0 and principal_set > provision:
+        out.append(Finding(
+            "deploy-envs", "block", ".github/workflows/deploy.yml",
+            "hosted-preview must persist AZURE_PRINCIPAL_TYPE before provisioning",
+        ))
+
+    if re.search(r"azd env new[^\n]*\|\|", hosted_runs):
+        out.append(Finding(
+            "deploy-envs", "block", ".github/workflows/deploy.yml",
+            "hosted-preview must not mask `azd env new` failures with a broad `||`; "
+            "list/select existing environments explicitly",
+        ))
+
+    nested_commands = (
+        "azd env ",
+        "azd provision",
+        "azd deploy",
+        "azd ai agent show",
+        "azd ai agent sessions create",
+        "azd ai agent invoke",
+    )
+    for step in hosted_steps:
+        if not isinstance(step, dict):
+            continue
+        run = str(step.get("run") or "")
+        if any(command in run for command in nested_commands):
+            if step.get("working-directory") != "deploy/hosted-preview":
+                out.append(Finding(
+                    "deploy-envs", "block", ".github/workflows/deploy.yml",
+                    "every hosted azd env/provision/deploy/show/smoke step must use "
+                    "`working-directory: deploy/hosted-preview`",
+                ))
     return out
 
 

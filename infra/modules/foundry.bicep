@@ -26,6 +26,13 @@ param location string
 param tags object
 param rbacPrincipalId string
 
+@description('Principal type for rbacPrincipalId. Root self-host deployments keep the ServicePrincipal default; hosted preview may pass User for an interactive azd operator.')
+@allowed([
+  'ServicePrincipal'
+  'User'
+])
+param rbacPrincipalType string = 'ServicePrincipal'
+
 @description('Name of the model to deploy (OpenAI format).')
 param modelName string = 'gpt-5-mini'
 
@@ -221,32 +228,32 @@ resource project 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-previ
 }
 
 // RBAC: workload MI can call models and manage agents.
-resource oaiUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource oaiUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(rbacPrincipalId)) {
   name: guid(account.id, rbacPrincipalId, cognitiveServicesOpenAIUserRoleId)
   scope: account
   properties: {
     principalId: rbacPrincipalId
-    principalType: 'ServicePrincipal'
+    principalType: rbacPrincipalType
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesOpenAIUserRoleId)
   }
 }
 
-resource csUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource csUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(rbacPrincipalId)) {
   name: guid(account.id, rbacPrincipalId, cognitiveServicesUserRoleId)
   scope: account
   properties: {
     principalId: rbacPrincipalId
-    principalType: 'ServicePrincipal'
+    principalType: rbacPrincipalType
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesUserRoleId)
   }
 }
 
-resource aiDeveloperAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource aiDeveloperAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(rbacPrincipalId)) {
   name: guid(project.id, rbacPrincipalId, aiDeveloperRoleId)
   scope: project
   properties: {
     principalId: rbacPrincipalId
-    principalType: 'ServicePrincipal'
+    principalType: rbacPrincipalType
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', aiDeveloperRoleId)
   }
 }

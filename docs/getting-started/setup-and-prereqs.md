@@ -83,6 +83,7 @@ to deploy to:
 | Name | Purpose | Example |
 |------|---------|---------|
 | `AZURE_LOCATION` | Azure region for this environment | `eastus2` |
+| `AZURE_PRINCIPAL_ID` | Entra object id of the GitHub OIDC service principal; required by the hosted-preview workspace to create Foundry/Search role assignments | `az ad sp show --id <AZURE_CLIENT_ID> --query id -o tsv` |
 
 Do **not** set `AZURE_ENV_NAME` anywhere. The azd environment name is derived from
 `deploy/environments.yaml` (the `name:` field of the resolved entry). Setting it as
