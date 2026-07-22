@@ -17,6 +17,10 @@ class RequestModel(BaseModel):
     company_name: str
 
 
+class ResponseModel(BaseModel):
+    ok: bool
+
+
 class StubWorkflow:
     def __init__(self, events: list[dict[str, Any]], error: Exception | None = None) -> None:
         self.events = events
@@ -38,7 +42,10 @@ class ConstructionErrorWorkflow:
         raise RuntimeError("iterator construction failed")
 
 
-def _bundle(workflow: StubWorkflow) -> ScenarioBundle:
+def _bundle(
+    workflow: StubWorkflow,
+    response_schema: type[BaseModel] | None = None,
+) -> ScenarioBundle:
     return ScenarioBundle(
         id="test-scenario",
         package="tests",
@@ -49,6 +56,7 @@ def _bundle(workflow: StubWorkflow) -> ScenarioBundle:
         retrieval_indexes=(),
         evals_quality="",
         evals_redteam="",
+        response_schema=response_schema,
     )
 
 
@@ -127,6 +135,86 @@ async def test_sse_handles_synchronous_iterator_construction_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_sse_validates_and_normalizes_final_response() -> None:
+    workflow = StubWorkflow(
+        [{"type": "final", "briefing": {"ok": True, "ignored": "extra"}}]
+    )
+    payload = validate_payload({"company_name": "Contoso"}, RequestModel)
+
+    chunks = [
+        chunk
+        async for chunk in stream_sse(
+            workflow,
+            payload,
+            _connected,
+            response_schema=ResponseModel,
+        )
+    ]
+    data = [
+        json.loads(chunk.removeprefix(b"data: ").removesuffix(b"\n\n"))
+        for chunk in chunks
+    ]
+
+    assert data[0] == {
+        "type": "final",
+        "briefing": {"ok": True},
+        "seq": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_sse_rejects_invalid_final_response_before_emitting_it() -> None:
+    workflow = StubWorkflow([{"type": "final", "briefing": {"wrong": True}}])
+    payload = validate_payload({"company_name": "Contoso"}, RequestModel)
+
+    chunks = [
+        chunk
+        async for chunk in stream_sse(
+            workflow,
+            payload,
+            _connected,
+            response_schema=ResponseModel,
+        )
+    ]
+    data = [
+        json.loads(chunk.removeprefix(b"data: ").removesuffix(b"\n\n"))
+        for chunk in chunks
+    ]
+
+    assert [event["type"] for event in data] == ["error", "done"]
+    assert "final" not in {event["type"] for event in data}
+
+
+@pytest.mark.asyncio
+async def test_sse_rejects_invalid_briefing_ready_before_later_actions() -> None:
+    workflow = StubWorkflow(
+        [
+            {"type": "briefing_ready", "briefing": {"wrong": True}},
+            {"type": "tool_result", "tool": "send_email", "result": "sent"},
+            {"type": "final", "briefing": {"ok": True}},
+        ]
+    )
+    payload = validate_payload({"company_name": "Contoso"}, RequestModel)
+
+    chunks = [
+        chunk
+        async for chunk in stream_sse(
+            workflow,
+            payload,
+            _connected,
+            response_schema=ResponseModel,
+        )
+    ]
+    data = [
+        json.loads(chunk.removeprefix(b"data: ").removesuffix(b"\n\n"))
+        for chunk in chunks
+    ]
+
+    assert [event["type"] for event in data] == ["error", "done"]
+    assert workflow.closed
+
+
+@pytest.mark.asyncio
 async def test_sse_disconnect_closes_workflow_and_still_terminates() -> None:
     workflow = StubWorkflow([{"type": "status"}, {"type": "final"}])
     payload = validate_payload({"company_name": "Contoso"}, RequestModel)
@@ -147,7 +235,7 @@ def test_validation_is_synchronous() -> None:
 
 def test_fastapi_route_preserves_validation_status_headers_and_body() -> None:
     workflow = StubWorkflow([{"type": "final", "briefing": {"ok": True}}])
-    bundle = _bundle(workflow)
+    bundle = _bundle(workflow, ResponseModel)
     app = FastAPI()
     app.add_api_route(
         bundle.endpoint_path,
@@ -176,3 +264,24 @@ def test_fastapi_route_preserves_validation_status_headers_and_body() -> None:
         b'data: {"type": "final", "briefing": {"ok": true}, "seq": 1}\n\n'
         b'data: {"type": "done", "seq": 2}\n\n'
     )
+
+
+def test_fastapi_route_hides_invalid_response_schema_details() -> None:
+    workflow = StubWorkflow([{"type": "final", "briefing": {"wrong": True}}])
+    bundle = _bundle(workflow, ResponseModel)
+    app = FastAPI()
+    app.add_api_route(
+        bundle.endpoint_path,
+        make_fastapi_stream_endpoint(bundle),
+        methods=["POST"],
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            bundle.endpoint_path,
+            json={"company_name": "Contoso"},
+        )
+
+    assert "The workflow could not complete the response." in response.text
+    assert "validation error" not in response.text.lower()
+    assert '"type": "final"' not in response.text

@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://azure-samples.github.io/agentic-ai-solution-accelerator/schemas/accelerator-cli-result.schema.json",
+  "title": "Accelerator CLI command result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "operation_id",
+    "stage",
+    "status",
+    "summary",
+    "completed",
+    "required_inputs",
+    "blocking_issues",
+    "proposed_actions",
+    "artifacts",
+    "next_actions",
+    "stages",
+    "details"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "operation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stage": {
+      "enum": [
+        "qualify",
+        "discover",
+        "scaffold",
+        "provision",
+        "iterate",
+        "uat",
+        "handover",
+        "operate"
+      ]
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "ready",
+        "needs_input",
+        "approval_required",
+        "blocked",
+        "failed"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "completed": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "required_inputs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/requiredInput"}
+    },
+    "blocking_issues": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/issue"}
+    },
+    "proposed_actions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/action"}
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/artifact"}
+    },
+    "next_actions": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "next_command": {
+      "type": ["string", "null"]
+    },
+    "stages": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/stageSummary"}
+    },
+    "details": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "requiredInput": {
+      "type": "object",
+      "required": ["id", "prompt", "kind", "required", "choices", "sensitive"],
+      "properties": {
+        "id": {"type": "string"},
+        "prompt": {"type": "string"},
+        "kind": {"type": "string"},
+        "required": {"type": "boolean"},
+        "choices": {"type": "array", "items": {"type": "string"}},
+        "sensitive": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "issue": {
+      "type": "object",
+      "required": ["id", "message", "remediation", "path"],
+      "properties": {
+        "id": {"type": "string"},
+        "message": {"type": "string"},
+        "remediation": {"type": ["string", "null"]},
+        "path": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "object",
+      "required": ["id", "label", "command", "approval", "reason"],
+      "properties": {
+        "id": {"type": "string"},
+        "label": {"type": "string"},
+        "command": {"type": "string"},
+        "approval": {
+          "enum": ["inspect", "apply", "execute", "destructive"]
+        },
+        "reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["id", "path", "status", "description"],
+      "properties": {
+        "id": {"type": "string"},
+        "path": {"type": "string"},
+        "status": {"type": "string"},
+        "description": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "stageSummary": {
+      "type": "object",
+      "required": ["stage", "status", "summary", "completed", "issues"],
+      "properties": {
+        "stage": {
+          "enum": [
+            "qualify",
+            "discover",
+            "scaffold",
+            "provision",
+            "iterate",
+            "uat",
+            "handover",
+            "operate"
+          ]
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "ready",
+            "needs_input",
+            "approval_required",
+            "blocked",
+            "failed"
+          ]
+        },
+        "summary": {"type": "string"},
+        "completed": {"type": "array", "items": {"type": "string"}},
+        "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -54,6 +54,7 @@ from .agents import (
     icp_fit_analyst,
     outreach_personalizer,
 )
+from .schema import ResearchBriefing
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,8 @@ class SalesResearchWorkflow:
     a malformed ``WORKERS`` dict fails at FastAPI startup rather than on
     first request.
     """
+
+    validated_partials = True
 
     def __init__(self, *, primary_index_name: str = "accounts") -> None:
         self._credential = DefaultAzureCredential()
@@ -659,7 +662,7 @@ class SalesResearchWorkflow:
         else:
             steps.append("Draft personalized outreach referencing strategic initiatives.")
 
-        return {
+        briefing = {
             "executive_summary": bullets[:3],
             "next_steps": steps[:3],
             "requires_approval": [],
@@ -669,6 +672,7 @@ class SalesResearchWorkflow:
             "competitive_play": comp,
             "recommended_outreach": outreach,
         }
+        return ResearchBriefing.model_validate(briefing).model_dump(exclude_none=True)
 
 
 def build_workflow(context: Any) -> BaseWorkflow:

@@ -345,7 +345,7 @@ jobs:
            --session-id "$SESSION_ID" \
            --new-conversation \
            --no-prompt \
-           "Phase 2 deployment smoke: return a concise readiness acknowledgement."
+           '{"company_name":"Contoso","seller_intent":"Prepare a deployment readiness briefing","icp_definition":"Enterprise customer evaluating an agentic AI solution","our_solution":"Azure Agentic AI Solution Accelerator","context_hints":["hosted deployment smoke"]}'
 
   evals:
     needs: [azd-up, resolve-env]

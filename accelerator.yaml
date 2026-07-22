@@ -106,9 +106,21 @@ scenario:
   id: sales-research
   package: src.scenarios.sales_research
   request_schema: schema:ResearchRequest
+  response_schema: schema:ResearchBriefing
   workflow_factory: workflow:build_workflow
   endpoint:
     path: /research/stream
+  experience:
+    kind: form-report
+    title: Sales Research & Personalized Outreach
+    description: Build a grounded account briefing and review-ready outreach draft.
+    output_sections:
+      - { key: executive_summary, label: Executive Summary, layout: bullets }
+      - { key: account_profile, label: Account Profile, layout: record }
+      - { key: icp_fit, label: ICP Fit Analysis, layout: score }
+      - { key: competitive_play, label: Competitive Play, layout: record }
+      - { key: recommended_outreach, label: Recommended Outreach, layout: email }
+      - { key: next_steps, label: Next Steps, layout: numbered-list }
   agents:
     - { id: supervisor,            foundry_name: accel-sales-research-supervisor }
     - id: account_planner
@@ -157,7 +169,13 @@ solution:
     - send_email
   grounding_sources:
     - ai_search_index: accounts            # declared in infra/modules/ai-search.bicep
+      classification: internal
+      contains_pii: false
+      identity_enforcement: workload-mi
     - web_search: bing                     # partner-scoped allow-list
+      classification: public
+      contains_pii: false
+      identity_enforcement: none
 
 # -----------------------------------------------------------------------------
 # acceptance:  MEASURABLE GATES — lint verifies each has a matching eval

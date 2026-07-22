@@ -6,10 +6,15 @@ tools: ['codebase', 'editFiles', 'search', 'runCommands']
 
 # /deploy-to-env — add a BYO-Azure environment to this template
 
+> Compatibility adapter: environment registration remains guided here; use
+> `accel environment list` and `accel deploy --dry-run` for authoritative
+> deployment state and approval boundaries.
+
 Use this when deploying the accelerator to a **new Azure environment** — a partner staging subscription, a specific customer's subscription, or a regional clone — **without forking the repo**. Everything routes through `deploy/environments.yaml` plus GitHub Environments; no `deploy.yml` edits needed for routine new envs.
 
 ## When NOT to use this
-- Routine infra tweaks to an existing env → edit `infra/*.bicep` and re-run `azd up -e <existing-env>`.
+- Routine infra tweaks to an existing env → edit `infra/*.bicep`, then use the
+  target-aware `accel deploy` preview/apply flow.
 - Cross-tenant customer deploys via Azure Lighthouse / ARM delegation → out of scope for this custom agent; a separate bootstrap.
 - Forking the repo for a customer who wants the source code → also out of scope.
 
@@ -129,7 +134,9 @@ azd provision
 azd deploy
 ```
 
-If `resolve-env` fails with "environment '<name>' not found", Step 1 wasn't saved or the name was typo'd. If `azd-up` fails auth, Step 3 or 4 isn't wired. If `azd up` fails with quota errors, switch region in Step 4 or pre-request quota.
+If `resolve-env` reports an unknown environment, Step 1 was not saved or the
+name was mistyped. If deployment fails authentication, Step 3 or 4 is not
+wired. For quota failures, change the declared region or request quota.
 
 ## Guardrails
 - Never hand-edit `deploy.yml` to add envs. The manifest + resolve-env pattern is the contract.

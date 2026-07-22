@@ -6,6 +6,9 @@ tools: ['codebase', 'editFiles', 'search', 'runCommands']
 
 # /implement-worker — fill in a scaffolded worker
 
+> Compatibility adapter: run `accel next` before implementation and
+> `accel validate` after the worker is complete. — fill in a scaffolded worker
+
 Use this after a worker has been **structurally** added (by `/add-worker-agent` or as part of `/scaffold-from-brief`) but the three layer files (`prompt.py`, `transform.py`, `validate.py`) and the Foundry agent spec are still stubs. This custom agent produces a working, validated worker — no manual code-writing required.
 
 ## Preconditions
@@ -23,14 +26,17 @@ If the worker isn't scaffolded yet, run `/add-worker-agent` first. **Do not hand
 Read the matching `scenario.agents[]` entry to learn:
 - `foundry_name` — the Foundry agent identifier; controls which spec file to write.
 - `retrieval.mode` — drives validator opt-ins (citations, hallucinated-URL check).
-- `catalog_tools` (if any) — drives prompt guidance about when to invoke them.
+- `catalog_tools` (if any) — read-only environment attachments only; drives
+  prompt guidance about when to invoke them.
 
 Read `docs/discovery/solution-brief.md` for the worker's role; the supervisor's prompt usually carries a one-line capability sentence — that capability is the worker's contract.
 
 ## What you write
 
 ### A. `docs/agent-specs/<foundry_name>.md` — system instructions (source of truth)
-This is the **only** place the system instructions live. `src/bootstrap.py` reads this file on every `azd deploy` and rewrites the Foundry agent's instructions; manual edits in the Foundry portal are overwritten on the next deploy.
+This is the **only** place the system instructions live. Shared provisioning
+syncs it at self-host startup (through `src/bootstrap.py`) or Hosted preview
+postdeploy; portal edits are overwritten on the next sync.
 
 Fill the spec with:
 - A one-sentence role definition, mirroring the supervisor's capability cue.
@@ -105,8 +111,7 @@ Add a unit test under `tests/test_<worker_id>.py` that exercises:
 ## Verify against acceptance
 
 ```bash
-python evals/quality/run.py --api-url <your-api-url> -k <worker_id>
-python scripts/enforce-acceptance.py
+accel evaluate --api-url <your-api-url> --execute
 ```
 
 If the worker drifts another worker's quality numbers, the supervisor is mis-routing — refine the worker's capability sentence in the supervisor's prompt and re-deploy.

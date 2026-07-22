@@ -6,6 +6,9 @@ tools: ['codebase', 'editFiles', 'search', 'runCommands']
 
 # /teardown — decommission an environment
 
+> Compatibility adapter: the unified CLI never auto-runs destructive teardown.
+> This specialist retains the explicit human-operated checklist and commands.
+
 Use this when winding down an engagement, retiring a partner staging
 sub, or recovering from a corrupted environment. The work is destructive
 and irreversible; this custom agent enforces the safety contract.
@@ -86,7 +89,7 @@ defensive measure for same-named resources created outside that workspace.
 
 Both block re-creation of a resource with the same name+region during
 their retention window. If you tear down `customera-dev` and try to
-re-deploy it with the same env name in the same region, `azd up` will
+re-deploy it with the same env name in the same region, deployment will
 fail with a name collision error.
 
 Run the sweep:
@@ -151,6 +154,6 @@ Environment so OIDC creds are revoked:
 - (Optional) GitHub Environment deleted; manifest entry removed.
 
 After completion, the engagement is decommissioned. Restoring it
-requires a fresh `azd up` with a new env name, OR (if within retention)
+requires a fresh target-aware deployment with a new env name, OR (if within retention)
 recovering the soft-deleted resources via `az ... recover` BEFORE the
 retention window expires.

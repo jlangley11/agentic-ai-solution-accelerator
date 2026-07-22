@@ -6,6 +6,9 @@ tools: ['codebase', 'editFiles', 'search', 'terminal']
 
 # /switch-to-variant — change the solution shape
 
+> Compatibility adapter: run `accel design` before selecting a variant and
+> `accel validate` after re-authoring the scenario.
+
 Use this when the brief or customer feedback indicates the current pattern is over- or under-powered.
 
 ## Choices

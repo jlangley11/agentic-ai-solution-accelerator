@@ -37,7 +37,22 @@ class Ctx:
     files: dict[pathlib.Path, str] = field(default_factory=dict)
 
     def load(self) -> None:
-        skipped_dirs = {".git", "node_modules", "__pycache__", ".venv"}
+        skipped_dirs = {
+            ".accelerator",
+            ".azure",
+            ".baseline",
+            ".git",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".venv",
+            "__pycache__",
+            "build",
+            "dist",
+            "docs-build",
+            "node_modules",
+            "site",
+        }
         generated_files = {
             ("deploy", "hosted-preview", "app", "accelerator.yaml"),
             ("deploy", "hosted-preview", "app", "pyproject.toml"),
@@ -401,6 +416,60 @@ def solution_brief_present(ctx: Ctx) -> list[Finding]:
     return []
 
 
+@check
+def grounding_sources_have_data_governance(ctx: Ctx) -> list[Finding]:
+    """Every declared grounding source needs classification and identity posture."""
+    manifest = _read_manifest_lines(ctx)
+    if not manifest:
+        return []
+    solution = manifest.get("solution") or {}
+    sources = solution.get("grounding_sources") or []
+    if not isinstance(sources, list):
+        return []
+    allowed_classifications = {
+        "public",
+        "internal",
+        "confidential",
+        "restricted",
+    }
+    allowed_identity = {
+        "none",
+        "workload-mi",
+        "caller-entra",
+        "custom",
+    }
+    out: list[Finding] = []
+    for index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            continue
+        classification = source.get("classification")
+        if classification not in allowed_classifications:
+            out.append(Finding(
+                "grounding-data-governance",
+                "block",
+                "accelerator.yaml",
+                f"solution.grounding_sources[{index}].classification must be "
+                f"one of {sorted(allowed_classifications)}",
+            ))
+        if not isinstance(source.get("contains_pii"), bool):
+            out.append(Finding(
+                "grounding-data-governance",
+                "block",
+                "accelerator.yaml",
+                f"solution.grounding_sources[{index}].contains_pii must be boolean",
+            ))
+        identity = source.get("identity_enforcement")
+        if identity not in allowed_identity:
+            out.append(Finding(
+                "grounding-data-governance",
+                "block",
+                "accelerator.yaml",
+                f"solution.grounding_sources[{index}].identity_enforcement must "
+                f"be one of {sorted(allowed_identity)}",
+            ))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Scenario manifest — structural (AST-only) validation
 # ---------------------------------------------------------------------------
@@ -521,8 +590,43 @@ def scenario_manifest_valid(ctx: Ctx) -> list[Finding]:
 
     if "request_schema" in scenario:
         _check_ref("request_schema", scenario["request_schema"])
+    if "response_schema" in scenario:
+        _check_ref("response_schema", scenario["response_schema"])
     if "workflow_factory" in scenario:
         _check_ref("workflow_factory", scenario["workflow_factory"])
+
+    experience = scenario.get("experience")
+    if experience is not None:
+        if not isinstance(experience, dict):
+            out.append(Finding(
+                "scenario-manifest",
+                "block",
+                "accelerator.yaml",
+                "scenario.experience must be a mapping",
+            ))
+        else:
+            kind = experience.get("kind")
+            if kind not in {"form-report", "chat", "dashboard", "api"}:
+                out.append(Finding(
+                    "scenario-manifest",
+                    "block",
+                    "accelerator.yaml",
+                    "scenario.experience.kind must be one of "
+                    "form-report, chat, dashboard, api",
+                ))
+            sections = experience.get("output_sections") or []
+            if not isinstance(sections, list) or any(
+                not isinstance(section, dict)
+                or not isinstance(section.get("key"), str)
+                for section in sections
+            ):
+                out.append(Finding(
+                    "scenario-manifest",
+                    "block",
+                    "accelerator.yaml",
+                    "scenario.experience.output_sections must be a list of "
+                    "mappings with string `key` values",
+                ))
 
     # Agents: non-empty list of {id, foundry_name}; per-agent retrieval.mode validated.
     agents = scenario.get("agents") or []
@@ -948,14 +1052,61 @@ def copilot_assets_present(ctx: Ctx) -> list[Finding]:
     out: list[Finding] = []
     required = [
         ".github/copilot-instructions.md",
+        ".github/agents/accelerator.agent.md",
         ".github/agents/discover-scenario.agent.md",
         ".github/agents/scaffold-from-brief.agent.md",
+        ".agents/skills/accelerator/SKILL.md",
+        ".claude/skills/accelerator/SKILL.md",
+        "CLAUDE.md",
         "AGENTS.md",
+        "src/accelerator_cli/main.py",
     ]
     for r in required:
         if not (ROOT / r).exists():
             out.append(Finding("copilot-asset", "block", r, f"missing {r}"))
     return out
+
+
+@check
+def accelerator_skill_adapters_in_sync(ctx: Ctx) -> list[Finding]:
+    """The Claude adapter must be an exact generated copy of the shared skill."""
+    source = ROOT / ".agents" / "skills" / "accelerator"
+    target = ROOT / ".claude" / "skills" / "accelerator"
+    if not source.exists() or not target.exists():
+        return []
+
+    def files(root: pathlib.Path) -> dict[str, bytes]:
+        return {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for path in root.rglob("*")
+            if path.is_file()
+        }
+
+    if files(source) != files(target):
+        return [Finding(
+            "accelerator-skill-sync",
+            "block",
+            ".claude/skills/accelerator/",
+            "Claude skill adapter differs from .agents/skills/accelerator; run "
+            "`python scripts/sync-agent-skill.py`.",
+        )]
+    return []
+
+
+@check
+def accelerator_private_state_ignored(ctx: Ctx) -> list[Finding]:
+    """Customer evidence and local acceptance artifacts must never be committed."""
+    gitignore = ROOT / ".gitignore"
+    text = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    if ".accelerator/" not in text:
+        return [Finding(
+            "accelerator-private-state",
+            "block",
+            ".gitignore",
+            ".accelerator/ must be ignored; it contains local evidence and "
+            "engagement artifacts.",
+        )]
+    return []
 
 
 @check

@@ -4,7 +4,11 @@
 
 <!-- Template-fill marker: Replace `<customer-slug>` with the engagement slug (e.g., contoso-q4-research) and `<Customer>` with the customer display name. -->
 
-> This document is the **canonical source of truth** for this engagement. Every downstream artifact (agent prompts, tools, retrieval, HITL, evals, telemetry, manifest) derives from it. Fill it with the customer during discovery (`/discover-scenario`), then run `/scaffold-from-brief` to apply it across the repo.
+> This document records the **customer-approved intent** for the engagement.
+> `accelerator.yaml` is the executable scenario/deployment contract, and the
+> private evidence ledger records provenance and requirement decisions. Fill
+> the brief during discovery, then use `accel design` and the preview/apply
+> scaffold flow to reconcile intent with implementation.
 
 **Engagement:** `<customer-slug>`
 **Status:** Draft / Reviewed / Approved
@@ -86,6 +90,15 @@
 |---|---|---|
 | TBD | TBD | TBD |
 
+## 5e. Data and access contract
+
+*One row per grounding or uploaded-data source. Record the customer owner and
+the access/retention behavior before connecting production data.*
+
+| Source | Owner | Classification | Contains PII? | Caller identity / ACL enforcement | Refresh | Retention |
+|---|---|---|---|---|---|---|
+| TBD | TBD | public / internal / confidential / restricted | yes / no / unknown | workload MI / caller Entra / custom | TBD | TBD |
+
 ## 6. Constraints & risks
 - **Data residency:** US / EU / APAC / custom
 - **Identity:** Entra ID / External ID / custom
@@ -106,4 +119,6 @@
 
 ---
 
-**Next step:** run `/scaffold-from-brief` in Copilot Chat to apply this brief across `src/`, `infra/`, `evals/`, `accelerator.yaml`, and `infra/dashboards/`.
+**Next step:** run `accel design`, preview `accel scaffold --scenario-id <id>
+--dry-run`, then apply the approved structural change. Use specialist agents
+to author customer-specific workers, tools, grounding, and evals.

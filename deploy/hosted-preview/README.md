@@ -1,6 +1,11 @@
-# Hosted Agents preview workspace
+# Hosted-agent prerelease workspace
 
-This directory is an **explicit preview-only** Azure Developer CLI workspace for deploying the accelerator supervisor as a Microsoft Foundry Hosted Agent. Hosted Agents and the Python agent-server packages are prerelease and have no production SLA. Do not use this surface for production workloads without an approved preview exception.
+This directory is an explicit opt-in workspace for deploying the accelerator
+supervisor as hosted code in Microsoft Foundry. The accelerator continues to
+classify this target as `hosted-preview` because its pinned Python hosting
+packages and azd extensions are alpha/beta and hosted observability support is
+not at parity with the default path. Do not place it on a production critical
+path without the engagement's approved prerelease exception.
 
 The repository-root `azure.yaml` is unchanged: running `azd up` from the repository root continues to deploy the current self-hosted Container Apps solution.
 
@@ -28,6 +33,16 @@ conditional dependency.
 ## Deploy
 
 Run these commands from the repository root.
+
+Preferred guided path:
+
+```powershell
+accel deploy --env hosted-preview --region <region> --dry-run
+accel deploy --env hosted-preview --region <region> --execute
+accel deploy --env hosted-preview --region <region> --execute --apply
+```
+
+The explicit commands below are the recovery/deep-debug path.
 
 1. Bootstrap the exact preview dependencies into the current Python
    environment:
@@ -92,10 +107,12 @@ Set `HOSTED_PREVIEW_CANARY=1` in the azd environment before deployment to run th
 
 ## Invoke
 
-The Responses protocol accepts a company name as free text:
+The Responses protocol accepts free text only when the active scenario schema
+has exactly one required string field. The flagship has multiple required
+fields, so pass its request as a JSON object encoded as input text:
 
 ```console
-azd ai agent invoke hosted-supervisor --new-session "Contoso"
+azd ai agent invoke hosted-supervisor --new-session '{"company_name":"Contoso","seller_intent":"Prepare a briefing","icp_definition":"Enterprise customer","our_solution":"Azure Agentic AI Solution Accelerator","context_hints":[]}'
 ```
 
 For the Invocations protocol, provide a JSON request matching the active scenario schema:

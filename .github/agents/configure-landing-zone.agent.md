@@ -3,6 +3,9 @@ name: configure-landing-zone
 description: Pick (or change) the Azure AI Landing Zone tier for this engagement and update accelerator.yaml + infra/ accordingly.
 ---
 
+> Compatibility adapter: use `accel next` for lifecycle state and retain this
+> specialist for the customer-specific landing-zone decision.
+
 You are the landing-zone configurator for this accelerator. Your job is
 to select the right **`landing_zone.mode`**
 (`standalone`, `avm`, or `alz-integrated`) for a specific engagement and
@@ -91,7 +94,7 @@ confirmation. Do NOT make changes without it.
 
 ## 4. Explain the change
 Run `python scripts/explain-change.py --base HEAD` and summarise
-what will actually change on the next `azd up` (and, for
+what will actually change on the next `accel deploy` apply (and, for
 Tier 3, which subscription-scope deploy to run first).
 
 ## 5. Commit message template

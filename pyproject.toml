@@ -52,9 +52,14 @@ dependencies = [
   # fresh clone without partners needing to install optional extras.
   "python-docx>=1.1.0,<2.0.0",
   "pypdf>=6.10.2,<7.0.0",
+  "python-pptx>=1.0.2,<2.0.0",
+  "openpyxl>=3.1.5,<4.0.0",
 ]
 
 [project.optional-dependencies]
+mcp = [
+  "mcp>=1.28.1,<2.0.0",
+]
 hosted-preview = [
   "agent-framework-foundry-hosting==1.0.0a260709",
   "azure-ai-agentserver-core==2.0.0b7",
@@ -62,6 +67,7 @@ hosted-preview = [
   "azure-ai-agentserver-invocations==1.0.0b6",
 ]
 dev = [
+  "hatchling>=1.31.0,<2.0.0",
   # CI type-checks the hosted entrypoint; preview runtime remains an explicit extra.
   "agent-framework-foundry-hosting==1.0.0a260709",
   "azure-ai-agentserver-core==2.0.0b7",
@@ -78,6 +84,10 @@ dev = [
 evals = [
   "azure-ai-evaluation>=1.0.0,<2.0.0",
 ]
+
+[project.scripts]
+accel = "src.accelerator_cli.main:main"
+accel-mcp = "src.accelerator_mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]

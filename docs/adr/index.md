@@ -1,6 +1,6 @@
 # Architecture decision records
 
-This folder records the seven non-obvious decisions that shape the
+This folder records the non-obvious decisions that shape the
 accelerator. Each ADR captures **why** the decision exists — the
 **how** lives in code, Bicep, or `.github/copilot-instructions.md`.
 
@@ -18,13 +18,16 @@ position changes we add a new ADR that supersedes the old one.
 
 | ID | Title | Status |
 |----|-------|--------|
-| [0001](0001-microsoft-agent-framework.md) | Microsoft Agent Framework + Azure AI Foundry | Accepted |
-| [0002](0002-foundry-portal-owns-instructions.md) | Foundry portal owns agent instructions | Accepted |
+| [0001](0001-microsoft-agent-framework.md) | Microsoft Agent Framework + Microsoft Foundry | Accepted |
+| [0002](0002-repo-owned-foundry-instructions.md) | Repository owns Foundry agent instructions | Accepted |
 | [0003](0003-supervisor-and-workers-flagship.md) | Supervisor + workers as the flagship shape | Accepted |
 | [0004](0004-hitl-is-a-primitive.md) | HITL is a primitive on every side-effect tool | Accepted |
-| [0005](0005-azure-ai-search-only.md) | Azure AI Search is the only retrieval surface | Accepted |
+| [0005](0005-foundryiq-over-governed-search.md) | FoundryIQ over governed Azure AI Search | Accepted |
 | [0006](0006-abac-constrained-rbac-admin.md) | ABAC-constrained RBAC-Admin for runtime per-agent grants | Accepted |
 | [0007](0007-three-layer-agent-module.md) | Three-layer agent module (prompt / transform / validate) | Accepted |
+| [0008](0008-unified-accelerator-cli.md) | Unified local accelerator CLI | Accepted |
+| [0009](0009-private-evidence-ledger.md) | Local private evidence ledger | Accepted |
+| [0010](0010-schema-driven-workbench.md) | Schema-driven customer workbench | Accepted |
 
 ## When to add an ADR
 

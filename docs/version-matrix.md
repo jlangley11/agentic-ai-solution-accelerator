@@ -25,6 +25,17 @@ Stable packages are pinned in `pyproject.toml`; `ga-versions.yaml` is the manife
 | `fastapi` | `>=0.115.0,<1.0.0` | 0.115.x |  | HTTP surface |
 | `pydantic` | `>=2.9.0,<3.0.0` | 2.9.x |  | Schemas |
 
+## Local delivery and workbench tooling
+
+| Tool/package | Pinned range | Purpose |
+|---|---|---|
+| `mcp` | `>=1.28.1,<2.0.0` *(optional extra)* | `accel-mcp` local stdio adapter |
+| `python-pptx` | `>=1.0.2,<2.0.0` | Local PowerPoint evidence extraction |
+| `openpyxl` | `>=3.1.5,<4.0.0` | Local Excel evidence extraction |
+| Node.js | `20.19+` or `22.12+` | Vite 8 reference workbench |
+| Vite | `^8.1.4` | Frontend build/dev server |
+| Vitest | `^4.1.10` | Frontend behavior and protocol tests |
+
 ## Hosted-agent prerelease exceptions
 
 Foundry Hosted Agents and the Python serving libraries remain preview as of 2026-07-20. These packages are not part of the GA freshness loop and must not be added to the default runtime until the deployment target has an explicit preview policy.

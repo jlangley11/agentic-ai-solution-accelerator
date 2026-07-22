@@ -43,6 +43,12 @@ section,question_id,question,answer,notes
 5. Solution shape,SS-06,"Side-effect tool #3 (if any)","",
 5. Solution shape,SS-07,"Out-of-scope tools (explicit)","",Things the agent must NOT do in v1.
 5. Solution shape,SS-08,"HITL policy default","",required / optional / none. Maps to accelerator.yaml:solution.hitl.
+5. Solution shape,SS-09,"Data source owner(s)","",One named customer owner per grounding or uploaded-data source.
+5. Solution shape,SS-10,"Data classification per source","",public / internal / confidential / restricted.
+5. Solution shape,SS-11,"PII per source","",yes / no / unknown; unknown blocks production data connection.
+5. Solution shape,SS-12,"Identity / ACL enforcement per source","",workload MI / caller Entra / custom.
+5. Solution shape,SS-13,"Refresh cadence per source","",manual / scheduled interval / event driven.
+5. Solution shape,SS-14,"Retention per source","",How long source copies, indexes, uploads, and traces persist.
 6. Constraints & risks,CR-01,"Data residency","",unset / us / eu / apac / custom.
 6. Constraints & risks,CR-02,"Identity provider","",entra-id / external-id / custom.
 6. Constraints & risks,CR-03,"Compliance regime","",SOC 2 / GDPR / HIPAA / PCI / none / custom.

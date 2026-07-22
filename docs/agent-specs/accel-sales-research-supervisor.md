@@ -1,8 +1,8 @@
 # Agent: accel-sales-research-supervisor
 
 > **This file IS this agent's system instructions.** The `## Instructions`
-> section below is synced **verbatim** to the Foundry portal by
-> `src/bootstrap.py` (run inside the Container App at FastAPI startup) on every `azd up` / `azd deploy`. Edit this file to
+> section below is synced **verbatim** by shared provisioning during
+> self-host startup or Hosted preview postdeploy. Edit this file to
 > change agent behaviour. Never put agent system instructions in Python
 > code — `prompt.py` builds *per-request* input, not system instructions.
 

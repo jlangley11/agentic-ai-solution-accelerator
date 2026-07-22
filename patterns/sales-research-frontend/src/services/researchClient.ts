@@ -79,6 +79,15 @@ export async function runResearch(
         try {
           const parsed = JSON.parse(payload) as StreamEvent;
           if ("seq" in parsed && typeof parsed.seq === "number") {
+            const expected = lastSeq + 1;
+            if (parsed.seq !== expected) {
+              onEvent({
+                type: "error",
+                message: `SSE sequence error: expected ${expected}, received ${parsed.seq}.`,
+              });
+              await reader.cancel();
+              return;
+            }
             lastSeq = parsed.seq;
           }
           if (parsed.type === "done") {

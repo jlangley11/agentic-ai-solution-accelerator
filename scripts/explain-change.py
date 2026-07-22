@@ -54,6 +54,23 @@ class Category:
 
 CATEGORIES: list[Category] = [
     Category(
+        id="accelerator-cli",
+        title="Unified accelerator CLI",
+        impact=[
+            "tests: accelerator CLI protocol, lifecycle, intake, command, and MCP suites",
+            "docs: regenerate docs/reference/accelerator-cli.md when command help changes",
+            "portability: sync .agents/skills/accelerator into .claude/skills/accelerator",
+        ],
+        patterns=[
+            "src/accelerator_cli/**",
+            "src/accelerator_mcp/**",
+            ".agents/skills/**",
+            ".claude/skills/**",
+            "scripts/sync-agent-skill.py",
+            "scripts/generate-cli-docs.py",
+        ],
+    ),
+    Category(
         id="agent-three-layer",
         title="Worker agent (prompt/transform/validate)",
         impact=[

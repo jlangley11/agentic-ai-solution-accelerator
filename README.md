@@ -4,31 +4,54 @@
 
 > Full engagement motion (discovery → UAT → handover → measure) is weeks, and documented below.
 
-**Flagship scenario:** Sales Research & Personalized Outreach — a supervisor agent routes a research request across specialist workers (Account Researcher, ICP/Fit Analyst, Competitive Context, Outreach Personalizer) and returns a grounded, citeable sales brief with a CRM-ready outreach draft. Human-in-the-loop gates every CRM write and every email send.
+**Flagship scenario:** Sales Research & Personalized Outreach — a supervisor
+routes a request across Account Planner, ICP/Fit Analyst, Competitive Context,
+and Outreach Personalizer workers, returning a grounded, citable brief plus a
+CRM-ready outreach draft. HITL gates every CRM write and email send.
 
 **Stack:** Microsoft Agent Framework · Microsoft Foundry · Azure AI Search · Managed Identity · Key Vault · Container Apps · Application Insights · `azd` for infra.
 
-**Adoption model:** `gh repo create --template` → Copilot-guided discovery → `azd up` → iterate in VS Code → merge through CI gates.
+**Adoption model:** `gh repo create --template` → `accel next` → coding-agent-assisted discovery and implementation → reviewed Azure execution → CI-gated iteration.
 
 ---
 
 ## Start here
 
+**Unified path:** after cloning, install the local package once and run:
+
+```powershell
+python -m pip install -e ".[dev]"
+accel next
+```
+
+After installation, `python -m accelerator_cli next` is equivalent.
+
+This detects the engagement stage and returns the next valid action. It works
+from GitHub Copilot CLI, Codex, Claude Code, or a normal terminal. See the
+[unified lifecycle](docs/lifecycle.md).
+
 **👉 Scan the full workflow first:** [`docs/partner-workflow.md`](docs/partner-workflow.md) — one-page visual of all 7 stages (discover → scaffold → provision → iterate → UAT → handover → measure) across the three responsibilities. Use it to orient yourself, then come back here and open your lane below.
 
-> **Doc precedence:** when two sources conflict, the more specific one wins — custom agent > playbook / QUICKSTART > this README. Pages and this README render the same markdown, so "the doc you're reading" is never the conflict; it's always the linked custom agent or playbook that supersedes. Full chain: [Reference material](#reference-material).
+> **Authority:** executable schemas and `accel` determine lifecycle state and
+> permitted actions. `AGENTS.md` defines non-negotiable engineering rules; the
+> shared Agent Skill and specialist agents provide conversational guidance;
+> the playbook and walkthrough explain why. See [Artifact authority](docs/reference/artifact-model.md).
 
 ### 🧭 Delivery Lead — scope, discovery, UAT, handover, value review
-- **Start with:** [`docs/partner-playbook.md`](docs/partner-playbook.md) — end-to-end 7-stage motion, SOW guidance, "what good looks like" per stage
-- **Then run:** `/delivery-guide` in Copilot Chat for a guided pass through the motion
+- **Start with:** `accel next` — it reports the current stage, missing decisions, approval boundary, and next command
+- **Use for context:** [`docs/partner-playbook.md`](docs/partner-playbook.md) — end-to-end motion, SOW guidance, and "what good looks like"
+- **Conversational option:** `/accelerator` or `/delivery-guide`
 - **Also use:** [`docs/discovery/how-to-use.md`](docs/discovery/how-to-use.md) (sequences the 5 discovery artifacts) · [`docs/handover/handover-packet-template.md`](docs/handover/handover-packet-template.md) (engagement-specific handover template)
-- **Customer already gave you a PRD/BRD/spec?** Run `/ingest-prd` to pre-draft the brief, then `/discover-scenario` gap-fills the TBDs. Full flow inside `how-to-use.md`.
+- **Customer already gave you source documents?** Register them together with
+  `accel intake add`, review disclosure, then use `/ingest-prd` and
+  `/discover-scenario` for evidence-backed drafting and gap-fill.
 - **✅ Done when:** customer sponsor signs off at UAT (Stage 5), handover packet is delivered with a named owner and date (Stage 6), and the first monthly value review is on the calendar (Stage 7).
 
 ### 🛠️ Partner Engineer — scaffold, deploy, iterate, UAT support
-- **Start with:** [`QUICKSTART.md`](QUICKSTART.md) — clone → discover → scaffold → **preflight (`/configure-landing-zone` + `/deploy-to-env`)** → `azd up` → iterate
-- **Then run:** `/scaffold-from-brief` once a solution brief exists
-- **Also use:** [`docs/getting-started/setup-and-prereqs.md`](docs/getting-started/setup-and-prereqs.md) (authoritative setup, prereqs, `azd up` troubleshooting) · [`docs/enablement/hands-on-lab.md`](docs/enablement/hands-on-lab.md) (7-lab sandbox rehearsal — **strongly recommended before your first customer-facing deployment**)
+- **Start with:** `accel next`; use [`QUICKSTART.md`](QUICKSTART.md) as the printable command reference
+- **Build:** `accel design` → `accel scaffold --scenario-id <id> --dry-run` →
+  approved apply; specialists fill prompts, grounding, tools, and workers
+- **Also use:** [`docs/getting-started/setup-and-prereqs.md`](docs/getting-started/setup-and-prereqs.md) (authoritative setup, prerequisites, deployment troubleshooting) · [`docs/enablement/hands-on-lab.md`](docs/enablement/hands-on-lab.md) (8-lab sandbox rehearsal — **strongly recommended before your first customer-facing deployment**)
 - **✅ Done when:** acceptance evals (quality + redteam) pass in the customer's environment and the handover artifacts — repo access, runbook, approver rota, killswitch drill notes — are delivered to customer ops.
 
 ### 🏛️ Customer Ops — day-2 operations after handover
@@ -45,7 +68,11 @@
 <details>
 <summary><b>Full doc precedence when guidance disagrees</b> (click to expand)</summary>
 
-Custom agents in `.github/agents/` (they drive the executable surface) → `docs/partner-playbook.md` (delivery motion) and `docs/getting-started/setup-and-prereqs.md` (setup mechanics) → this README. The engagement-specific handover packet supersedes the generic `docs/customer-runbook.md` for the customer ops lane.
+`accel` and executable schemas → `AGENTS.md` guardrails → shared Agent Skill →
+specialist custom agents → playbook/walkthrough/reference docs. The approved
+engagement brief governs customer intent; `accelerator.yaml` governs executable
+deployment. The engagement-specific handover packet supersedes the generic
+customer runbook.
 
 </details>
 
@@ -71,6 +98,8 @@ agentic-ai-solution-accelerator/
 ├── accelerator.yaml              engagement manifest — scenario contract + acceptance + controls + KPIs
 ├── src/
 │   ├── main.py                   scenario-agnostic FastAPI; mounts the scenario endpoint from manifest
+│   ├── accelerator_cli/          vendor-neutral lifecycle, intake, deploy, UAT, and handover commands
+│   ├── accelerator_mcp/          optional MCP adapter over the same command contract
 │   ├── workflow/                 framework: BaseWorkflow Protocol + scenario registry (load_scenario)
 │   ├── retrieval/                generic SearchRetriever(index_name) against Azure AI Search
 │   ├── tools/                    HITL-gated side-effect tools (CRM write, email send)
@@ -81,11 +110,12 @@ agentic-ai-solution-accelerator/
 ├── infra/                        Bicep + azd (Foundry GA + content filter, Search, KV, ACA, App Insights)
 ├── evals/
 │   ├── quality/                  golden cases + CI gates from accelerator.yaml.acceptance
-│   └── redteam/                  XPIA + jailbreak + brief-specific RAI cases
+│   ├── redteam/                  XPIA + jailbreak + brief-specific RAI cases
+│   └── foundry/                  optional native relevance + groundedness evaluators
 ├── patterns/
 │   ├── single-agent/             variant: when orchestration isn't needed
 │   ├── chat-with-actioning/      variant: conversational front-end with tools
-│   └── sales-research-frontend/  reference UI starter (React + Vite + TS) for /research/stream
+│   └── sales-research-frontend/  tailored sales UI + schema-driven generic workbench
 ├── docs/
 │   ├── getting-started/         orientation + setup-and-prereqs (authoritative)
 │   ├── partner-playbook.md       end-to-end partner motion (7 stages)
@@ -95,17 +125,22 @@ agentic-ai-solution-accelerator/
 │   ├── foundry-tool-catalog.md   when-to-use matrix for Foundry Agent Service tools
 │   ├── customer-runbook.md       day-2 ops for the customer team
 │   ├── enablement/
-│   │   └── hands-on-lab.md       partner-team self-paced first-deployment walkthrough (7 labs)
+│   │   └── hands-on-lab.md       partner-team self-paced first-deployment walkthrough (8 labs)
 │   ├── patterns/                 architecture · WAF · RAI · Azure AI Landing Zone
 │   └── version-matrix.md         known-good SDK pins (weekly CI validates against latest)
 ├── .github/
 │   ├── copilot-instructions.md   hard rules: Agent Framework, MI, HITL, evals, RAI
-│   ├── agents/                   discover-scenario, scaffold-from-brief, delivery-guide, add-*, switch-to-variant (.agent.md)
+│   ├── agents/                   unified accelerator + specialist compatibility agents
 │   └── workflows/                lint, evals, deploy, version-matrix (weekly pinned-latest)
-├── AGENTS.md                     IDE-agnostic mirror of copilot-instructions (Cursor/Claude/Codex)
+├── .agents/skills/accelerator/   portable workflow for Copilot CLI and Codex
+├── .claude/skills/accelerator/   generated Claude Code skill adapter
+├── AGENTS.md                     portable engineering contract
+├── CLAUDE.md                     Claude-specific import and adapter guidance
 └── scripts/
-    ├── accelerator-lint.py       ~30 deterministic policy checks (local + CI), AST-only
-    └── scaffold-scenario.py      materialize a new scenario skeleton (CLI behind /scaffold-from-brief)
+    ├── accelerator-lint.py       deterministic policy checks (local + CI)
+    ├── scaffold-scenario.py      scenario materializer used by `accel scaffold`
+    ├── sync-agent-skill.py       keeps the Claude skill mirror exact
+    └── generate-cli-docs.py      generates the CLI command reference
 ```
 
 </details>
@@ -117,8 +152,8 @@ agentic-ai-solution-accelerator/
 | Without the accelerator | With the accelerator |
 |---|---|
 | Partner re-invents auth, telemetry, HITL, evals, RAI posture every engagement | Ships as partner-owned source in `src/accelerator_baseline/`; used from day one |
-| Discovery notes disconnected from code | Solution Brief drives scaffolding, evals, manifest, dashboards |
-| "Should we use single-agent or supervisor?" → guesswork | Flagship + two variants + four reference scenarios; pick-and-scaffold |
+| Discovery notes disconnected from code | Private evidence ledger → approved brief → executable manifest → traceable evals |
+| "Should we use single-agent or supervisor?" → guesswork | Flagship + two variants + two reference scenarios; pick-and-scaffold |
 | Compliance & WAF done at the end (if at all) | Enforced from commit 1 via `copilot-instructions.md` + CI lint + IaC content filters |
 | ROI promises are slides | KPIs declared in `accelerator.yaml.kpis[]`; partners wire a telemetry event per KPI in the scenario code, then monitor in App Insights + the shipped workbook template (`infra/dashboards/roi-kpis.json`) |
 
@@ -129,7 +164,7 @@ agentic-ai-solution-accelerator/
 - **customer-service-actioning/** — multi-agent service assistant that looks up orders, issues refunds/credits via HITL, updates CRM. Deflection + AHT ROI.
 - **rfp-response/** — multi-specialist (pricing · legal · tech · security) aggregator that drafts proposal responses. Response time days → hours; win rate lift.
 
-Flagship itself (sales research & outreach) is fully runnable under `src/scenarios/sales_research/` — loaded at startup via the top-level `scenario:` block in `accelerator.yaml`. Add a sibling scenario with `python scripts/scaffold-scenario.py <id>`; the framework mounts it the same way the flagship is mounted.
+Flagship itself (sales research & outreach) is fully runnable under `src/scenarios/sales_research/` — loaded at startup via the top-level `scenario:` block in `accelerator.yaml`. Preview and add a sibling scenario with `accel scaffold --scenario-id <id> --dry-run`, then repeat with `--apply`.
 
 ### Documented scenario ideas (no runnable starter yet)
 
@@ -142,7 +177,8 @@ Flagship itself (sales research & outreach) is fully runnable under `src/scenari
 - Not a runtime platform. No services Microsoft operates for partners.
 - Not a cryptographic attestation or governance gate. Consistency is enforced by CI lint + pinned SDK + starter defaults + Copilot shaping — not by Microsoft blocking partners at deploy time.
 - Not a DSL. `accelerator.yaml` is ~12 fields of plain YAML. No `spec.agent.yaml`.
-- Not IDE-locked. Copilot-first; AGENTS.md mirrors the rules for Cursor, Claude Code, Codex CLI.
+- Not IDE-locked. The same `accel` commands, JSON contract, and Agent Skill work
+  through Copilot CLI, Codex, Claude Code, MCP, or a normal terminal.
 
 ---
 

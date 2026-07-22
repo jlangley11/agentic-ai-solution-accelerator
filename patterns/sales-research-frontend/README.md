@@ -1,14 +1,16 @@
-# Sales Research — Frontend Pattern
+# Accelerator Workbench — Sales Research Reference
 
-A minimal **React + Vite + TypeScript** UI starter that consumes the flagship
-`sales_research` SSE endpoint (`POST /research/stream`). Self-contained and
-deployable to Azure Static Web Apps.
+A **React + Vite + TypeScript** workbench that preserves the flagship sales
+experience while also supporting other scenarios through
+`GET /scenario/metadata`. It is self-contained and deployable to Azure Static
+Web Apps.
 
 ## What this is
 
-A reference UI that wraps the sales-research API in a runnable browser
-experience. Fork it, point `VITE_API_BASE_URL` at a deployed accelerator API,
-and you have a demo-able UX in a few minutes.
+A reference UI that wraps the accelerator API in a runnable browser experience.
+The sales scenario keeps its tailored form and briefing layouts. Other
+scenarios receive a schema-generated form and validated dynamic result panels
+from their request/response metadata.
 
 ## When to use it
 
@@ -16,6 +18,20 @@ and you have a demo-able UX in a few minutes.
 - You want a **baseline to extend** for your customer's bespoke UX.
 - You want a working SSE client implementation to learn from when wiring the
   endpoint into the customer's existing apps (Power Apps, internal portals, etc).
+
+## Generic workbench contract
+
+The backend exposes:
+
+- `GET /scenario/metadata` — request/response JSON Schema, endpoint, agents,
+  experience metadata, and approval mode.
+- `POST /scenario/feedback` — redacted section-level feedback telemetry.
+- The scenario's SSE endpoint — generic mode renders only validated `partial`
+  events and the final briefing; raw `chunk` output is never shown.
+
+Completed generic runs can be saved to browser `localStorage` as a demo
+history. Production deployments should replace this with an approved durable
+store and Entra-backed user isolation.
 
 ## What this is NOT
 
@@ -27,6 +43,8 @@ and you have a demo-able UX in a few minutes.
   their own pipeline once they've customised it.
 
 ## Run it locally
+
+Requires Node.js 20.19+ or 22.12+ (the supported Vite 8 runtime range).
 
 In one terminal, run the API:
 
@@ -56,6 +74,7 @@ result panel renders the final supervisor briefing (with a raw-JSON toggle).
 ```bash
 cd patterns/sales-research-frontend
 npm install
+npm test
 npm run build              # outputs to dist/
 swa deploy ./dist --env production
 ```
@@ -95,6 +114,9 @@ that route and rely on the CORS path above.
 | Final result rendering | `src/components/ResultPanel.tsx` — currently dumps each `ResearchBriefing` field as a section; restyle freely |
 | SSE event types | `src/types/research.ts` — keep in sync with `src/workflow/supervisor.py` and the supervisor `transform.py` |
 | Streaming client | `src/services/researchClient.ts` — vanilla `fetch` + `ReadableStream` SSE parser, no third-party dependency |
+| Generic metadata/client | `src/services/scenarioClient.ts` |
+| Generic form | `src/components/DynamicSchemaForm.tsx` |
+| Generic validated results | `src/components/DynamicResultPanel.tsx` |
 | Look & feel | `src/styles.css` (~150 lines, no framework) |
 
 ## What this pattern does *not* try to do

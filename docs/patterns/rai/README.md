@@ -39,15 +39,24 @@ What ships in v1 and where it lives. Customisation within these rails is fine; d
 
 ## Principle 6 — RAI Impact Assessment
 
-- **Partner-scope.** The customer engagement repo (not this template) holds the RAI IA under `rai/impact-assessment.md` with use case, stakeholders, harms inventory, mitigations, data flows, classification map, and residual-risk acknowledgement signed by a named customer role.
+- **Partner-scope.** Start from
+  [`docs/governance/rai-impact-assessment-template.md`](../../governance/rai-impact-assessment-template.md)
+  and export the reviewed engagement copy to the customer's approved governance
+  location. It covers use case, stakeholders, harms, mitigations, data flows,
+  classification, and residual-risk acknowledgement.
 - **Expires in 180 days.** Material changes (model swap, tool add, grounding-source add) expire it sooner.
 - **Accelerator surfaces the hook** via `accelerator.yaml.acceptance` — partners layer the IA check into their PR gates.
 
 ## Principle 7 — Transparency
 
-- **Users know they're interacting with AI.** Partner front-end discloses this; the accelerator ships the API surface, not a first-party UI.
+- **Users know they're interacting with AI.** The reference workbench is a
+  starter; the production customer surface must retain explicit AI disclosure.
 - **Uncertainty is communicated.** Worker outputs express confidence where applicable; eval suites probe for confident-wrong.
 - **Source attribution visible** on grounded responses (see Principle 2).
+- **Only validated output is rendered.** Raw token `chunk` events are never
+  shown or retained by the reference workbench. Final and `briefing_ready`
+  payloads must pass the declared response schema; partials render only when
+  the workflow explicitly advertises validated partial output.
 
 ---
 

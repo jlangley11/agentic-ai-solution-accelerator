@@ -34,6 +34,8 @@ from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlparse
 
+from .telemetry import Event, emit_event
+
 __all__ = [
     "require_citations",
     "assert_no_hallucinated_urls",
@@ -109,6 +111,9 @@ def assert_no_hallucinated_urls(
     """
     if not citations:
         return True, ""
+    claimed = [citation for citation in citations if citation.get(field)]
+    if not claimed:
+        return True, ""
     retrieved_urls: set[str] = set()
     retrieved_ids: set[str] = set()
     for s in retrieved_sources:
@@ -120,6 +125,14 @@ def assert_no_hallucinated_urls(
         else:
             retrieved_urls.add(normalized)
     if not retrieved_urls and not retrieved_ids:
+        emit_event(
+            Event(
+                name="citation.guard_bypassed",
+                ok=False,
+                args_redacted={"citation_count": len(claimed)},
+                error="no retrieved provenance was available",
+            )
+        )
         return True, ""
     for i, c in enumerate(citations):
         url = c.get(field)

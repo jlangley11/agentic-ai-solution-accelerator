@@ -6,7 +6,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncIterable, AsyncIterator
-from typing import Any, get_origin
+from typing import Any
 
 from azure.ai.agentserver.invocations import InvocationAgentServerHost
 from azure.ai.agentserver.responses import (
@@ -20,7 +20,11 @@ from pydantic import BaseModel, ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from .serving.sse import sse_response, validate_payload
+from .serving.sse import (
+    sse_response,
+    validate_payload,
+    validate_response_event,
+)
 from .workflow.registry import ScenarioBundle, load_scenario
 
 logger = logging.getLogger("accelerator")
@@ -51,28 +55,22 @@ def _configure_azure_monitor() -> None:
 
 def _free_text_payload(text: str, schema: type[BaseModel]) -> dict[str, Any]:
     fields = schema.model_fields
-    payload: dict[str, Any] = {}
-    text_field = "company_name" if "company_name" in fields else None
-    if text_field is None:
-        text_field = next(
-            (
-                name
-                for name, field in fields.items()
-                if field.is_required() and field.annotation is str
-            ),
-            None,
+    required = [
+        (name, field)
+        for name, field in fields.items()
+        if field.is_required()
+    ]
+    required_strings = [
+        name for name, field in required if field.annotation is str
+    ]
+    if len(required) != 1 or len(required_strings) != 1:
+        names = ", ".join(name for name, _field in required) or "(none)"
+        raise ValueError(
+            "Plain-text Responses input is supported only when the active "
+            "request schema has exactly one required string field. Send a JSON "
+            f"object for required fields: {names}."
         )
-    if text_field is not None:
-        payload[text_field] = text
-
-    for name, field in fields.items():
-        if name in payload or not field.is_required():
-            continue
-        if field.annotation is str:
-            payload[name] = ""
-        elif get_origin(field.annotation) is list:
-            payload[name] = []
-    return payload
+    return {required_strings[0]: text}
 
 
 def _response_payload(text: str, schema: type[BaseModel]) -> BaseModel:
@@ -115,7 +113,17 @@ def _progress_text(
                     break
                 finally:
                     next_task = None
+                if event.get("type") == "briefing_ready":
+                    validate_response_event(
+                        event,
+                        bundle.response_schema,
+                    )
+                    continue
                 if event.get("type") == "final":
+                    event = validate_response_event(
+                        event,
+                        bundle.response_schema,
+                    )
                     briefing = event.get("briefing")
                     if not isinstance(briefing, dict):
                         raise RuntimeError(
@@ -123,7 +131,7 @@ def _progress_text(
                         )
                     final_briefing.update(briefing)
                     continue
-                if event.get("type") not in {"heartbeat", "briefing_ready"}:
+                if event.get("type") != "heartbeat":
                     yield json.dumps(event) + "\n"
         finally:
             if next_task is not None:
@@ -164,6 +172,7 @@ def create_app(bundle: ScenarioBundle | None = None) -> DualHost:
             payload,
             request.is_disconnected,
             client_error_message="The workflow could not complete the invocation.",
+            response_schema=scenario.response_schema,
         )
 
     @app.response_handler

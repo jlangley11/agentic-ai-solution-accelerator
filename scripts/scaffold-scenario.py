@@ -65,10 +65,14 @@ TEMPLATES: dict[str, Callable[[str, str], str]] = {
     "schema.py": lambda sid, leaf: (
         '"""Request schema for the {sid} scenario."""\n'
         'from __future__ import annotations\n\n'
-        'from pydantic import BaseModel\n\n\n'
+        'from typing import Any\n\n'
+        'from pydantic import BaseModel, Field\n\n\n'
         'class ScenarioRequest(BaseModel):\n'
         '    """Inputs the scenario accepts. Extend as needed."""\n'
-        '    query: str\n'
+        '    query: str\n\n\n'
+        'class ScenarioResponse(BaseModel):\n'
+        '    """Validated final response rendered by generated clients."""\n'
+        '    result: dict[str, Any] = Field(default_factory=dict)\n'
     ).format(sid=sid),
     "retrieval.py": lambda sid, leaf: (
         '"""Index definitions for the {sid} scenario (FoundryIQ pattern).\n\n'
@@ -91,7 +95,6 @@ TEMPLATES: dict[str, Callable[[str, str], str]] = {
         '    HnswAlgorithmConfiguration,\n'
         '    SearchableField,\n'
         '    SearchField,\n'
-        '    SearchFieldDataType,\n'
         '    SearchIndex,\n'
         '    SemanticConfiguration,\n'
         '    SemanticField,\n'
@@ -127,23 +130,21 @@ TEMPLATES: dict[str, Callable[[str, str], str]] = {
         '        name=name,\n'
         '        fields=[\n'
         '            SimpleField(\n'
-        '                name="id", type=SearchFieldDataType.String, key=True\n'
+        '                name="id", type="Edm.String", key=True\n'
         '            ),\n'
         '            SearchableField(\n'
-        '                name="content", type=SearchFieldDataType.String\n'
+        '                name="content", type="Edm.String"\n'
         '            ),\n'
         '            SearchField(\n'
         '                name="contentVector",\n'
-        '                type=SearchFieldDataType.Collection(\n'
-        '                    SearchFieldDataType.Single\n'
-        '                ),\n'
+        '                type="Collection(Edm.Single)",\n'
         '                searchable=True,\n'
         '                vector_search_dimensions=EMBEDDING_DIMENSIONS,\n'
         '                vector_search_profile_name=PROFILE_NAME,\n'
         '            ),\n'
         '            SimpleField(\n'
         '                name="source",\n'
-        '                type=SearchFieldDataType.String,\n'
+        '                type="Edm.String",\n'
         '                filterable=True,\n'
         '            ),\n'
         '            # TODO: add domain-specific filterable / facetable fields here.\n'
@@ -223,7 +224,7 @@ TEMPLATES: dict[str, Callable[[str, str], str]] = {
         '        # TODO: invoke supervisor + workers here. Until then, echo\n'
         '        # the request so the endpoint streams something deterministic.\n'
         '        emit_event(Event(name="response.returned", ok=True))\n'
-        '        yield {{"type": "final", "briefing": {{"echo": request}}}}\n\n\n'
+        '        yield {{"type": "final", "briefing": {{"result": {{"echo": request}}}}}}\n\n\n'
         'def build_workflow(context: Any) -> BaseWorkflow:\n'
         '    indexes = getattr(context, "retrieval_indexes", ()) or ()\n'
         '    primary = indexes[0].name if indexes else ""\n'
@@ -317,9 +318,16 @@ scenario:
   id: {sid}
   package: src.scenarios.{leaf}
   request_schema: schema:ScenarioRequest
+  response_schema: schema:ScenarioResponse
   workflow_factory: workflow:build_workflow
   endpoint:
     path: /{leaf}/stream
+  experience:
+    kind: form-report
+    title: {sid}
+    description: ""
+    output_sections:
+      - {{ key: result, label: Result, layout: record }}
   agents:
     - id: supervisor
       foundry_name: {agent_name}
@@ -356,9 +364,16 @@ scenario:
   id: {sid}
   package: src.scenarios.{leaf}
   request_schema: schema:ScenarioRequest
+  response_schema: schema:ScenarioResponse
   workflow_factory: workflow:build_workflow
   endpoint:
     path: /{leaf}/stream
+  experience:
+    kind: form-report
+    title: {sid}
+    description: ""
+    output_sections:
+      - {{ key: result, label: Result, layout: record }}
   agents:
     - {{ id: supervisor, foundry_name: {agent_name} }}
   evals:

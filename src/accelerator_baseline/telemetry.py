@@ -49,6 +49,7 @@ KPI_EVENTS: set[str] = {
     "tool.hitl_rejected",
     "aggregator.composed",
     "response.returned",
+    "citation.guard_bypassed",
 }
 
 

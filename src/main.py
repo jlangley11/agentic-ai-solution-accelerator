@@ -27,6 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .bootstrap import bootstrap as run_bootstrap
 from .config.settings import load_settings
+from .serving.metadata import FeedbackRequest, record_feedback, scenario_metadata
 from .serving.sse import make_fastapi_stream_endpoint as _make_stream_endpoint
 from .workflow.registry import load_scenario
 
@@ -138,6 +139,16 @@ app.add_api_route(
     methods=["POST"],
     name=f"scenario-{_bundle.id}",
 )
+
+
+@app.get("/scenario/metadata")
+async def get_scenario_metadata() -> dict[str, object]:
+    return scenario_metadata(_bundle)
+
+
+@app.post("/scenario/feedback")
+async def submit_scenario_feedback(payload: FeedbackRequest) -> dict[str, str]:
+    return record_feedback(payload)
 
 
 @app.get("/healthz")

@@ -2,30 +2,133 @@
 
 > **This file documents the rules AI coding agents follow when working in this repo.** If you're a human partner, you don't need to read this — start at [README.md](README.md). If you're an AI agent (Copilot, Cursor, Cline, Claude Code, Codex CLI, etc.), the rules below are mandatory.
 
-The authoritative copy of these rules is `.github/copilot-instructions.md`; this file is the IDE-agnostic mirror. Keep them in sync.
+This file is the portable contract for Copilot CLI, Codex, Claude Code, and
+other coding agents. `.github/copilot-instructions.md` carries equivalent
+GitHub-specific guidance; keep the non-negotiable rules aligned.
 
 ## Template intent
 This repo is an Azure Agentic AI Solution Accelerator. A partner clones it
-as a template, fills `docs/discovery/solution-brief.md` with a customer,
-runs `/scaffold-from-brief`, then customizes with your help. Every change
-you help with MUST preserve the accelerator's guardrails.
+as a template, runs `accel next`, approves discovery requirements, and
+materializes a customer scenario. Specialist agents help with interviews and
+authoring; the CLI owns lifecycle state and approval boundaries. Every change
+MUST preserve the accelerator's guardrails.
+
+## Unified local delivery interface
+
+- Install the editable package before lifecycle work, then first run
+  `accel --json --pretty next` (`python -m accelerator_cli --json --pretty
+  next` is equivalent after installation).
+- The CLI derives state from persistent repository and Azure artifacts. Never
+  infer the engagement stage from chat history.
+- `.agents/skills/accelerator/SKILL.md` is the portable workflow used by
+  Copilot CLI and Codex. Claude Code uses the synchronized adapter under
+  `.claude/skills/accelerator/`.
+- Optional MCP clients use the same operations through `accel-mcp` after
+  installing `.[mcp]`; MCP never creates a parallel lifecycle implementation.
+- Preview repository changes before `--apply`; request separate approval before
+  `--execute`; surface destructive commands for the human operator.
+- Customer documents enter `.accelerator/private/evidence.db` as local-only.
+  Do not expose source text to a model until the user records an explicit
+  disclosure decision.
+
+## Build, test, and lint commands
+
+Run commands from the repository root unless noted.
+
+```powershell
+# Install the runtime plus CI/dev tooling.
+python -m pip install -e ".[dev]"
+
+# Core CI-equivalent checks.
+ruff check src patterns scripts
+pyright src patterns
+python scripts/accelerator-lint.py
+python -m pytest -q
+
+# One test file or one test.
+python -m pytest tests/test_citations.py -q
+python -m pytest tests/test_citations.py::test_assert_no_hallucinated_urls_fails_on_unknown_host -q
+
+# SDK drift and change-impact preflight.
+python scripts/ga-sdk-freshness.py
+python scripts/explain-change.py
+python -m pip_audit --local
+```
+
+Acceptance tests require a deployed endpoint:
+
+```powershell
+accel evaluate --api-url <api-url> --execute
+# Optional consumption-based Foundry evaluators:
+accel evaluate --api-url <api-url> --foundry --execute
+```
+
+Build the surfaces you changed:
+
+```powershell
+az bicep build --file infra/main.bicep
+az bicep build --file deploy/hosted-preview/infra/main.bicep
+
+python -m pip install -r requirements-docs.txt
+python scripts/prepare-pages.py
+python -m mkdocs build --strict
+
+Set-Location patterns\sales-research-frontend
+npm install
+npm test
+npm run typecheck
+npm run build
+npm audit
+```
+
+## High-level architecture
+
+- **Authority is split deliberately.** `docs/discovery/solution-brief.md` is the
+  customer-approved intent contract. `accelerator.yaml` is the executable
+  deployment/scenario contract. `.accelerator/private/evidence.db` stores
+  local provenance and is never committed. Do not create a parallel config.
+- **Scenario loading is manifest-driven.** `load_scenario()` resolves request
+  and response schemas, experience metadata, workflow, endpoint, agents,
+  retrieval, and eval paths into a `ScenarioBundle`.
+- **The reference UI is schema-driven.** `/scenario/metadata` feeds
+  `DynamicSchemaForm` and `DynamicResultPanel`. Generic UIs render only
+  workflows that explicitly advertise validated partials; raw `chunk` content
+  is never rendered or retained.
+- **There are two serving targets.**
+  - Root `azure.yaml` + `src/main.py` is the default self-hosted FastAPI/Container Apps path.
+  - `deploy/hosted-preview/` + `src/agent_host.py` is the opt-in hosted-code
+    target. The repo retains the `hosted-preview` policy label because its
+    pinned serving packages/extensions remain prerelease. `dev` stays
+    self-hosted.
+- **Infrastructure follows the serving target.** Root `infra/main.bicep` provisions the full self-host stack. `deploy/hosted-preview/infra/` is deliberately slim and its postprovision hook normalizes custom provider output casing before Linux deployment.
+- **Serving shares one SSE contract.** `src/serving/sse.py` validates before streaming, adds monotonic `seq`, converts heartbeats to `: ka`, emits in-band `error`, and always terminates with `done`.
+- **Provisioning is shared and ordered.** `src/provisioning.py::provision()` creates Search schemas/seeds, then FoundryIQ knowledge sources/KB, then prompt-agent versions and Search RBAC, then the optional canary. `src/bootstrap.py` is only the self-host compatibility shim and no-ops in hosted mode.
+- **The hosted workspace stages source; it is not a second codebase.** Edit root sources, then let `deploy/hosted-preview/hooks/prepare.py` regenerate ignored files under `app/`.
+- **The worker graph is declarative.** `src/scenarios/<scenario>/workflow.py::WORKERS` is the only attachment point. `SupervisorDAG` schedules by dependency, creates fresh `WorkerState` per invocation, retries validation, propagates optional-worker skips, and fails fast for required workers.
+- **Supported manifest grounding modes are `foundry_tool` and `none`.**
+  `foundry_tool` uses a FoundryIQ KB through MCP; `python_injected` remains a
+  legacy runtime compatibility path and is not accepted for new manifests.
+  Citation validation compares normalized full source URLs and propagates
+  retrieved provenance to dependent factual workers.
+- **CI is target-gated.** Self-host deploys run the post-deploy acceptance chain; hosted preview currently runs a fresh-session smoke, with full hosted eval adaptation deferred.
 
 ## Glossary — three things called "agent"
 
 The word "agent" is overloaded in this repo. Disambiguate before you act:
 
 1. **Foundry agent** — a model + system-prompt + tools deployment in
-   Azure AI Foundry. System instructions live in
-   `docs/agent-specs/<name>.md` and are synced to the portal at FastAPI
-   startup by `src/bootstrap.py`. Code retrieves them via
-   `AzureAIClient(agent_name=..., use_latest_version=True)`.
+   Microsoft Foundry. System instructions live in
+   `docs/agent-specs/<name>.md` and are synced by `src/provisioning.py`
+   (self-host startup through `src/bootstrap.py`; hosted preview through
+   the postdeploy hook). Runtime invocation is centralized in the scenario
+   workflow through Agent Framework's `FoundryAgent` with explicit version
+   resolution.
 2. **Microsoft Agent Framework worker** — a Python module under
    `src/scenarios/<scenario>/agents/<agent_name>/` with the three-layer
    shape (`prompt.py` / `transform.py` / `validate.py`). The supervisor
    DAG composes these. Created via `python scripts/scaffold-agent.py …`.
-3. **VS Code custom agent** — a `.agent.md` file in `.github/agents/`
-   that shows up in the GitHub Copilot Chat agents dropdown (and as a
-   `/<slug>` slash command). These drive the partner delivery motion
+3. **Custom coding agent** — a `.agent.md` compatibility/specialist prompt in
+   `.github/agents/`. These provide focused conversations
    (`/discover-scenario`, `/scaffold-from-brief`, `/define-grounding`,
    etc.). Historically called "chatmodes" — the migration to `.agent.md`
    was completed in Phase 2f-B.
@@ -43,7 +146,10 @@ context: a `.py` file is meaning #2, a `docs/agent-specs/` reference is
 
 ### SDK & platform
 - **MUST** use Microsoft Agent Framework (`agent_framework`) with Microsoft Foundry as the model backend. Do not introduce other orchestration frameworks.
-- **MUST** author Foundry agent system instructions in `docs/agent-specs/<foundry_name>.md`. `src/bootstrap.py` syncs each spec to the matching Foundry agent on every `azd up` / `azd deploy`. **MUST** retrieve agents at runtime via `AzureAIClient(agent_name=..., use_latest_version=True)`. **NEVER** hardcode system instructions inside Python code (`prompt.py` is the user-message envelope builder, not the system instruction). **NEVER** author instructions in the Foundry portal — bootstrap overwrites portal drift on the next sync.
+- **MUST** author Foundry agent system instructions in `docs/agent-specs/<foundry_name>.md`. `src/provisioning.py` syncs each spec to the matching Foundry agent. Reuse the scenario workflow's Agent Framework invocation/version-resolution path; do not construct a parallel inference path. **NEVER** hardcode system instructions inside Python code (`prompt.py` is the user-message envelope builder, not the system instruction). **NEVER** author instructions in the Foundry portal — provisioning overwrites portal drift.
+- **NEVER** instantiate OpenAI clients for agent inference. The only exception is
+  provisioning-time seed embedding in `src/provisioning.py`, which uses
+  `AsyncAzureOpenAI` with Entra authentication and performs no agent reasoning.
 - **MUST** pin SDK versions per `pyproject.toml`. See `docs/version-matrix.md`; a weekly CI job validates against latest.
 
 ### Agent architecture (3-layer pattern per agent)
@@ -51,7 +157,13 @@ Every agent lives under `src/scenarios/<scenario>/agents/<agent_name>/` with thr
 - `prompt.py`   — `build_prompt(request_data) -> str`
 - `transform.py` — `transform_response(response) -> dict`
 - `validate.py`  — `validate_response(response) -> (bool, str)`
-Add a new agent by running `python scripts/scaffold-agent.py <agent_id> --scenario <scenario-id> --capability "<one-sentence capability>" [--depends-on a,b] [--optional]`; do not scaffold by hand. The scaffolder edits the declarative `WORKERS: dict[str, WorkerSpec]` registry in `src/scenarios/<scenario>/workflow.py` — that single dict is the supervisor DAG's only attachment point — and patches `agents/__init__.py`, creates the three-layer files, and writes a Foundry agent spec stub. It is transactional (rolls back on any failure) and re-run safe. You must still paste the printed YAML snippet into `accelerator.yaml -> scenario.agents[]` and add the new agent id to at least one golden case's `exercises` array (the `agent_has_golden_case` lint blocks otherwise). See the `/add-worker-agent` custom agent for the full flow. Scaffold a new *scenario* (sibling to `sales_research/`) with `python scripts/scaffold-scenario.py <id>`.
+Add a new agent with `/add-worker-agent` (or the low-level
+`python scripts/scaffold-agent.py <agent_id> --scenario <scenario-id>
+--capability "<one-sentence capability>" [--depends-on a,b] [--optional]`).
+The transactional scaffolder updates `WORKERS`, `agents/__init__.py`, the
+three-layer files, the Foundry spec stub, and existing golden-case `exercises`
+arrays. Paste its printed agent snippet into `accelerator.yaml ->
+scenario.agents[]`. Preview/apply a new scenario with `accel scaffold`.
 
 ### HITL (Human-in-the-Loop)
 - **MUST** gate every side-effect tool (writes, sends, destructive actions) through `src/accelerator_baseline/hitl.py`.
@@ -60,11 +172,15 @@ Add a new agent by running `python scripts/scaffold-agent.py <agent_id> --scenar
 
 ### Telemetry
 - **MUST** emit typed events via `src/accelerator_baseline/telemetry.py`. Custom KPI events declared in `accelerator.yaml -> kpis` must appear in code.
-- **MUST** wire Application Insights via `azure-monitor-opentelemetry` in `src/main.py` startup. Never disable.
+- **MUST** wire Application Insights via `azure-monitor-opentelemetry` in both `src/main.py` and `src/agent_host.py`. Never disable.
 
 ### Grounding / RAG
-- **MUST** cite retrieved sources in responses. `validate.py` must reject ungrounded responses when the agent claims facts.
-- **MUST** use `src/retrieval/ai_search.py` (Azure AI Search) rather than direct HTTP to content sources.
+- **MUST** cite retrieved sources in responses. `validate.py` must reject
+  ungrounded factual claims.
+- New manifests use `foundry_tool` (FoundryIQ KB over governed AI Search
+  indexes) or `none`. `python_injected` through `src/retrieval/ai_search.py`
+  remains legacy compatibility only.
+- **NEVER** bypass governed retrieval with direct HTTP to content sources.
 
 ### Responsible AI
 - **MUST** have content filters applied via IaC (`infra/`), not portal. `controls.content_filters = iac` in `accelerator.yaml`.
@@ -85,29 +201,44 @@ Add a new agent by running `python scripts/scaffold-agent.py <agent_id> --scenar
 ### CI & lint
 - **MUST** keep `scripts/accelerator-lint.py` passing. Reads `accelerator.yaml` + repo state; enforces the rules above.
 - **MUST** keep `evals/quality/` acceptance gates green before merge. Thresholds live in `accelerator.yaml -> acceptance`.
+- When changing docs, run `scripts/prepare-pages.py` before strict MkDocs build. When changing Bicep, build the specific root or hosted-preview entrypoint.
 
 ## Forbidden patterns (will fail lint / review)
-- Constructing `openai.OpenAI()` or `AzureOpenAI()` directly. Use Agent Framework.
+- Constructing OpenAI clients for agent inference. The only narrow exception is
+  provisioning-time seed embedding in `src/provisioning.py`, which uses
+  `AsyncAzureOpenAI` with an Entra token and never performs agent reasoning.
 - `requests.post(...)` to an LLM endpoint. Use the SDK.
 - Hardcoded resource names/IDs. Use env + Bicep params.
 - `print()` for observability. Use structured telemetry.
 - Editing `src/accelerator_baseline/` to wrap Azure SDKs (it is for primitives only).
-- Moving agent instructions into code. They live in `docs/agent-specs/<foundry_name>.md` (`src/bootstrap.py` syncs them to the Foundry portal at FastAPI startup; never author instructions directly in the portal — they get overwritten on next deploy).
+- Moving agent instructions into code. They live in `docs/agent-specs/<foundry_name>.md` (`src/provisioning.py` syncs them; never author instructions directly in the portal — they get overwritten on next provision).
 
 ## When adding things
+- **Continue an engagement or determine what comes next** → run `accel next`.
+- **Review the current lifecycle and blockers** → run `accel status --verbose`.
+- **Use the legacy custom agents** only as compatibility workflows; their
+  deterministic operations should converge on the matching `accel` command.
 - **New tool** → `/add-tool` custom agent → creates `src/tools/<tool>.py` with HITL scaffolding + unit test.
 - **New worker agent** → `/add-worker-agent` custom agent → creates the 3-layer module + wires into supervisor.
-- **Per-agent model override** → edit `accelerator.yaml` `models:` block (add a slug entry), then set `scenario.agents[].model: <slug>`. Bicep `loadYamlContent` in `infra/main.bicep` parses the block at compile time on the next `azd up`; `infra/modules/foundry.bicep` provisions each extra deployment with the shared RAI policy (`@batchSize(1)` serialises the loop); `src/bootstrap.py` re-points the Foundry agent at FastAPI startup. Lint rules `models_block_shape` + `agent_model_refs_exist` enforce shape. Removing the block resets state to template defaults; raw env-var overrides are NOT supported.
+- **Per-agent model override** → edit `accelerator.yaml` `models:` block (add a slug entry), then set `scenario.agents[].model: <slug>`. Bicep `loadYamlContent` parses the block at compile time; `infra/modules/foundry.bicep` provisions each extra deployment with the shared RAI policy (`@batchSize(1)` serialises the loop); `src/provisioning.py` resolves agent slugs to deployment names. Lint rules `models_block_shape` + `agent_model_refs_exist` enforce shape. Removing the block resets state to template defaults; raw env-var overrides are NOT supported.
 - **New Azure environment** (partner dev/staging/customer sub) → `/deploy-to-env` custom agent → adds entry to `deploy/environments.yaml`, creates the GitHub Environment, wires OIDC, dispatches a deploy. Never hand-edit `deploy.yml` to add envs; the manifest + `resolve-env` job is the contract. The azd env name is **always** derived from `deploy/environments.yaml` — never set `vars.AZURE_ENV_NAME`.
+- `deployment_target` is `selfhost` or `hosted-preview`; omitted legacy values mean `selfhost`. `default_env` MUST resolve to `selfhost`.
+- The `hosted-preview` target requires explicit acknowledgement, Python 3.14
+  in the deployed runtime (Python 3.13+ is sufficient locally), exact pinned
+  extensions, and operator RBAC values. `accel deploy` selects the nested
+  workspace; direct recovery commands must change directory rather than relying
+  on `azd -C`.
 - **Preflight a change before commit / PR** → `/explain-change` custom agent → runs `python scripts/explain-change.py` to map the current diff to the specific lint rules, evals, and deploy-pipeline steps it will trigger. Read-only; does not replace CI gates.
 - **Pick or switch landing-zone tier** → `/configure-landing-zone` custom agent → walks the partner through choosing `standalone` / `avm` / `alz-integrated` based on the customer environment and updates `accelerator.yaml` + `infra/` accordingly. Uses exemplars in `infra/avm-reference/` (Tier 2) or the overlay skeleton in `infra/alz-overlay/` (Tier 3). Lint rule `landing_zone_mode_consistent` enforces the match.
 - **Switching pattern** → `/switch-to-variant` custom agent → walks through re-authoring the scenario under `src/scenarios/<new-id>/` toward a `single-agent` or `chat-with-actioning` shape (documented walkthroughs in `patterns/<variant>/README.md`; not drop-in packages).
-- **Starting a new customer engagement** → `/discover-scenario` then `/scaffold-from-brief`.
+- **Starting a new customer engagement** → `accel next`; register evidence with
+  `accel intake`; use `/discover-scenario` for the interview; preview/apply the
+  initial structure with `accel scaffold`.
 
 ## References
 - Onboarding: `docs/start/index.md` (partner walkthrough) and `docs/getting-started/setup-and-prereqs.md` (deep reference)
 - Discovery guide: `docs/discovery/SOLUTION-BRIEF-GUIDE.md`
-- `docs/agent-specs/README.md` — per-agent system instructions and bootstrap mechanics
+- `docs/agent-specs/README.md` — per-agent system instructions and provisioning mechanics
 - Patterns: `docs/patterns/{architecture,rai,waf-alignment}/README.md`
 - Version matrix: `docs/version-matrix.md`
 - Scenario catalog: `docs/references/`

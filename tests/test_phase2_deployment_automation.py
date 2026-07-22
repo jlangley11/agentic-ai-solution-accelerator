@@ -120,6 +120,9 @@ def test_workflow_resolves_target_installs_exact_extensions_and_smokes() -> None
     assert "azd ai agent sessions create -o json" in hosted_runs
     assert "--protocol responses" in hosted_runs
     assert "--new-conversation" in hosted_runs
+    assert '"company_name":"Contoso"' in hosted_runs
+    assert '"icp_definition":' in hosted_runs
+    assert '"our_solution":' in hosted_runs
     assert "AZURE_PRINCIPAL_TYPE: ServicePrincipal" in hosted
     assert "AZURE_PRINCIPAL_ID: ${{ vars.AZURE_PRINCIPAL_ID }}" in hosted
     assert 'azd env set AZURE_PRINCIPAL_ID "$AZURE_PRINCIPAL_ID"' in hosted_runs

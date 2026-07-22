@@ -7,19 +7,22 @@
 
     **📋 Prerequisite** — Track 1 (*[Get ready](../ready/01-get-oriented.md)*) complete; engagement signed; customer short-name agreed.
 
-    **💻 Where you'll work** — VS Code (terminal + Copilot sidebar).
+    **💻 Where you'll work** — Terminal, editor, and your preferred coding-agent client.
 
-    **✅ Done when** — `<customer-short-name>-agents` repo exists in your partner GitHub org, opens in VS Code, Copilot Chat sidebar shows the repo's custom agents in the agents dropdown (or via `/`).
+    **✅ Done when** — `<customer-short-name>-agents` exists in your partner GitHub org and `accel next` returns structured engagement state.
 
 ---
 
-You'll do this **first**, before the discovery workshop, because every downstream custom agent (`/discover-scenario`, `/scaffold-from-brief`, `/configure-landing-zone`, `/deploy-to-env`) writes into the cloned repo. Cloning is cheap; doing it before the workshop means the brief lands directly in the right place.
+You'll do this **first**, before the discovery workshop, because lifecycle
+artifacts and customer-specific code belong in the cloned repo. Cloning is
+cheap; doing it before the workshop means evidence decisions, the brief, and
+the executable manifest land in the right place.
 
 ## Where you'll work
 
 | Where | What you do here | How to open it |
 |---|---|---|
-| **VS Code** | Run all repo-local commands in the integrated terminal (`` Ctrl+` ``), edit files (`accelerator.yaml`, agent specs, `solution-brief.md`), and talk to GitHub Copilot Chat in the right sidebar (💬 icon or `Ctrl+Alt+I`; pick a custom agent from the agents dropdown, or type `/` for the slash equivalents) | After cloning, `code .` from any shell |
+| **Terminal / editor** | Run `accel`, edit `accelerator.yaml`, agent specs, and the brief, and review diffs | `code .`, `copilot`, `codex`, or `claude` |
 | **GitHub web** (github.com) | Confirm the new repo exists in your partner org; later you'll wire Settings → Environments | Browser, on the cloned repo |
 
 ## Clone the template
@@ -31,7 +34,8 @@ cd <customer-short-name>-agents
 code .
 ```
 
-VS Code opens with Copilot already configured via `.github/copilot-instructions.md`. Copilot now knows the hard rules:
+All supported agents read the portable rules in `AGENTS.md`; Copilot also reads
+`.github/copilot-instructions.md`, and Claude reads `CLAUDE.md`.
 
 - Microsoft Agent Framework + Microsoft Foundry only.
 - `DefaultAzureCredential` only — no keys.
@@ -46,7 +50,15 @@ git status                # should be clean on main
 gh repo view --web        # should open the new repo in your partner org
 ```
 
-Open the agents dropdown in Copilot Chat (or type `/`) — you should see at least these custom agents: `/discover-scenario`, `/ingest-prd`, `/scaffold-from-brief`, `/configure-landing-zone`, `/deploy-to-env`, `/add-tool`, `/explain-change`, `/delivery-guide`. If they're missing, the GitHub Copilot **Chat** extension isn't installed (see [2. Set up your machine](../ready/02-set-up-your-machine.md#tools-to-install)).
+Install the local CLI and inspect the first deterministic action:
+
+```powershell
+python -m pip install -e ".[dev]"
+accel --json --pretty next
+```
+
+Copilot users can also select `/accelerator`; Codex and Claude Code use the
+shared `.agents/skills/accelerator/SKILL.md`.
 
 ## Joining mid-engagement?
 

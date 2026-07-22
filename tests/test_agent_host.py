@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from src.agent_host import _progress_text, create_app
 from src.workflow.registry import ScenarioBundle
@@ -18,6 +18,15 @@ class HostedRequest(BaseModel):
     seller_intent: str
     tags: list[str]
     persona: str = "Decision maker"
+
+
+class HostedResponse(BaseModel):
+    request: dict[str, Any]
+    ok: bool
+
+
+class SingleFieldRequest(BaseModel):
+    query: str
 
 
 class HostedWorkflow:
@@ -53,19 +62,49 @@ class FailingWorkflow:
         yield  # pragma: no cover
 
 
+class InvalidResponseWorkflow:
+    async def stream(self, request: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
+        yield {"type": "final", "briefing": {"wrong": True}}
+
+
+class InvalidBriefingThenActionWorkflow:
+    def __init__(self) -> None:
+        self.action_executed = False
+        self.closed = False
+
+    async def stream(self, request: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
+        try:
+            yield {"type": "briefing_ready", "briefing": {"wrong": True}}
+            self.action_executed = True
+            yield {"type": "tool_result", "tool": "send_email", "result": "sent"}
+            yield {"type": "final", "briefing": {"wrong": True}}
+        finally:
+            self.closed = True
+
+
 def _bundle(
-    workflow: HostedWorkflow | BlockingWorkflow | FailingWorkflow,
+    workflow: (
+        HostedWorkflow
+        | BlockingWorkflow
+        | FailingWorkflow
+        | InvalidResponseWorkflow
+        | InvalidBriefingThenActionWorkflow
+    ),
+    *,
+    request_schema: type[BaseModel] = HostedRequest,
+    response_schema: type[BaseModel] | None = None,
 ) -> ScenarioBundle:
     return ScenarioBundle(
         id="hosted-test",
         package="tests",
-        request_schema=HostedRequest,
+        request_schema=request_schema,
         workflow=workflow,  # type: ignore[arg-type]
         endpoint_path="/research/stream",
         agents=(),
         retrieval_indexes=(),
         evals_quality="",
         evals_redteam="",
+        response_schema=response_schema,
     )
 
 
@@ -181,7 +220,7 @@ def test_responses_structured_json_streams_progress_and_final_output() -> None:
     assert workflow.requests == [{**structured, "persona": "Decision maker"}]
 
 
-def test_responses_free_text_adapts_required_strings_and_lists() -> None:
+def test_responses_free_text_rejects_ambiguous_required_fields() -> None:
     workflow = HostedWorkflow()
     app = create_app(_bundle(workflow))
 
@@ -192,22 +231,28 @@ def test_responses_free_text_adapts_required_strings_and_lists() -> None:
         )
 
     assert response.status_code == 200
-    assert "response.completed" in response.text
-    events = _response_events(response.text)
-    output = "".join(
-        event.get("delta", "")
-        for event in events
-        if event["type"] == "response.output_text.delta"
+    assert "response.failed" in response.text
+    assert "Send a JSON object for required fields" in response.text
+    assert workflow.requests == []
+
+
+def test_responses_free_text_adapts_single_required_string() -> None:
+    workflow = HostedWorkflow()
+    app = create_app(
+        _bundle(
+            workflow,
+            request_schema=SingleFieldRequest,
+        )
     )
-    assert json.loads(output)["request"]["company_name"] == "Fabrikam"
-    assert workflow.requests == [
-        {
-            "company_name": "Fabrikam",
-            "seller_intent": "",
-            "tags": [],
-            "persona": "Decision maker",
-        }
-    ]
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/responses",
+            json={"model": "test-model", "input": "Fabrikam", "stream": True},
+        )
+
+    assert "response.completed" in response.text
+    assert workflow.requests == [{"query": "Fabrikam"}]
 
 
 def test_responses_reject_empty_input_with_failed_event() -> None:
@@ -232,7 +277,17 @@ def test_responses_hide_unexpected_workflow_errors(
     with TestClient(app) as client:
         response = client.post(
             "/responses",
-            json={"model": "test-model", "input": "Fabrikam", "stream": True},
+            json={
+                "model": "test-model",
+                "input": json.dumps(
+                    {
+                        "company_name": "Fabrikam",
+                        "seller_intent": "Prepare",
+                        "tags": [],
+                    }
+                ),
+                "stream": True,
+            },
         )
 
     assert response.status_code == 200
@@ -240,6 +295,45 @@ def test_responses_hide_unexpected_workflow_errors(
     assert "The workflow could not complete the response." in response.text
     assert "internal database detail" not in response.text
     assert any(record.message == "Responses workflow failed" for record in caplog.records)
+
+
+def test_hosted_protocols_reject_invalid_declared_response_schema() -> None:
+    app = create_app(
+        _bundle(
+            InvalidResponseWorkflow(),
+            response_schema=HostedResponse,
+        )
+    )
+
+    with TestClient(app) as client:
+        invocation = client.post(
+            "/invocations",
+            json={
+                "company_name": "Contoso",
+                "seller_intent": "Prepare",
+                "tags": [],
+            },
+        )
+        response = client.post(
+            "/responses",
+            json={
+                "model": "test-model",
+                "input": json.dumps(
+                    {
+                        "company_name": "Contoso",
+                        "seller_intent": "Prepare",
+                        "tags": [],
+                    }
+                ),
+                "stream": True,
+            },
+        )
+
+    invocation_events = _response_events(invocation.text)
+    assert [event["type"] for event in invocation_events] == ["error", "done"]
+    assert "The workflow could not complete the invocation." in invocation.text
+    assert "response.failed" in response.text
+    assert "The workflow could not complete the response." in response.text
 
 
 @pytest.mark.asyncio
@@ -258,3 +352,17 @@ async def test_responses_cancellation_interrupts_and_closes_blocked_workflow() -
     with pytest.raises(asyncio.CancelledError, match="Response cancelled"):
         await asyncio.wait_for(blocked_next, timeout=1)
     assert workflow.closed.is_set()
+
+
+@pytest.mark.asyncio
+async def test_hosted_progress_rejects_invalid_briefing_before_action_stage() -> None:
+    workflow = InvalidBriefingThenActionWorkflow()
+    bundle = _bundle(workflow, response_schema=HostedResponse)
+    payload = HostedRequest(company_name="Contoso", seller_intent="", tags=[])
+    progress = _progress_text(bundle, payload, asyncio.Event(), {})
+
+    with pytest.raises(ValidationError):
+        await anext(progress)
+
+    assert workflow.action_executed is False
+    assert workflow.closed is True

@@ -6,6 +6,9 @@ tools: ['codebase', 'editFiles', 'search']
 
 # /add-tool — scaffold a side-effect tool with HITL baked in
 
+> Compatibility adapter: use `accel next` before adding the tool and
+> `accel validate` after HITL, telemetry, tests, and red-team wiring are complete.
+
 Use this for any tool that writes, sends, mutates external state, or triggers destructive actions. If the tool is read-only, you probably don't need this — just add a retriever under `src/retrieval/`.
 
 ## Inputs to gather
@@ -13,7 +16,9 @@ Use this for any tool that writes, sends, mutates external state, or triggers de
 2. **External system** (e.g., Salesforce, ServiceNow, Dynamics, SMTP)
 3. **Operation** (verb + object, e.g., "create Contact in Salesforce")
 4. **Reversibility** (reversible / irreversible — affects HITL default)
-5. **HITL policy**: `always` / `threshold(<field> < X)` / `never` (only if reversible AND `accelerator.yaml.solution.hitl = none`)
+5. **HITL policy**: `always` / `threshold:<expr>` (for example,
+   `threshold:amount > 1000`) / `never` (only if reversible AND
+   `accelerator.yaml.solution.hitl = none`)
 6. **Which worker agent uses it** (must already exist)
 7. **Auth approach** (Managed Identity / OAuth-via-KeyVault)
 
@@ -39,8 +44,8 @@ TOOL_NAME = "<tool_name>"
 # scans every `src/tools/*.py` file for `HITL_POLICY` to identify
 # side-effect tools — without it, the file is treated as read-only and
 # the HITL gate is not enforced. Set to "always" / "never" /
-# "threshold(<field> < N)" per the custom agent prompt above.
-HITL_POLICY = "<always | never | threshold(<field> < N)>"
+# "threshold:<expr>" per the custom agent prompt above.
+HITL_POLICY = "<always | never | threshold:amount > 1000>"
 
 
 INPUT_SCHEMA = {
@@ -70,7 +75,12 @@ def _redact(v: Any) -> Any:
     return v
 ```
 
-> **Why `HITL_POLICY` is a module-level constant.** The `accelerator-lint` rule `hitl-required` scans `src/tools/*.py` for that exact identifier to identify side-effect tools. If you bury the policy as an inline argument to `checkpoint(...)`, lint treats the file as read-only and never checks for the HITL gate. The shipped `crm_write_contact.py` and `send_email.py` follow the same shape — copy from them if in doubt.
+> **Why `HITL_POLICY` is a module-level constant.** The `accelerator-lint`
+> rule `hitl-required` scans `src/tools/*.py` for that exact identifier to
+> identify side-effect tools. If you bury the policy as an inline argument to
+> `checkpoint(...)`, lint treats the file as read-only and never checks for the
+> HITL gate. Threshold policies use `threshold:<expr>` with normal Python
+> comparison operators.
 
 ## Register on the worker
 Expose the tool in the worker's tool registry so Foundry advertises it.
@@ -97,12 +107,12 @@ Every side-effect tool ships with at least one redteam case. Author it now, then
 Re-run the full acceptance chain to prove the new tool didn't regress the scenario:
 
 ```bash
-python evals/quality/run.py --api-url <your-api-url>
-python evals/redteam/run.py --api-url <your-api-url>
-python scripts/enforce-acceptance.py
+accel evaluate --api-url <your-api-url> --execute
 ```
 
-`enforce-acceptance.py` reports pass/fail against every threshold in `accelerator.yaml.acceptance`. If any threshold drops, fix the tool before opening the PR — the same chain runs in CI and will block merge.
+The unified evaluator reports every threshold in
+`accelerator.yaml.acceptance`. If any threshold drops, fix the tool before the
+PR.
 
 ## Guardrails
 - NEVER skip `checkpoint(...)`.

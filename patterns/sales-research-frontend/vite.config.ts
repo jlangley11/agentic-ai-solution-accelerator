@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
-// The dev server proxies `/research/*` and `/healthz` to the local FastAPI
+// The dev server proxies scenario, research, and health routes to FastAPI
 // process so the browser issues same-origin requests during development —
 // no CORS pre-flight required. Override the proxy target with
 // VITE_DEV_API_PROXY in `.env` (e.g. point at a remote dev API).
@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         "/research": { target: devApiProxy, changeOrigin: true, secure: false },
+        "/scenario": { target: devApiProxy, changeOrigin: true, secure: false },
         "/healthz": { target: devApiProxy, changeOrigin: true, secure: false },
       },
     },

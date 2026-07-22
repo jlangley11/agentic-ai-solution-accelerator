@@ -1,4 +1,4 @@
-# Agent specs — source of truth for initial Foundry agent creation
+# Agent specs — durable Foundry system instructions
 
 ## Flagship agents at a glance
 
@@ -16,11 +16,11 @@ Use the per-agent files below for the actual system instructions; everything els
 
 ---
 
-## Bootstrap mechanics
+## Provisioning mechanics
 
-`src/bootstrap.py` reads one Markdown file per agent from this
-directory and creates or updates the corresponding agent in the Foundry
-project at `azd up` / `azd postprovision` time.
+`src/provisioning.py` reads one Markdown file per manifest agent and creates or
+updates the corresponding version in Foundry. Self-host invokes it through
+`src/bootstrap.py`; Hosted preview invokes it from the postdeploy hook.
 
 ## File format
 
@@ -33,42 +33,31 @@ project at `azd up` / `azd postprovision` time.
 <system instructions the agent runs with>
 ```
 
-The model deployment is NOT declared here — every agent runs against the
-single model deployed by `infra/modules/foundry.bicep` (captured in the
-`AZURE_AI_FOUNDRY_MODEL` output and read by `src/bootstrap.py` at FastAPI startup).
-This keeps infra as the source of truth and prevents specs drifting away
-from what `azd up` actually provisions. The accelerator lint fails if any
-spec file contains a `**Model:**` field.
+The model deployment is not declared here. `accelerator.yaml.models[]` and
+`scenario.agents[].model` select the provisioned deployment; omitting the agent
+override uses the reserved `default` slug. Lint fails if a spec declares its
+own `**Model:**` field.
 
 ## Important
 
 **Authoring source of truth:** the `.md` files in this directory.
-**Runtime location:** Foundry portal — `src/bootstrap.py` syncs each spec verbatim
-to the matching Foundry agent at FastAPI startup on every `azd up` /
-`azd deploy` / revision restart. The portal holds the runtime copy *between*
-deploys but is not a durable authoring surface — manual portal edits are
+**Runtime location:** Foundry — shared provisioning syncs each spec verbatim to
+the matching agent version. The portal displays the materialized runtime copy
+but is not a durable authoring surface; manual instruction edits are
 **transient** and will be overwritten on the next sync.
 
-The supported authoring loop is: edit the `.md` → `azd deploy` → re-run evals.
-The supported rollback path is: `git revert` the spec file → `azd deploy`.
+The supported loop is: edit the `.md` → apply `accel deploy` → run
+`accel evaluate`. Rollback is the same path after reverting the spec.
 
-!!! warning "Bootstrap rewrites the full agent definition (model + instructions + tools)"
-    `src/bootstrap.py` calls `proj.agents.create_version(...)` with the complete
-    `PromptAgentDefinition(model=..., instructions=..., tools=[...])` derived
-    from this spec file plus the manifest's grounding mode. **Any tool a
-    partner attaches manually in the Foundry portal (e.g. a Foundry catalog
-    MCP / OpenAPI / Function / Logic Apps connector) is dropped on the next
-    sync** because the new version's tools list comes from code, not from
-    the previous portal state. To keep portal-attached tools across deploys,
-    declare them in the manifest (`scenario.agents[].foundry_tools[]` —
-    coming in a future accelerator release) so bootstrap can re-attach them
-    by name. Until that lands, treat manual portal tool attachments the
-    same as portal-edited instructions: transient, lost on next `azd deploy`.
+!!! warning "Provisioning owns model, instructions, and the managed KB tool"
+    `src/provisioning.py` creates a new `PromptAgentDefinition` version from
+    the repo-owned spec and manifest. It refreshes the accelerator-managed
+    FoundryIQ KB tool while preserving other existing catalog tools. Record
+    governed catalog-tool intent in `scenario.agents[].catalog_tools[]`; do not
+    treat portal state as the durable declaration.
 
-If an engagement intentionally opts out of bootstrap sync (sets
-`BOOTSTRAP_SKIP=1` so the portal becomes the authoring surface for that
-deployment), the deviation must be recorded in the handover packet's
-"Customer-specific deviations" section.
+Instructions never become portal-managed. `BOOTSTRAP_SKIP=1` exists for tests
+and controlled diagnostics, not as a supported customer authoring mode.
 
 Do NOT reference these `.md` files at runtime. Do NOT import from them.
 

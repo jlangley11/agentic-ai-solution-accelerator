@@ -1,5 +1,8 @@
 # Partner walkthrough
 
+> **CLI-first path:** run `accel next` from the repository root. This
+> walkthrough remains the human-readable explanation of the same lifecycle.
+
 The accelerator is delivered as a **linear walkthrough** in two tracks:
 
 - **[Get ready](ready/01-get-oriented.md)** — three steps you do **once** when you adopt the accelerator (orient, install tools, rehearse in your own sandbox).

@@ -30,11 +30,27 @@ def validate_payload(payload: object, schema: type[BaseModel]) -> BaseModel:
     return schema.model_validate(payload)
 
 
+def validate_response_event(
+    event: dict[str, Any],
+    schema: type[BaseModel] | None,
+) -> dict[str, Any]:
+    """Validate final briefing carriers before they reach any client."""
+    if schema is None or event.get("type") not in {"briefing_ready", "final"}:
+        return event
+    briefing = event.get("briefing")
+    validated = schema.model_validate(briefing)
+    return {
+        **event,
+        "briefing": validated.model_dump(exclude_none=True),
+    }
+
+
 async def stream_sse(
     workflow: BaseWorkflow,
     payload: BaseModel,
     is_disconnected: DisconnectCheck,
     client_error_message: str | None = None,
+    response_schema: type[BaseModel] | None = None,
 ) -> AsyncIterator[bytes]:
     """Encode workflow events using the accelerator's stable SSE contract."""
     seq = 0
@@ -49,6 +65,7 @@ async def stream_sse(
                 if isinstance(event, dict) and event.get("type") == "heartbeat":
                     yield b": ka\n\n"
                     continue
+                event = validate_response_event(event, response_schema)
                 seq += 1
                 yield f"data: {json.dumps({**event, 'seq': seq})}\n\n".encode()
         finally:
@@ -84,6 +101,7 @@ def sse_response(
     payload: BaseModel,
     is_disconnected: DisconnectCheck,
     client_error_message: str | None = None,
+    response_schema: type[BaseModel] | None = None,
 ) -> StreamingResponse:
     """Construct an SSE response for an already-validated payload."""
     return StreamingResponse(
@@ -92,6 +110,7 @@ def sse_response(
             payload,
             is_disconnected,
             client_error_message=client_error_message,
+            response_schema=response_schema,
         ),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -103,6 +122,7 @@ def make_fastapi_stream_endpoint(
 ) -> Callable[[Request], Awaitable[StreamingResponse]]:
     """Build the current FastAPI route while keeping validation pre-stream."""
     schema = bundle.request_schema
+    response_schema = bundle.response_schema
     workflow = bundle.workflow
 
     async def stream_endpoint(request: Request) -> StreamingResponse:
@@ -114,7 +134,13 @@ def make_fastapi_stream_endpoint(
             payload = validate_payload(raw_payload, schema)
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.errors()) from exc
-        return sse_response(workflow, payload, request.is_disconnected)
+        return sse_response(
+            workflow,
+            payload,
+            request.is_disconnected,
+            client_error_message="The workflow could not complete the response.",
+            response_schema=response_schema,
+        )
 
     stream_endpoint.__name__ = f"{bundle.id.replace('-', '_')}_stream"
     return stream_endpoint

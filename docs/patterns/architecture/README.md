@@ -4,7 +4,7 @@ What the accelerator ships today, and the shapes a partner can reasonably custom
 
 ---
 
-## Flagship topology (what `azd up` deploys)
+## Flagship self-host topology
 
 **Pattern — supervisor routing, 4 specialists (grouped in 2 workstreams), retrieval-backed, HITL for side-effects.**
 
@@ -19,7 +19,7 @@ What the accelerator ships today, and the shapes a partner can reasonably custom
             ├───────────────────────────────────────────┐
             ▼                                           ▼
    ┌─────────────────────┐                 ┌───────────────────────┐
-   │ Account Researcher  │                 │ ICP Fit Analyst       │
+   │ Account Planner     │                 │ ICP Fit Analyst       │
    │ Competitive Context │                 │ Outreach Personaliser │
    └─────────────────────┘                 └───────────────────────┘
             │                                           │
@@ -27,8 +27,8 @@ What the accelerator ships today, and the shapes a partner can reasonably custom
                                  │
                                  ▼
                    ┌────────────────────────────┐
-                   │ Azure AI Search (accounts) │   <-- seeded at postprovision
-                   │ Web search (allow-listed)  │
+                   │ FoundryIQ Knowledge Base   │
+                   │ Azure AI Search (accounts) │
                    └────────────────────────────┘
 ```
 
@@ -36,7 +36,8 @@ Code pointers:
 
 - Workflow: `src/scenarios/sales_research/workflow.py`
 - Agents (prompt / transform / validate trio): `src/scenarios/sales_research/agents/<agent>/`
-- Retrieval: `src/retrieval/ai_search.py` + scenario index schema in `src/scenarios/sales_research/retrieval.py`
+- Grounding: per-agent `foundry_tool` declarations + scenario index schema in
+  `src/scenarios/sales_research/retrieval.py`
 - Endpoint binding: `src/main.py` reads `accelerator.yaml` and mounts `/research/stream` via `src.workflow.registry.load_scenario`
 - Tools (side-effect, HITL-gated): `src/tools/`
 
@@ -46,16 +47,33 @@ Code pointers:
 
 ## Frontend layer (partner-built)
 
-The accelerator stops at the API. The UI a customer actually clicks is the
-**partner's value-add** — bespoke UX, auth, branding, and any approval
-surfaces are out of scope for the template.
+The accelerator ships a reference workbench, not a production application.
+Customer identity, durable multi-user state, branding, and the external HITL
+approver remain deployment-specific.
 
 To shorten the runway, a reference UI starter ships at
 [`patterns/sales-research-frontend/`](../../../patterns/sales-research-frontend/README.md):
-React + Vite + TypeScript, consumes `POST /research/stream` directly via the
-Fetch + ReadableStream SSE pattern, deploys to Azure Static Web Apps. It is
-deliberately minimal (no auth, no state persistence, no framework lock-in)
-so partners can fork-and-customise rather than rip out opinions.
+React + Vite + TypeScript, deployable to Azure Static Web Apps. The flagship
+retains tailored sales layouts; other scenarios use the generic workbench.
+
+### Schema-driven workbench
+
+- `GET /scenario/metadata` exposes request/response JSON Schemas, endpoint,
+  agents, experience metadata, and approval mode.
+- `DynamicSchemaForm.tsx` renders primitive, nullable, enum, array, and JSON
+  object inputs from the request schema.
+- `DynamicResultPanel.tsx` renders sections declared under
+  `scenario.experience.output_sections`.
+- Scenarios must declare `response_schema`; serving validates
+  `briefing_ready` and `final` before emitting them.
+
+### Validated streaming
+
+Raw `chunk` events are useful only as progress signals. The reference clients
+never render them. The flagship stores character counts—not raw text—and the
+generic workbench renders `partial` events only when the workflow explicitly
+advertises `validated_partials = True`. Sequence gaps or duplicates surface as
+protocol errors.
 
 ```
    browser  ──HTTPS──►  Static Web App  ──HTTPS──►  Container Apps (FastAPI)
@@ -63,8 +81,9 @@ so partners can fork-and-customise rather than rip out opinions.
                                                          └─► Foundry / Search / KV
 ```
 
-The pattern is **not built or tested in CI** — it's reference material the
-partner lifts into their own pipeline once they've customised it.
+The pattern includes Vitest behavior tests, TypeScript checking, a production
+build, and dependency audit commands. It remains outside the root backend
+build, so run its commands when changing the frontend.
 
 ---
 
@@ -194,7 +213,7 @@ Deeper walk of how the flagship scenario actually runs end-to-end in the custome
             (crm_write_contact, send_email)
 ```
 
-### Azure topology (deployed by `azd up`)
+### Azure topology (self-host target)
 
 ```
 ┌─────────────────────── Customer subscription ──────────────────────┐
@@ -226,7 +245,8 @@ Deeper walk of how the flagship scenario actually runs end-to-end in the custome
 1. Partner or customer invokes the API (`src/main.py`).
 2. `src/scenarios/sales_research/workflow.py` executes the supervisor with the request.
 3. Supervisor classifies intent and dispatches to workers (parallel).
-4. Workers ground via `retrieval/ai_search.py` and tools; return structured outputs.
+4. Factual workers ground through their FoundryIQ KB tools; transformational
+   workers use `none`; all return validated structured outputs.
 5. Aggregator composes the final brief + outreach draft.
 6. Any side-effect tool (CRM write, email send) passes `accelerator_baseline/hitl.checkpoint` first.
 7. Telemetry events emitted to App Insights; KPI events drive ROI dashboards.
@@ -236,4 +256,5 @@ Deeper walk of how the flagship scenario actually runs end-to-end in the custome
 - **Parallel specialists** reduce latency vs serial single-agent prompting.
 - **Aggregator as executor** keeps composition logic out of worker prompts (easier to eval).
 - **HITL at the edge** (not inside workers) means we can audit and change policy without retraining prompts.
-- **Spec-file-managed instructions** keep instructions in version control (`docs/agent-specs/*.md`); changes go through PR review and `azd deploy` syncs them to Foundry — auditable, rollback-friendly, no portal drift.
+- **Spec-file-managed instructions** stay in version control; shared
+  provisioning syncs them during target-aware deployment.

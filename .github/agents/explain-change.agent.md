@@ -1,10 +1,13 @@
 ---
 name: explain-change
-description: Run scripts/explain-change.py against the current branch to preflight which lint rules will fire, which evals will run, and what the deploy pipeline will do on the next azd up. Use before opening a PR or squash-merging.
+description: Run scripts/explain-change.py against the current branch to preflight which lint rules, evals, and target-aware deployment steps the change will trigger.
 tools: ['codebase', 'runCommands']
 ---
 
 # /explain-change — preflight a diff before you commit or push
+
+> Compatibility adapter: `accel review` is the unified entry point and invokes
+> the same repository change-impact workflow.
 
 Use this when you want a quick, structured readout of what's going to happen in CI for the change on the current branch. It is a READ-ONLY preflight — it does NOT run the lint, the evals, or the deploy pipeline. CI gates remain authoritative.
 
@@ -36,7 +39,7 @@ The script inspects committed diff vs base + staged + unstaged + untracked files
 For each affected category, the report names:
 - **lint**: which `accelerator-lint.py` rules evaluate the change
 - **evals**: which eval runners (quality, redteam) will exercise the change
-- **deploy**: what the next `azd up` or workflow run does with this change
+- **deploy**: what the next resolved deployment target or workflow run does with this change
 - **partner guardrails**: e.g. "don't add Azure envs by hand-editing `deploy.yml`", "keep `agents/__init__.py` scaffold-managed"
 
 And a tailored **Recommended pre-commit** command list — always includes `python scripts/accelerator-lint.py`, plus an import smoke test when Python source changed, plus round-trip scaffolder / YAML parse checks when the change touches those surfaces.
@@ -44,10 +47,15 @@ And a tailored **Recommended pre-commit** command list — always includes `pyth
 ## Example conversations
 
 **Partner:** "I added a new worker agent via `scaffold-agent.py`. What happens next?"
-→ Run `/explain-change`. Expect the `agent-three-layer`, `agents-init`, and `scenario-workflow` categories to fire, with impact text that reminds them to (a) paste the YAML snippet into `accelerator.yaml`, (b) add the agent id to a golden case's `exercises[]`, (c) run the suggested pre-commit commands before they push.
+→ Run `/explain-change`. Expect the `agent-three-layer`, `agents-init`, and
+`scenario-workflow` categories to remind them to (a) register the printed
+agent snippet in `accelerator.yaml`, (b) refine the automatically extended
+golden cases, and (c) run the suggested pre-commit commands.
 
 **Partner:** "I tweaked the bicep for a bigger model capacity. Safe?"
-→ Run `/explain-change`. Expect `infra-bicep` to fire with the reminder that `azd up` will re-provision and `no_preview_api_versions` + `bicep_has_content_filter` still need to pass.
+→ Run `/explain-change`. Expect `infra-bicep` to report that deployment will
+re-provision and that `no_preview_api_versions` +
+`bicep_has_content_filter` must pass.
 
 **Partner:** "I edited `deploy.yml` directly to add a customer env."
 → Run `/explain-change`. Expect `deploy-workflow` to fire with the explicit guardrail "never add Azure envs by hand-editing this file; use `/deploy-to-env` + `deploy/environments.yaml`". They can back out before the `deploy_matrix_matches_azure_envs` lint blocks the PR.

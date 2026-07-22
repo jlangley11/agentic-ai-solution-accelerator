@@ -3,56 +3,6 @@ import type { ResearchBriefing, StreamEvent } from "../types/research";
 import { JOKE_ROTATE_MS, PARTNER_JOKES } from "../data/jokes";
 
 // ---------------------------------------------------------------------------
-// Partial JSON parser — extracts complete fields from streaming LLM output
-// ---------------------------------------------------------------------------
-
-function tryParsePartialJson(raw: string): Record<string, unknown> | null {
-  if (!raw || raw.length < 3) return null;
-  // Strip markdown code fences
-  let text = raw.replace(/^```json?\s*/m, "").replace(/\s*```\s*$/m, "").trim();
-
-  // Skip any preamble text before the JSON object — models sometimes
-  // emit reasoning or tool-call fragments before the response JSON.
-  const firstBrace = text.indexOf("{");
-  if (firstBrace < 0) return null;
-  if (firstBrace > 0) text = text.slice(firstBrace);
-
-  // Try full parse first
-  try {
-    const parsed = JSON.parse(text);
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) return parsed;
-    return null;
-  } catch { /* fall through to fixup */ }
-
-  // Close unmatched brackets/braces
-  let inStr = false;
-  let escaped = false;
-  const closers: string[] = [];
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (escaped) { escaped = false; continue; }
-    if (c === "\\") { escaped = true; continue; }
-    if (c === '"') { inStr = !inStr; continue; }
-    if (inStr) continue;
-    if (c === "{") closers.push("}");
-    else if (c === "[") closers.push("]");
-    else if (c === "}" || c === "]") closers.pop();
-  }
-  if (inStr) text += '"';
-  // Trim dangling key (e.g. `"key":` with no value yet) — remove
-  // trailing `"someKey":` that hasn't received a value token yet.
-  text = text.replace(/,?\s*"[^"]*"\s*:\s*$/, "");
-  // Trim trailing comma before closing
-  text = text.replace(/,\s*$/, "");
-  while (closers.length > 0) text += closers.pop();
-  try {
-    const parsed = JSON.parse(text);
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) return parsed;
-  } catch { /* give up */ }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
 // Section configuration — accent colors, numbered badges
 // ---------------------------------------------------------------------------
 
@@ -252,7 +202,7 @@ function FlatKeyValues({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-function CitationsList({ items }: { items: Record<string, unknown>[] }) {
+export function CitationsList({ items }: { items: Record<string, unknown>[] }) {
   if (items.length === 0) return <p className="muted">(no citations)</p>;
   return (
     <ol className="citation-list">
@@ -684,13 +634,12 @@ interface Props {
   events: StreamEvent[];
   isComplete: boolean;
   busy: boolean;
-  workerThoughts: Record<string, string>;
 }
 
 // Tab metadata for the 4 worker sections
 const TABS = SECTIONS.filter((s) => s.num >= 2 && s.num <= 5);
 
-export function ResultPanel({ briefing, events, busy, workerThoughts }: Props) {
+export function ResultPanel({ briefing, events, busy }: Props) {
   const [showRaw, setShowRaw] = useState(false);
   const [activeTab, setActiveTab] = useState(2);
   const [manualOverride, setManualOverride] = useState(false);
@@ -714,34 +663,11 @@ export function ResultPanel({ briefing, events, busy, workerThoughts }: Props) {
     return map;
   }, [events]);
 
-  // Progressive: parse partial JSON from streaming chunks
-  const streamingPartials = useMemo(() => {
-    const map: Record<string, Record<string, unknown>> = {};
-    for (const [wid, text] of Object.entries(workerThoughts)) {
-      if (partialsByWorker[wid]) continue; // already have final output
-      const parsed = tryParsePartialJson(text);
-      if (parsed && Object.keys(parsed).length > 0) map[wid] = parsed;
-    }
-    return map;
-  }, [workerThoughts, partialsByWorker]);
-
-  // Track which sections are showing streaming (not final) data
-  const streamingSections = useMemo(() => {
-    const set = new Set<string>();
-    for (const wid of Object.keys(streamingPartials)) {
-      if (!partialsByWorker[wid]) set.add(wid);
-    }
-    return set;
-  }, [streamingPartials, partialsByWorker]);
-
   function dataFor(meta: SectionMeta): unknown | null {
     if (meta.briefingKey) {
       if (briefing) return briefing[meta.briefingKey];
       if (meta.workerId) {
-        // Prefer completed partial, fall back to streaming partial
-        return partialsByWorker[meta.workerId]
-          ?? streamingPartials[meta.workerId]
-          ?? null;
+        return partialsByWorker[meta.workerId] ?? null;
       }
     }
     return null;
@@ -753,10 +679,10 @@ export function ResultPanel({ briefing, events, busy, workerThoughts }: Props) {
       if (!t.briefingKey) return false;
       const d = briefing
         ? briefing[t.briefingKey]
-        : (t.workerId ? (partialsByWorker[t.workerId] ?? streamingPartials[t.workerId] ?? null) : null);
+        : (t.workerId ? (partialsByWorker[t.workerId] ?? null) : null);
       return d !== null && isRecord(d);
     }).length;
-  }, [partialsByWorker, streamingPartials, briefing]);
+  }, [partialsByWorker, briefing]);
 
   const prevDataCountRef = useRef(0);
 
@@ -766,7 +692,7 @@ export function ResultPanel({ briefing, events, busy, workerThoughts }: Props) {
         if (!t.briefingKey) return false;
         const d = briefing
           ? briefing[t.briefingKey]
-          : (t.workerId ? (partialsByWorker[t.workerId] ?? streamingPartials[t.workerId] ?? null) : null);
+          : (t.workerId ? (partialsByWorker[t.workerId] ?? null) : null);
         return d !== null && isRecord(d);
       });
       if (tabsWithData.length > 0) {
@@ -774,7 +700,7 @@ export function ResultPanel({ briefing, events, busy, workerThoughts }: Props) {
       }
     }
     prevDataCountRef.current = tabDataCount;
-  }, [tabDataCount, manualOverride, briefing, partialsByWorker, streamingPartials]);
+  }, [tabDataCount, manualOverride, briefing, partialsByWorker]);
 
   // Reset manual override on new submission
   useEffect(() => {
@@ -786,7 +712,7 @@ export function ResultPanel({ briefing, events, busy, workerThoughts }: Props) {
 
   // --- All hooks above this line ---
   const hasAnything =
-    briefing !== null || Object.keys(partialsByWorker).length > 0 || Object.keys(streamingPartials).length > 0;
+    briefing !== null || Object.keys(partialsByWorker).length > 0;
   if (!hasAnything && !busy) return null;
 
   const activeData = dataFor(TABS.find((t) => t.num === activeTab) ?? TABS[0]);
@@ -887,40 +813,20 @@ export function ResultPanel({ briefing, events, busy, workerThoughts }: Props) {
             {activeHasData ? (
               <div className="tab-content-inner">
                 <div className="tab-content-header">
-                  {/* Show streaming indicator if data is from partial chunks */}
-                  {(() => {
-                    const activeMeta = TABS.find((t) => t.num === activeTab);
-                    const isStreaming = activeMeta?.workerId && streamingSections.has(activeMeta.workerId);
-                    return isStreaming ? (
-                      <span className="streaming-badge"><span className="pulse" /> streaming…</span>
-                    ) : (
-                      <CopyButton data={activeData} label={activeMeta?.label ?? ""} />
-                    );
-                  })()}
+                  <CopyButton
+                    data={activeData}
+                    label={TABS.find((t) => t.num === activeTab)?.label ?? ""}
+                  />
                 </div>
                 {renderSectionContent(activeTab, activeData as Record<string, unknown>)}
               </div>
             ) : (
-              (() => {
-                const activeMeta = TABS.find((t) => t.num === activeTab);
-                const rawText = activeMeta?.workerId ? workerThoughts[activeMeta.workerId] : undefined;
-                const hasRaw = !!rawText && rawText.length > 10;
-                return hasRaw ? (
-                  <div className="tab-content-inner streaming-raw">
-                    <div className="tab-content-header">
-                      <span className="streaming-badge"><span className="pulse" /> streaming…</span>
-                    </div>
-                    <pre className="streaming-raw-text">{rawText}</pre>
-                  </div>
-                ) : (
-                  <div className="pending-placeholder">
-                    <span className="pulse" />
-                    <span className="muted">
-                      {activeMeta?.workerLabel ?? "Pending…"}
-                    </span>
-                  </div>
-                );
-              })()
+              <div className="pending-placeholder">
+                <span className="pulse" />
+                <span className="muted">
+                  {TABS.find((t) => t.num === activeTab)?.workerLabel ?? "Pending…"}
+                </span>
+              </div>
             )}
           </div>
 

@@ -7,7 +7,10 @@ hide:
 
 > **A GitHub template that Microsoft partners clone to deliver a customer-specific agentic AI solution — live in days, not months.** The full engagement motion (discovery → UAT → handover → measure) is weeks, and walked step-by-step below.
 
-**Flagship scenario:** Sales Research & Personalised Outreach — a supervisor agent routes a research request across specialist workers (Account Researcher, ICP/Fit Analyst, Competitive Context, Outreach Personaliser) and returns a grounded, citeable sales brief with a CRM-ready outreach draft. **Human-in-the-loop gates every CRM write and every email send.**
+**Flagship scenario:** Sales Research & Personalised Outreach — a supervisor
+routes a request across Account Planner, ICP/Fit Analyst, Competitive Context,
+and Outreach Personaliser workers, returning a grounded, citable brief plus a
+CRM-ready outreach draft. **HITL gates every CRM write and email send.**
 
 **Stack:** Microsoft Agent Framework · Microsoft Foundry · Azure AI Search · Managed Identity · Key Vault · Container Apps · Application Insights · `azd` for infra.
 
@@ -15,7 +18,9 @@ hide:
 
 ## How this site is organised
 
-The accelerator is delivered as a **linear walkthrough** in two tracks. Read in order; each step ends with a single **Continue →** link to the next.
+The executable front door is `accel next`. This site explains the decisions,
+roles, and artifacts behind the command it returns. First-time partners can
+still read the linear walkthrough in two tracks:
 
 - **[Get ready](start/ready/01-get-oriented.md)** *(3 steps, do once)* — orient yourself, install your tools, rehearse in your own sandbox.
 - **[Deliver to a customer](start/deliver/01-clone-for-the-customer.md)** *(7 steps, repeat per engagement)* — clone, discover, scaffold, provision, iterate, hand over, operate.
@@ -28,8 +33,9 @@ Roles are skim guidance, not separate paths:
 | **Partner engineer** | *Set up your machine*, *Rehearse in a sandbox*, *Clone* through *Iterate & evaluate* | *Get oriented* |
 | **Solo partner** | All 10 steps | — |
 
-[:material-rocket-launch: Start with **1. Get oriented** →](start/ready/01-get-oriented.md){ .md-button .md-button--primary }
-[:material-robot-outline: Browse the 13 custom agents →](agents-index.md){ .md-button }
+[:material-console: Start or continue with **`accel next`** →](lifecycle.md){ .md-button .md-button--primary }
+[:material-rocket-launch: First time? **Get oriented** →](start/ready/01-get-oriented.md){ .md-button }
+[:material-robot-outline: Browse custom agents →](agents-index.md){ .md-button }
 
 ```mermaid
 flowchart LR
@@ -69,14 +75,20 @@ Jump in at the step that matches your current state.
 
 Deep dives that sit **outside** the walkthrough — open them when a step sends you there.
 
-### Common tasks (jump straight to the custom agent or page you need)
+### Common tasks
 
 | If you want to… | Go to |
 |---|---|
+| Determine the current stage and next safe action | [`accel next`](lifecycle.md) |
+| Inspect blockers and all lifecycle stages | `accel status --verbose` |
+| Register PRDs, PDFs, spreadsheets, or workshop files | `accel intake add …` · [Discovery flow](discovery/how-to-use.md) |
+| Preview scenario creation | `accel design` → `accel scaffold --scenario-id <id> --dry-run` |
+| Preview or execute a deployment | `accel deploy --dry-run` · [Provisioning](start/deliver/04-provision-the-customers-azure.md) |
+| Run acceptance and produce UAT artifacts | `accel evaluate` → `accel uat report` |
 | See which custom agent runs at which step | [Custom agents overview](agents-index.md) |
 | Add a side-effect tool with HITL baked in | [`/add-tool`](../.github/agents/add-tool.agent.md) (used in step 8) |
 | Add a specialist worker agent | [`/add-worker-agent`](../.github/agents/add-worker-agent.agent.md) (used in step 8) |
-| Scaffold the customer's repo from a filled brief | [`/scaffold-from-brief`](../.github/agents/scaffold-from-brief.agent.md) (used in step 6) |
+| Scaffold from approved intent | `accel design` → `accel scaffold`; then use grounding/worker specialists |
 | Onboard a new Azure environment (dev/UAT/prod) | [`/deploy-to-env`](../.github/agents/deploy-to-env.agent.md) (used in step 7) |
 | Pick a landing-zone tier (standalone / AVM / ALZ-integrated) | [`/configure-landing-zone`](../.github/agents/configure-landing-zone.agent.md) (used in step 7) |
 | Preflight a change against lint / eval / deploy gates | [`/explain-change`](../.github/agents/explain-change.agent.md) (used in step 8) |
@@ -96,7 +108,9 @@ Deep dives that sit **outside** the walkthrough — open them when a step sends 
 
 ## Returning for the next customer?
 
-Track 1 (*Get ready*) stays done. Skip straight to **[4. Clone for the customer](start/deliver/01-clone-for-the-customer.md)** and run through Track 2 again with the new customer's short-name. The accelerator is built to support multiple customer engagements from one prepared workstation.
+Track 1 (*Get ready*) stays done. Clone the next customer repository, install
+the editable package, and run `accel next`; it starts from that repository's
+persistent artifacts rather than your previous agent session.
 
 Quick preflight before the next engagement:
 

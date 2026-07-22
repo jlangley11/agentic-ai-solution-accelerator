@@ -175,6 +175,35 @@ async def test_parallel_independent_workers():
 
 
 @pytest.mark.asyncio
+async def test_downstream_validation_receives_upstream_retrieved_uris():
+    seen: list[list[str]] = []
+    upstream = _make_module("a")
+    downstream = _make_module("b")
+
+    def validate_downstream(data: dict) -> tuple[bool, str]:
+        seen.append(list(data.get("_retrieved_uris", [])))
+        return True, ""
+
+    downstream.validate_response = validate_downstream
+    workers = {
+        "a": WorkerSpec(id="a", module=upstream, build_input=_build),
+        "b": WorkerSpec(
+            id="b",
+            module=downstream,
+            build_input=_build,
+            depends_on=frozenset({"a"}),
+        ),
+    }
+    state = WorkerState(request={})
+    state.retrieved_uris["a"] = ["https://source.example/document"]
+    dag = SupervisorDAG(workers, invoke_agent=InvokeRecorder().build())
+
+    await _drain(dag, state)
+
+    assert seen == [["https://source.example/document"]]
+
+
+@pytest.mark.asyncio
 async def test_fail_fast_required_cancels_peers():
     a, b = _make_module("a"), _make_module("b")
     workers = {

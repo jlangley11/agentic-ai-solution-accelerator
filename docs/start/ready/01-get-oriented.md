@@ -32,7 +32,7 @@ flowchart TB
     classDef tel fill:#a5d8ff,stroke:#1864ab,stroke-width:2px,color:#000
 
     U["Customer request<br/>(API / chat)"]:::user --> S["<b>Supervisor</b><br/>routes intent → worker(s)"]:::sup
-    S --> W1["Researcher<br/>e.g., Account Researcher<br/>(retrieval-only)"]:::worker
+    S --> W1["Planner / researcher<br/>e.g., Account Planner<br/>(grounded)"]:::worker
     S --> W2["Drafter<br/>e.g., Outreach Personaliser<br/>(LLM-only)"]:::worker
     S --> W3["Tool-using worker<br/>e.g., CRM writer<br/>(side effects)"]:::worker
     S --> W4["Specialist N<br/>(custom per scenario)"]:::worker
@@ -44,18 +44,20 @@ flowchart TB
     W4 -. emit .-> T
 ```
 
-Each worker is stateless and declared in the `WORKERS` registry in `src/scenarios/<id>/workflow.py`. The flagship scenario (`sales_research`) ships Account Researcher, ICP / Fit Analyst, and Outreach Personaliser; your customer scenario will replace these with its own specialists.
+Each worker is stateless and declared in the `WORKERS` registry in
+`src/scenarios/<id>/workflow.py`. The flagship ships Account Planner, ICP/Fit
+Analyst, Competitive Context, and Outreach Personaliser workers.
 
-Two simpler shapes are also supported via `/switch-to-variant`:
+Two simpler shapes are also supported with the `switch-to-variant` specialist:
 **single-agent** (no supervisor) and **chat-with-actioning** (conversational front-end).
 
 ## What the accelerator gives you vs. what you own
 
 | The accelerator ships | You still own |
 |---|---|
-| Discovery custom agent, brief template, ROI calculator | Customer workshop facilitation |
+| `accel` lifecycle CLI, discovery specialists, brief template, ROI calculator | Customer workshop facilitation and disclosure approval |
 | Scaffolders for new scenarios, agents, tools | Scenario-specific prompts, retrieval schema |
-| Bicep infra (AVM-based) + `azd up` | Customer network / private-link overlay (if regulated) |
+| Bicep infra (AVM-based) + target-aware `accel deploy` | Customer network / private-link overlay (if regulated) |
 | CI gates: lint + quality evals + redteam | Branch protection, required reviewers |
 | Telemetry baseline + dashboard schema | Customer dashboards, alerting thresholds |
 | HITL contract (constant + checkpoint + lint + dev-mode stub) | The production approver (Logic Apps, Teams, ServiceNow) |

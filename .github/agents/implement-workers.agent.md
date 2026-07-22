@@ -6,6 +6,9 @@ tools: ['codebase', 'editFiles', 'search', 'runCommands']
 
 # /implement-workers — finish every scaffolded worker in one pass
 
+> Compatibility adapter: run `accel next` before implementation and
+> `accel validate` after the worker set is complete. — finish every scaffolded worker in one pass
+
 Use this when `/scaffold-from-brief` (or a sequence of `/add-worker-agent` calls) has stood up the structural shape of a multi-worker scenario but the three-layer files are still stubs. This custom agent delegates to `/implement-worker` for each worker, walking the supervisor DAG in dependency order so upstream context is always available before downstream workers are filled in.
 
 ## Preconditions
@@ -13,7 +16,10 @@ Use this when `/scaffold-from-brief` (or a sequence of `/add-worker-agent` calls
 - `src/scenarios/<scenario>/workflow.py` declares the canonical `WORKERS: dict[str, WorkerSpec] = { ... }` registry.
 - `docs/discovery/solution-brief.md` is filled.
 - `/define-grounding` has run (every agent has a settled `retrieval.mode` and the index list is final).
-- `evals/quality/golden_cases.jsonl` is auto-seeded by the scaffolders: `scaffold-scenario.py` creates a stub `q-001` and `scaffold-agent.py` appends each new worker id to the case's `exercises` array. The `agent_has_golden_case` lint rule passes out of the box; **partner refines the case `query` and `expected` fields** so the eval encodes real customer success criteria before the first `python evals/quality/run.py` invocation.
+- `evals/quality/golden_cases.jsonl` is auto-seeded by the scaffolders:
+  `scaffold-scenario.py` creates `q-001` and `scaffold-agent.py` appends worker
+  ids to `exercises`. Refine `query` and `expected` so the first
+  `accel evaluate` run measures real customer criteria.
 
 If any precondition fails, fix it first — implementing workers against a moving manifest produces drift.
 
@@ -55,12 +61,11 @@ python -c "from src.main import app; print('OK')"
 Then exercise quality + redteam against your dev environment:
 
 ```bash
-python evals/quality/run.py --api-url <your-api-url>
-python evals/redteam/run.py --api-url <your-api-url>
-python scripts/enforce-acceptance.py
+accel evaluate --api-url <your-api-url> --execute
 ```
 
-`enforce-acceptance.py` reports pass/fail against every threshold in `accelerator.yaml.acceptance` — the same chain CI runs and the same chain a partner can show the customer during UAT.
+The unified evaluator reports every acceptance threshold and produces the
+artifact used during UAT.
 
 ## Guardrails
 - Never run multiple `/implement-worker` invocations in parallel — they need to read each other's specs to wire build_input correctly.
