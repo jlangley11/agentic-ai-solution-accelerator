@@ -18,7 +18,9 @@
 Acceptance is **objective + signed**, not "the demo went well."
 
 - **Objective:** every threshold in `accelerator.yaml -> acceptance` is green on the customer environment, against the customer's golden cases (`evals/quality/golden_cases.jsonl`) and the customer-specific redteam cases (`evals/redteam/`).
-- **Signed:** the customer sponsor named in `solution-brief.md` Section 1 signs off the acceptance report (the output of `python scripts/enforce-acceptance.py` against the customer environment, captured at the UAT cut-off).
+- **Signed:** `accel uat report` renders the accepted result and
+  `accel uat signoff --sponsor <name> --approver <name> --apply` records the
+  reviewed decision locally.
 
 If a threshold misses, **don't ship**.
 
@@ -27,7 +29,13 @@ If a threshold misses, **don't ship**.
 
 ## Handover packet
 
-Use the [handover packet template](../../handover/handover-packet-template.md) as the starting structure. Fill it per engagement and deliver it to the customer team that will own day-2 ops (often a different team from the workshop sponsors).
+Generate the environment-aware draft, then use the template prompts to fill
+customer-owned values:
+
+```powershell
+accel handover generate --env <environment-name> --dry-run
+accel handover generate --env <environment-name> --apply
+```
 
 Minimum contents:
 
@@ -37,11 +45,20 @@ Minimum contents:
 - **Alerts** — what fires, to whom, on what threshold; how to acknowledge.
 - **SLAs** — uptime, response time, eval thresholds; what "broken" means and who decides.
 - **Eval gates** — `accelerator.yaml -> acceptance` thresholds; how to re-run; how to interpret.
-- **Rollback** — how to roll back a bad deploy (`azd deploy` against a tagged commit); how to flip the killswitch (`KILLSWITCH=1` env var).
+- **Rollback** — how to redeploy a tagged commit through the declared target;
+  how to flip the tool killswitch (`KILLSWITCH_TOOLS=on`).
 - **Secret rotation** — schedule and procedure for `AZURE_CLIENT_ID` federated cred rotation, `HITL_APPROVER_ENDPOINT` rotation if the approver moves.
-- **Model swap** — how to point an agent at a different model via `accelerator.yaml -> models[]` and re-run `azd up`.
+- **Model swap** — how to update `accelerator.yaml.models[]`, apply
+  `accel deploy`, and re-run acceptance.
 
-The accelerator-default precedence: the **engagement-specific handover packet supersedes the generic [Operate (Day 2)](07-operate-day-2.md) page** for the customer ops lane. The generic page is a fallback; the packet is canonical for this engagement.
+After the live review, record customer-ops acceptance:
+
+```powershell
+accel handover approve --approver <customer-ops-owner> --apply
+```
+
+Until approval, Day 2 remains blocked. The approved engagement packet
+supersedes the generic operate page.
 
 ## Handover meeting
 
@@ -49,7 +66,8 @@ Walk the customer ops team through the packet **live**:
 
 - Open the App Insights dashboard. Drive a single end-to-end request. Show the trace.
 - Approve a HITL prompt together — show what the approver sees and what gets logged.
-- Run the regression eval suite (`python evals/quality/run.py --api-url <customer-api-url>`) and walk the output.
+- Run `accel evaluate --api-url <customer-api-url> --execute` and walk the
+  acceptance/UAT artifact.
 - Hand them the killswitch demonstration (do not actually flip it in prod — show it in a non-prod env).
 - Confirm they have access to: the customer GitHub repo (read at minimum), the App Insights workspace, the resource group, the Foundry project.
 

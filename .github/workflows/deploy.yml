@@ -7,7 +7,7 @@ name: deploy
 #
 # Partners forking this repo to deliver a customer engagement should:
 #   1. Configure a GitHub Environment matching `deploy/environments.yaml`
-#      (default name: `production`), with these secrets:
+#      (default name: `dev`), with these secrets:
 #        - AZURE_CLIENT_ID
 #        - AZURE_TENANT_ID
 #        - AZURE_SUBSCRIPTION_ID
@@ -17,24 +17,30 @@ name: deploy
 #      `pull_request:` blocks to the `on:` section below.
 #   3. Trigger this workflow from the Actions UI via `workflow_dispatch`.
 #
-# Deploy chain: accelerator-lint -> resolve-env -> azd-up -> post-deploy evals.
+# Deploy chain:
+#   * selfhost: accelerator-lint + resolve-env -> azd-up -> post-deploy evals
+#   * hosted-preview: accelerator-lint + resolve-env -> hosted deploy + smoke
+# Hosted full postdeploy eval parity is intentionally deferred to Phase 5.
 #
 # BYO-Azure multi-environment:
 #   * `deploy/environments.yaml` is the source of truth for which Azure
 #     environments this template can target. The `resolve-env` job parses
 #     it, picks the correct entry based on `workflow_dispatch.inputs.env_name`
 #     (or falls back to `default_env` on push), and emits both the azd
-#     environment name and the matching GitHub Environment name. The
-#     `azd-up` job binds to the resolved GitHub Environment so it picks
-#     up scoped OIDC secrets + AZURE_LOCATION.
+#     environment name, matching GitHub Environment name, and deployment
+#     target. Legacy entries without `deployment_target` resolve to selfhost.
+#     The selected deploy job binds to the resolved GitHub Environment so it
+#     picks up scoped OIDC secrets + AZURE_LOCATION.
 #   * The azd env name is NOT read from `vars.AZURE_ENV_NAME`; it is
 #     derived from the manifest to prevent drift between the repo's
 #     declared envs and what GitHub Actions actually deploys to.
 #
 # Gating posture:
 #   * PR-time `.github/workflows/evals.yml` is the merge gate.
-#   * This workflow is the post-deploy regression safety net; evals run
-#     AFTER `azd up` so the API URL comes from the deploy itself.
+#   * This workflow is the post-deploy regression safety net for selfhost;
+#     evals run AFTER `azd up` so the API URL comes from the deploy itself.
+#   * Hosted preview performs a Responses smoke invocation with a fresh
+#     session. Full hosted eval adaptation remains Phase 5 work.
 #
 # Lint rules that statically verify this chain:
 #   * `deploy_gated_on_lint_and_evals` — job dependency chain.
@@ -77,6 +83,7 @@ jobs:
     outputs:
       azd_env_name: ${{ steps.resolve.outputs.azd_env_name }}
       github_environment: ${{ steps.resolve.outputs.github_environment }}
+      deployment_target: ${{ steps.resolve.outputs.deployment_target }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -106,15 +113,27 @@ jobs:
               names = ", ".join(sorted(e.get("name", "") for e in envs))
               sys.exit(f"Environment '{requested}' not found in deploy/environments.yaml. Known: {names}.")
           gh_env = match.get("github_environment") or match["name"]
+          deployment_target = match.get("deployment_target") or "selfhost"
+          allowed_targets = {"selfhost", "hosted-preview"}
+          if deployment_target not in allowed_targets:
+              sys.exit(
+                  f"Environment '{requested}' has unknown deployment_target "
+                  f"{deployment_target!r}. Allowed: {sorted(allowed_targets)}."
+              )
           out = os.environ["GITHUB_OUTPUT"]
           with open(out, "a", encoding="utf-8") as fh:
               fh.write(f"azd_env_name={match['name']}\n")
               fh.write(f"github_environment={gh_env}\n")
-          print(f"Resolved azd_env_name={match['name']} github_environment={gh_env}")
+              fh.write(f"deployment_target={deployment_target}\n")
+          print(
+              f"Resolved azd_env_name={match['name']} "
+              f"github_environment={gh_env} deployment_target={deployment_target}"
+          )
           PY
 
   azd-up:
     needs: [accelerator-lint, resolve-env]
+    if: ${{ needs.resolve-env.outputs.deployment_target == 'selfhost' }}
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.github_environment }}
     outputs:
@@ -148,8 +167,189 @@ jobs:
           fi
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
 
+  hosted-preview:
+    needs: [accelerator-lint, resolve-env]
+    if: ${{ needs.resolve-env.outputs.deployment_target == 'hosted-preview' }}
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.github_environment }}
+    outputs:
+      endpoint: ${{ steps.endpoints.outputs.invocations_endpoint }}
+      responses_endpoint: ${{ steps.endpoints.outputs.responses_endpoint }}
+      playground_url: ${{ steps.endpoints.outputs.playground_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install root dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - uses: Azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Install azd
+        uses: Azure/setup-azd@v2
+      - name: Install exact Hosted Agents extensions
+        run: |
+          azd ext install azure.ai.agents --version 1.0.0-beta.6 --force --no-prompt
+          azd ext install microsoft.foundry --version 1.0.0-beta.1 --force --no-prompt
+      - name: Hosted preview preflight
+        env:
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          python scripts/preflight-deploy.py \
+           --region "$AZURE_LOCATION" \
+           --tenant "$AZURE_TENANT_ID" \
+           --subscription "$AZURE_SUBSCRIPTION_ID" \
+           --deployment-target hosted-preview \
+           --acknowledge-preview
+      - name: Provision + deploy hosted preview
+        working-directory: deploy/hosted-preview
+        env:
+          AZURE_ENV_NAME: ${{ needs.resolve-env.outputs.azd_env_name }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_PRINCIPAL_ID: ${{ vars.AZURE_PRINCIPAL_ID }}
+          AZURE_PRINCIPAL_TYPE: ServicePrincipal
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$AZURE_PRINCIPAL_ID" || {
+            echo "::error::GitHub Environment variable AZURE_PRINCIPAL_ID is required"
+            exit 1
+          }
+          ENV_LIST="$(azd env list -o json --no-prompt)"
+          export ENV_LIST AZURE_ENV_NAME
+          if python -c 'import json, os, sys; environments = json.loads(os.environ["ENV_LIST"]); requested = os.environ["AZURE_ENV_NAME"]; sys.exit(0 if any(isinstance(entry, dict) and (entry.get("Name") or entry.get("name")) == requested for entry in environments) else 1)'; then
+            azd env select "$AZURE_ENV_NAME" --no-prompt
+          else
+            azd env new "$AZURE_ENV_NAME" --location "$AZURE_LOCATION" --subscription "$AZURE_SUBSCRIPTION_ID" --no-prompt
+          fi
+          azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+          azd env set AZURE_LOCATION "$AZURE_LOCATION"
+          azd env set AZURE_PRINCIPAL_ID "$AZURE_PRINCIPAL_ID"
+          azd env set AZURE_PRINCIPAL_TYPE "$AZURE_PRINCIPAL_TYPE"
+          azd provision --no-prompt
+          azd deploy --no-prompt
+      - name: Extract hosted endpoints
+        id: endpoints
+        working-directory: deploy/hosted-preview
+        run: |
+          set -euo pipefail
+          AGENT_JSON="$(azd ai agent show hosted-supervisor -o json --no-prompt)"
+          export AGENT_JSON
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          data = json.loads(os.environ["AGENT_JSON"])
+          values = []
+
+          def walk(value, path=()):
+             if isinstance(value, dict):
+                 for key, child in value.items():
+                     walk(child, (*path, str(key)))
+             elif isinstance(value, list):
+                 for index, child in enumerate(value):
+                     walk(child, (*path, str(index)))
+             elif isinstance(value, str):
+                 values.append((".".join(path).lower(), value))
+
+          walk(data)
+
+          def first_url(predicate):
+             return next(
+                 (value for key, value in values if value.startswith("http") and predicate(key, value)),
+                 "",
+             )
+
+          invocations = first_url(
+             lambda _key, value: "/protocols/invocations" in value
+             and "invocations_ws" not in value
+          )
+          responses = first_url(
+             lambda _key, value: "/protocols/openai/responses" in value
+          )
+          playground = first_url(
+             lambda key, value: "playground" in key or "playground" in value.lower()
+          )
+          missing = [
+             name
+             for name, value in (
+                 ("Invocations endpoint", invocations),
+                 ("Responses endpoint", responses),
+                 ("playground URL", playground),
+             )
+             if not value
+          ]
+          if missing:
+             sys.exit(f"azd ai agent show omitted: {', '.join(missing)}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+             output.write(f"invocations_endpoint={invocations}\n")
+             output.write(f"responses_endpoint={responses}\n")
+             output.write(f"playground_url={playground}\n")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+             env_file.write(f"RESPONSES_ENDPOINT={responses}\n")
+          print(f"Invocations endpoint: {invocations}")
+          print(f"Playground: {playground}")
+          PY
+      - name: Smoke invoke Responses endpoint with fresh session
+        working-directory: deploy/hosted-preview
+        run: |
+          set -euo pipefail
+          SESSION_JSON="$(azd ai agent sessions create -o json --no-prompt)"
+          export SESSION_JSON
+          SESSION_ID="$(python - <<'PY'
+          import json
+          import os
+
+          data = json.loads(os.environ["SESSION_JSON"])
+
+          def find_session_id(value):
+             if isinstance(value, dict):
+                 direct = (
+                     value.get("agent_session_id")
+                     or value.get("sessionId")
+                     or value.get("session_id")
+                 )
+                 if isinstance(direct, str) and direct:
+                     return direct
+                 for child in value.values():
+                     found = find_session_id(child)
+                     if found:
+                         return found
+                 candidate = value.get("id")
+                 return candidate if isinstance(candidate, str) else None
+             if isinstance(value, list):
+                 for child in value:
+                     found = find_session_id(child)
+                     if found:
+                         return found
+             return None
+
+          session_id = find_session_id(data)
+          if not session_id:
+             raise SystemExit("azd did not return a fresh hosted session id")
+          print(session_id)
+          PY
+          )"
+          azd ai agent invoke \
+           --agent-endpoint "$RESPONSES_ENDPOINT" \
+           --protocol responses \
+           --session-id "$SESSION_ID" \
+           --new-conversation \
+           --no-prompt \
+           '{"company_name":"Contoso","seller_intent":"Prepare a deployment readiness briefing","icp_definition":"Enterprise customer evaluating an agentic AI solution","our_solution":"Azure Agentic AI Solution Accelerator","context_hints":["hosted deployment smoke"]}'
+
   evals:
-    needs: [azd-up]
+    needs: [azd-up, resolve-env]
+    if: ${{ always() && needs.resolve-env.result == 'success' && needs.resolve-env.outputs.deployment_target == 'selfhost' && needs.azd-up.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1,4 +1,4 @@
-# ADR-0001 · Microsoft Agent Framework + Azure AI Foundry
+# ADR-0001 · Microsoft Agent Framework + Microsoft Foundry
 
 **Status:** Accepted
 
@@ -19,14 +19,15 @@ something breaks at 2am.
 ## Decision
 
 The accelerator uses **Microsoft Agent Framework (`agent_framework`)**
-with **Azure AI Foundry** as the model backend. Agent identities,
+with **Microsoft Foundry** as the model backend. Agent identities,
 versioning, and content-safety policies live in Foundry; orchestration
 (supervisor, workers, executors, HITL gates) is authored in MAF.
 
 `accelerator-lint.py` enforces the negative space:
 
-* `no_direct_openai_client` — `openai.OpenAI(...)` and
-  `AzureOpenAI(...)` instantiation are blocked.
+* `no_direct_openai_client` — OpenAI clients are blocked for agent inference;
+  the Entra-authenticated provisioning-time seed-embedding path is the only
+  narrow exception.
 * `no_other_orchestrators` — imports from LangChain, LlamaIndex,
   Haystack, etc. fail lint.
 
@@ -36,9 +37,9 @@ versioning, and content-safety policies live in Foundry; orchestration
 
 * Customer's Azure support contract covers the model + identity +
   filter plane end-to-end. No "go ask the LangChain community" path.
-* Foundry agent versioning gives partners an out-of-band knob for
-  prompt rollback that doesn't require a code deploy
-  (see [ADR-0002](0002-foundry-portal-owns-instructions.md)).
+* Foundry agent versioning provides explicit runtime versions while repo-owned
+  specs make rollback reviewable and reproducible
+  (see [ADR-0002](0002-repo-owned-foundry-instructions.md)).
 * Telemetry plumbs through `azure-monitor-opentelemetry` with no
   glue code.
 
@@ -46,7 +47,7 @@ versioning, and content-safety policies live in Foundry; orchestration
 
 * Partners arriving with a working LangChain prototype must port to
   MAF before scaffolding a customer fork. The
-  `/scaffold-from-brief` agent assumes MAF idioms.
+  `accel scaffold` and the worker specialists assume MAF idioms.
 * Some bleeding-edge LangChain integrations (specific community
   vector stores, niche tool schemas) have no first-class MAF
   equivalent and must be re-implemented.

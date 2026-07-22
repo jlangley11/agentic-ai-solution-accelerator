@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.accelerator_baseline.citations import assert_no_hallucinated_urls
+
 REQUIRED = ("competitors", "differentiators", "likely_objections",
             "talking_points", "cloud_footprint_signals", "competitor_refs")
 FORBIDDEN = ("fit_score", "outreach_subject", "company_overview")
@@ -35,8 +37,33 @@ def validate_response(response: dict[str, Any]) -> tuple[bool, str]:
             return False, f"invalid cloud provider: {s.get('provider')!r}"
         if not isinstance(s.get("workload_signal"), str) or not s["workload_signal"].strip():
             return False, "cloud_footprint_signal.workload_signal required"
+        evidence_url = s.get("evidence_url")
+        if evidence_url is not None and not isinstance(evidence_url, str):
+            return False, "cloud_footprint_signal.evidence_url must be a string"
     if not isinstance(response["competitor_refs"], list):
         return False, "competitor_refs must be a list"
     if not all(isinstance(b, str) for b in response["competitor_refs"]):
         return False, "competitor_refs must be strings"
+    evidence_urls = [
+        url
+        for competitor in response["competitors"]
+        if isinstance(competitor, dict)
+        for url in competitor.get("evidence_urls", [])
+        if isinstance(url, str) and url
+    ]
+    evidence_urls.extend(
+        signal["evidence_url"]
+        for signal in response["cloud_footprint_signals"]
+        if isinstance(signal, dict)
+        and isinstance(signal.get("evidence_url"), str)
+        and signal["evidence_url"]
+    )
+    if response["competitors"] and not evidence_urls:
+        return False, "groundedness violation: competitors require evidence URLs"
+    ok, message = assert_no_hallucinated_urls(
+        [{"url": url} for url in evidence_urls],
+        response.get("_retrieved_uris", []) or [],
+    )
+    if not ok:
+        return False, message
     return True, ""

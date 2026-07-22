@@ -17,7 +17,7 @@ customer-specific wiring this generic runbook cannot.
 
 **Audience:** customer SRE / platform / AI-ops on-call. Assumes access
 to the Azure subscription hosting the deployment, App Insights, Azure
-AI Foundry, and (if the partner used the forked-template pattern) the
+Microsoft Foundry, and (if the partner used the forked-template pattern) the
 customer's GitHub fork.
 
 **Acronyms used in this runbook:**
@@ -30,8 +30,8 @@ customer's GitHub fork.
 **Not in scope here:**
 
 - Commercial / SOW / SLA questions → partner delivery lead
-- Redesigning the scenario or adding a new one → new engagement,
-  back to `/discover-scenario` + `/scaffold-from-brief`
+- Redesigning the scenario or adding one → new engagement, back to discovery,
+  `accel design`, and `accel scaffold`
 - Source-code changes to the accelerator template itself → upstream
   Issues; the customer's fork is the day-2 change surface
 
@@ -41,7 +41,9 @@ customer's GitHub fork.
 
 If you've been paged for a P1 (bad output, unsafe tool behavior, model outage), do these in order. Detail and other incident types are in [Section 9 — Incident playbook](#9-incident-playbook).
 
-1. **Flip the killswitch** — halts every side-effect tool call; read-only retrieval and inference keep running so in-flight sessions don't error.
+1. **Flip the killswitch** — halts every side-effect tool call; read-only
+   retrieval and inference keep running. The command below is for `selfhost`;
+   Hosted preview operators must use the target-specific action in the packet.
 
    ```bash
    az containerapp update \
@@ -65,7 +67,10 @@ Disengage the killswitch only after evals pass ([Section 5 — Re-running evals]
 
 ## Daily ops
 
-- **Open the Azure Monitor workbook** built from `infra/dashboards/roi-kpis.json` (deploy once via App Insights → Workbooks → New → Advanced editor; see [Section 2 — Dashboard](#dashboard)).
+- **Run `accel operate status`** — confirms approved handover state and
+  surfaces the next repository-owned operational action.
+- **Open the Azure Monitor workbook** deployed from
+  `infra/dashboards/roi-kpis.json` (see [Section 2 — Dashboard](#dashboard)).
 - **Triage three signals**: error rate (`response.returned ok=false`), HITL misconfiguration (`tool.hitl_misconfigured` should be 0), P95 latency vs the threshold in `accelerator.yaml.acceptance.p95_latency_ms`.
 - **Confirm HITL approver rota is current** — the partner's handover packet lists the on-call rotation. Stale rota = blocked side-effect tool calls.
 
@@ -92,17 +97,16 @@ If any of the above is missing, **refuse handover** — day-2 ops without these 
 
 ## What you inherited
 
-At handover, the customer owns a deployed environment provisioned by
-`azd up` against `infra/main.bicep` (resource-group scope). The
-resource-group name is set by the partner during provisioning — see
-the partner's handover notes for the exact value. Inside the group:
+At handover, the customer owns the deployment target declared in
+`deploy/environments.yaml`. The engagement-specific packet records the exact
+resource group, endpoint, and target. The default `selfhost` target includes:
 
 - **Foundry (AIServices) account + project** — hosts agent definitions
   and model deployment(s). Model deployment names come from
   `accelerator.yaml.models[]` via Bicep `loadYamlContent` at compile time.
 - **Azure AI Search** — index(es) declared in
-  `accelerator.yaml → scenario.retrieval.indexes[]`. Seeded by
-  `src/bootstrap.py` at FastAPI startup (replaces the previous postprovision azd hook).
+  `accelerator.yaml → scenario.retrieval.indexes[]`, provisioned/seeded by the
+  shared provisioning sequence.
 - **Key Vault** — present for partner-added secrets, accessed via
   RBAC + Managed Identity.
 - **Container App (API)** — runs the scenario workflow and exposes the
@@ -114,7 +118,12 @@ the partner's handover notes for the exact value. Inside the group:
   on Foundry, Search, and Key Vault.
 - **Application Insights + Log Analytics** — telemetry sink.
 
-**Tier 3 (`landing_zone.mode: alz-integrated`) additions:**
+The opt-in `hosted-preview` target uses the nested workspace and deliberately
+omits the self-host Container App, ACR, and Key Vault. It retains Foundry,
+Search, monitoring, connections, and RBAC. Use the packet—not assumptions from
+the self-host list—when operating that target.
+
+**Self-host Tier 3 (`landing_zone.mode: alz-integrated`) additions:**
 
 - Private endpoints on Foundry / AI Search / Key Vault are created by
   the **workload modules** (`infra/modules/{foundry,ai-search,
@@ -131,9 +140,8 @@ the partner's handover notes for the exact value. Inside the group:
   of those env vars are missing; it does **not** monitor for
   post-deploy drift.
 
-Everything above is redeployed idempotently by `azd up` against a
-given commit. Rollback is `azd down --purge` + `azd up` at a prior
-commit.
+Redeploy a known commit through the declared target's `accel deploy` flow.
+`azd down --purge` is decommissioning, never rollback.
 
 ---
 
@@ -159,6 +167,7 @@ Event definitions live in `src/accelerator_baseline/telemetry.py`.
 | `tool.hitl_rejected`    | `src/accelerator_baseline/hitl.py`                          | human reviewer rejected a tool call                    |
 | `tool.hitl_misconfigured` | `src/accelerator_baseline/hitl.py`                        | production had no `HITL_APPROVER_ENDPOINT`             |
 | `retrieval.returned`    | `src/retrieval/ai_search.py` + `src/scenarios/sales_research/workflow.py` | AI Search call completed; workflow also emits this with `ok=False` on exception |
+| `citation.guard_bypassed` | `src/accelerator_baseline/citations.py` | A response carried URL citations but no retrieved provenance was available to validate them |
 | `response.returned`     | `src/main.py` + `src/scenarios/sales_research/workflow.py`  | workflow returned to caller (with `ok: true\|false`)   |
 
 The registry also declares `tool.hitl_skipped` (emitted when a tool
@@ -194,9 +203,9 @@ on every `azd provision`. Open your Application Insights resource →
 **Workbooks → Shared workbooks → "Agentic AI Accelerator — ROI KPIs"**.
 
 The portal copy is fully editable — partner customizations stay until
-the next `azd provision`, which overwrites it from the source-of-truth
+the next infrastructure deployment, which overwrites it from the source-of-truth
 JSON (same pattern as the Foundry content-filter policy). To customize
-durably, edit `infra/dashboards/roi-kpis.json` and re-provision.
+durably, edit `infra/dashboards/roi-kpis.json` and apply `accel deploy`.
 
 ??? note "Manual paste-install (legacy / non-azd path)"
     If you're working against an environment that wasn't deployed via
@@ -266,6 +275,8 @@ wire them. Starting points (copy the KQL from the workbook):
 - **HITL misconfiguration alert** — any `tool.hitl_misconfigured`
   event (this indicates production is running without an approver)
 - **HITL rejection spike** — `tool.hitl_rejected` > N / hour
+- **Citation guard bypass** — any `citation.guard_bypassed` event; investigate
+  tool-trace extraction or grounding before trusting URL-backed claims
 
 Thresholds are customer-owned. The accelerator does not opine.
 
@@ -293,10 +304,10 @@ inference keep working). Re-enable by setting the var back to empty
 or `off`.
 
 **Important:** env vars set via `az containerapp update` **will be
-overwritten** the next time `azd provision` runs (the Bicep template
-is the source of truth). For anything longer than an incident
+overwritten** by the next infrastructure deployment (the Bicep template
+owns durable configuration). For anything longer than an incident
 mitigation, add the variable to `infra/modules/container-app.bicep`
-in the customer's fork and redeploy. For partners who need a
+in the customer's fork and apply `accel deploy`. For partners who need a
 portal-style toggle, the killswitch docstring points at Azure App
 Configuration feature flags as an extension pattern.
 
@@ -369,6 +380,18 @@ in Azure Cost Management views. Additional chargeback tags
 
 ## 5. Re-running evals against the deployed environment
 
+The full chain below targets `selfhost`. Hosted preview currently has only the
+fresh-session Responses smoke in the deployment workflow; follow the
+engagement packet for any additional hosted evaluation adapter.
+
+Preferred unified command:
+
+```powershell
+accel evaluate --api-url https://<container-app-fqdn> --execute
+```
+
+The individual commands below remain useful for suite-level diagnosis.
+
 ### Quality evals
 
 ```bash
@@ -420,6 +443,20 @@ The same two-step runs automatically in CI:
   the eval runners; no `EVALS_API_URL` variable is required for this
   workflow.
 
+### Optional Foundry-native evaluators
+
+Deterministic business assertions remain authoritative. To supplement them
+with consumption-based Foundry relevance and groundedness:
+
+```powershell
+python -m pip install -e ".[evals]"
+accel evaluate --api-url <api-url> --foundry --execute
+```
+
+The explicit Foundry path temporarily includes query/response/context in the
+gitignored quality result file. Treat it as customer data and apply the
+engagement retention policy.
+
 ### When to run manually
 
 - After a model swap
@@ -433,8 +470,8 @@ The same two-step runs automatically in CI:
 
 The **authoritative source of truth** for which model(s) are deployed
 is `accelerator.yaml.models[]`, not `infra/main.bicep` param defaults.
-On every `azd provision` or `azd up`, the preprovision hook
-`infra/main.bicep` parses the manifest at compile time via `loadYamlContent`, then rewrites the managed model
+On every target-aware deployment, `infra/main.bicep` parses the manifest at
+compile time via `loadYamlContent`, then rewrites the managed model
 env vars (`AZURE_AI_FOUNDRY_MODEL_NAME`, `_MODEL_VERSION`, `_MODEL`,
 `_MODEL_CAPACITY`, `_EXTRA_DEPLOYMENTS_JSON`) from the manifest. Raw
 `azd env set AZURE_AI_FOUNDRY_MODEL_NAME=…` overrides **will be
@@ -452,10 +489,10 @@ clobbered** on the next provision.
    → Foundry account → Quotas).
 3. (Optional) Update `MODEL_PRICE_USD_PER_1K_TOKENS` in `cost.py` so
    the cost gate isn't inert for the new model.
-4. `azd provision` — preprovision syncs env vars, Bicep creates the
-   new deployment; on the Container App's next startup `src/bootstrap.py` re-verifies
-   the agents against the new model.
-5. Re-run quality + redteam evals (Section 5) and `enforce-acceptance.py`.
+4. Preview and apply `accel deploy --env <env> --region <region>`.
+   Self-host uses root `azd up`; Hosted preview uses nested `azd provision`
+   followed by `azd deploy`.
+5. Re-run `accel evaluate --api-url <url> --execute`.
 6. If acceptance holds, merge; if not, revert the manifest PR.
 
 To run two models side-by-side (canary), add a second entry (not
@@ -470,22 +507,15 @@ the specific scenario.
 
 ## 7. Prompt / agent-instruction rollback
 
-Agent instructions are stored in Foundry, but their **repo-side source
-of truth** is `docs/agent-specs/<foundry_name>.md`. Every `azd
-up` triggers a Container App revision restart that runs `src/bootstrap.py` as the FastAPI startup
-hook, which overwrites each agent's portal-side instructions from the
-matching spec file. Consequences:
+Agent instructions are materialized in Foundry, but their **durable authoring
+source** is `docs/agent-specs/<foundry_name>.md`. Self-host startup and the
+Hosted preview postdeploy hook both invoke shared provisioning, which syncs the
+matching spec. Consequences:
 
-- Direct Foundry portal edits to an agent's instructions are
-  **transient** — they will be reverted on the next `azd provision`.
-  The portal is the runtime source of truth *between* provisions but
-  not a durable authoring surface.
+- Direct Foundry portal edits to an agent's instructions are **transient** and
+  are overwritten on the next deployment sync.
 - The supported rollback path is: revert the spec file in the
-  customer's fork → `azd provision` → re-run evals.
-
-If the partner's handover packet documents a different authoring
-workflow (e.g., "prompts are portal-managed for this engagement and
-`src/bootstrap.py` is disabled" via `BOOTSTRAP_SKIP=1`), follow the packet.
+  customer's fork → apply `accel deploy` → re-run `accel evaluate`.
 
 ---
 
@@ -536,9 +566,9 @@ for those follows the partner's runbook, not this one.
 3. If a prompt regression is suspected, **do not** trust Foundry
    portal history as a durable record — check
    `docs/agent-specs/<foundry_name>.md` in the fork's git history.
-   Revert the spec file + `azd provision` to roll back.
+   Revert the spec file + apply `accel deploy` to roll back.
 4. If a code regression is suspected, revert the offending commit
-   in the fork + `azd deploy`.
+   in the fork + apply the target-aware `accel deploy` flow.
 5. Re-run evals (Section 5). Disengage the killswitch only when they pass.
 
 ### P1 — model outage
@@ -610,21 +640,33 @@ Some SKU transitions require re-indexing; confirm with
 
 ### `azd provision`
 
-Idempotent. Re-applies `infra/main.bicep`, then runs the preprovision
-and the in-app FastAPI startup bootstrap (`src/bootstrap.py`
-). **It does touch:**
+Idempotent infrastructure-plane operation. It reapplies Bicep resources and
+settings. By itself it does **not** start a new application revision, so
+runtime provisioning may not run until the app is deployed or restarted.
 
-- Foundry agent instructions (overwritten from `docs/agent-specs/`)
-- AI Search index schema and, if the index is empty or the seed
-  script is written to re-seed, the index contents
-
-Plan `azd provision` windows accordingly — it is not purely an
-infra-plane operation.
+Plan for resource and configuration changes, quota operations, and RBAC
+propagation.
 
 ### `azd deploy`
 
-Pushes a new Container App image only. Does not touch Foundry,
-Search, or Key Vault.
+Self-hosted deploy pushes a new Container App image and starts a revision. Its
+lifespan bootstrap can synchronize Foundry agent versions, Search schema/seeds,
+Knowledge Bases, and per-agent Search RBAC. Hosted-target deploy runs the
+nested postdeploy provisioner. Treat deploy as an application **and**
+runtime-provisioning event.
+
+### Target-aware guided deployment
+
+```powershell
+accel deploy --env <env> --region <region> --dry-run
+accel deploy --env <env> --region <region> --execute
+accel deploy --env <env> --region <region> --execute --apply
+```
+
+For `hosted-preview`, apply runs `azd provision` then `azd deploy` inside
+`deploy/hosted-preview`. Multi-field Responses requests must be supplied as a
+JSON object encoded as input text; free text is only valid for a schema with
+one required string field.
 
 ### `azd down --purge`
 
@@ -646,7 +688,7 @@ Then run `azd down -e <env-name> --purge --force`.
 in soft-delete.** Default retention is 7 days for Cognitive Services
 and 7–90 days for Key Vault depending on tenant policy. While
 soft-deleted, those resources block re-creation in the same name+region
-— a fresh `azd up` with the same env name in the same region will fail
+— a fresh deployment with the same env name in the same region will fail
 with a name collision.
 
 After `azd down` completes, run the soft-delete sweep:

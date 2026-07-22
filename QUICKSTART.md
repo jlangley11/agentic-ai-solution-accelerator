@@ -1,10 +1,16 @@
 # QUICKSTART — Deploy an Agentic AI Solution in ~15 minutes
 
+> **Preferred interface:** run `accel next` from the repository root. The CLI
+> detects the current lifecycle stage, blockers, required approvals, and next
+> command. The steps below remain the printable/manual reference.
+
 > **Recommended path:** Use the [partner walkthrough](docs/start/index.md) — *Get ready* (one-time) + *Deliver to a customer* (seven steps per engagement). This file is the printable cheat-sheet version of the per-customer steps; keep it open as a reference during an engagement.
 
 > **First time on this accelerator?** Do *Get ready* in the walkthrough first — [1. Get oriented](docs/start/ready/01-get-oriented.md) → [2. Set up your machine](docs/start/ready/02-set-up-your-machine.md) → [3. Rehearse in a sandbox](docs/start/ready/03-rehearse-in-a-sandbox.md) — **before** Step 1 below.
 
-> **Before Step 5:** You'll authenticate against the customer's Azure tenant (`az login --tenant <customer-tenant-id>` + `azd up`). Confirm you have the rights to create resources there and the customer has approved the expected `azd up` cost.
+> **Before Step 5:** Authenticate against the customer's Azure tenant and
+> confirm you can create resources there. `accel deploy` previews the resolved
+> target and cloud actions before execution.
 
 > **Joining mid-engagement?** If discovery is already complete, jump to [Step 3 — Scaffold from the brief](#step-3--scaffold-the-solution-from-the-brief). If a brief doesn't yet exist, hand back to the delivery lead — discovery is owned in the [Discovery kit](docs/discovery/how-to-use.md), not here.
 
@@ -16,7 +22,7 @@ You'll move between three places as you go through this guide. Every step below 
 
 | Where | What you do there | How to open it |
 |---|---|---|
-| **VS Code** | Run all repo-local commands in the integrated terminal (`` Ctrl+` ``), edit files (`accelerator.yaml`, agent specs, `solution-brief.md`), and talk to GitHub Copilot Chat in the right sidebar (💬 icon or `Ctrl+Alt+I`). Invoke a custom agent **either way**: pick it from the **agents dropdown** at the top of the Chat panel, or type the slash command (`/discover-scenario`, `/scaffold-from-brief`, `/define-grounding`, `/implement-workers`, `/configure-landing-zone`, `/deploy-to-env`, `/add-tool`, `/explain-change`, `/delivery-guide`, etc.) directly in the chat input — both invoke the same `.github/agents/<slug>.agent.md` file. VS Code auto-discovers them (no workspace setting required) — **trust the workspace** when prompted, otherwise the dropdown stays empty and slash commands don't resolve. | After cloning, `code .` from any shell opens it on the repo |
+| **Local coding-agent CLI / VS Code** | Run `accel next`, review diffs, and use Copilot CLI, Codex, Claude Code, or VS Code custom agents for conversational authoring. The CLI owns lifecycle state; specialist agents own interviews and code-generation guidance. Trust the workspace before allowing agent tools. | From the clone: `code .`, `copilot`, `codex`, or `claude` |
 | **GitHub web (github.com)** | Configure repo Settings → Environments (secrets + OIDC), open PRs, watch Actions runs | Your browser, on the cloned repo |
 | **Azure portal (portal.azure.com)** | Inspect the resource group, Foundry quota, Application Insights logs and dashboards | Your browser, signed into the customer's tenant |
 
@@ -30,6 +36,8 @@ You'll move between three places as you go through this guide. Every step below 
 # Replace <customer-short-name> with your customer's short name (e.g., contoso, fabrikam)
 gh repo create <customer-short-name>-agents --template Azure-Samples/agentic-ai-solution-accelerator --private --clone
 cd <customer-short-name>-agents
+python -m pip install -e ".[dev]"
+accel next
 ```
 
 VS Code opens with Copilot already configured via `.github/copilot-instructions.md`. Copilot now knows the hard rules:
@@ -46,7 +54,19 @@ VS Code opens with Copilot already configured via `.github/copilot-instructions.
 
 **Where:** VS Code (Copilot Chat sidebar). The use-case canvas and discovery workbook are partner-fillable templates you handle in your usual editor before this step.
 
-> **The full discovery sequence** — canvas → facilitation guide → workbook → `/discover-scenario` → ROI calc, plus the `/ingest-prd` branch for customers who already have a PRD/BRD/spec — is owned by the [Discovery kit](docs/discovery/how-to-use.md). **Read it first** if you haven't run discovery on this accelerator before; the five artifacts have a fixed order and a workshop-readiness gate sits upstream.
+> **The full discovery sequence** — canvas → local evidence intake → workshop
+> → approved requirements → brief → ROI — is owned by the
+> [Discovery kit](docs/discovery/how-to-use.md).
+
+If source documents exist:
+
+```powershell
+accel intake add <prd> <security-doc> <workshop-file>
+accel intake list
+accel intake review <source-id>
+```
+
+Sources remain local-only until an explicit `approved_for_model` decision.
 
 In Copilot Chat:
 
@@ -54,25 +74,36 @@ In Copilot Chat:
 /discover-scenario
 ```
 
-Copilot interviews you (in a workshop or live in the room) and writes `docs/discovery/solution-brief.md`. The brief is the **single source of truth** for the engagement — every downstream artifact derives from it.
+Copilot interviews you and writes `docs/discovery/solution-brief.md`. The brief
+is the **customer-approved intent contract** from which downstream artifacts are
+derived.
+
+The brief is the customer-approved intent contract. `accelerator.yaml` remains
+the executable deployment contract; `accel` checks the transition between them.
 
 ---
 
 ## Step 3 — Scaffold the solution from the brief
 
-**Where:** VS Code (Copilot Chat sidebar). The custom agent writes files into the open repo; review the diff in VS Code's Source Control panel afterwards.
+**Where:** Local terminal for deterministic preview/apply; coding-agent CLI or
+VS Code for scenario-specific authoring.
 
+```powershell
+accel design
+accel scaffold --scenario-id <scenario-id> --dry-run
+accel scaffold --scenario-id <scenario-id> --apply
 ```
-/scaffold-from-brief
-```
 
-Copilot reads the filled brief and customizes the repo. The **Lands in** column below shows paths for the flagship scenario (`sales-research`).
+Then use `/define-grounding` and `/implement-workers` when the scaffold needs
+customer-specific worker instructions, transforms, validators, and tools.
 
-If you scaffold a new scenario via `python scripts/scaffold-scenario.py <scenario-id>` (e.g., `sales-research`, `customer-service`), substitute `<scenario-id>` for `sales_research` in the `src/scenarios/<...>/` paths. Everything outside `src/scenarios/` is scenario-agnostic and stays put.
+For a new scenario, substitute its package id for `sales_research` in the
+`src/scenarios/<...>/` paths. Everything outside `src/scenarios/` remains
+scenario-agnostic.
 
 | Brief field → | Lands in (flagship paths shown; `src/scenarios/<id>/` for custom scenarios) |
 |---|---|
-| Problem + persona | `src/scenarios/sales_research/agents/supervisor/prompt.py` system prompt |
+| Problem + persona | `docs/agent-specs/<supervisor>.md` system instructions; `prompt.py` remains a per-request envelope |
 | Solution shape | Keep flagship OR run `/switch-to-variant` for a walkthrough of re-authoring under `patterns/single-agent` or `patterns/chat-with-actioning` (manual re-authoring walkthroughs, not drop-ins) |
 | Grounding sources | `src/retrieval/ai_search.py` (scenario-agnostic client) + scenario-specific index schema at `src/scenarios/sales_research/retrieval.py` + `infra/modules/ai-search.bicep` |
 | Side-effect tools | New files under `src/tools/` with HITL scaffolding |
@@ -82,7 +113,7 @@ If you scaffold a new scenario via `python scripts/scaffold-scenario.py <scenari
 | RAI risks | `evals/redteam/` custom adversarial cases |
 | ROI KPIs | `src/accelerator_baseline/telemetry.py` events + `infra/dashboards/roi-kpis.json` (panels are scenario-agnostic; rename the dashboard per engagement) |
 
-Commit the scaffolded changes. CI lint now runs; it will flag anything missing.
+Review with `accel review`, then run `accel validate --full --execute`.
 
 ---
 
@@ -90,11 +121,13 @@ Commit the scaffolded changes. CI lint now runs; it will flag anything missing.
 
 **Where:** VS Code (Copilot Chat sidebar) for both custom agents. `/deploy-to-env` will also have you confirm settings on github.com → your repo → Settings → Environments at the end.
 
-Before `azd up`, make two decisions and wire one piece of OIDC plumbing. These take 5–15 minutes and prevent the most common first-deploy failures.
+Before deployment, make two decisions and wire one piece of OIDC plumbing.
+These take 5–15 minutes and prevent the most common first-deploy failures.
 
 ```
 /configure-landing-zone     # pick standalone | avm | alz-integrated; updates accelerator.yaml + infra/
 /deploy-to-env <env-name>   # e.g., dev, uat, prod — registers the GitHub Environment, wires OIDC, scopes secrets
+accel environment list      # confirms the executable environment contract
 ```
 
 `/configure-landing-zone` walks you through the tier decision (Tier 1 standalone for pilots / SMB; Tier 2 `avm` for private endpoints; Tier 3 `alz-integrated` for an existing customer ALZ hub). `/deploy-to-env` adds the env to `deploy/environments.yaml`, creates the matching GitHub Environment, and wires the OIDC federated credential so CI can deploy without a service-principal secret. Skip this and your first PR will fail auth.
@@ -103,13 +136,14 @@ Before `azd up`, make two decisions and wire one piece of OIDC plumbing. These t
 
 ## Step 5 — Provision + deploy to customer's Azure
 
-**Where:** VS Code's integrated terminal (`` Ctrl+` ``), signed into the customer's Azure tenant. The deployed API URL prints in the terminal at the end of `azd up` — keep it open; you'll reuse it in Step 6.
+**Where:** Local terminal, signed into the customer's Azure tenant. The
+deployed API URL prints when deployment completes; keep it for Step 6.
 
 > **Authoring agent instructions.** Agent system instructions live in
 > `docs/agent-specs/<agent>.md` under the `## Instructions` heading —
-> edit those Markdown files, not Python. On `azd up`, the FastAPI
-> startup bootstrap (`src/bootstrap.py`) syncs each spec verbatim to
-> the Foundry portal once the Container App boots. `prompt.py` is for
+> edit those Markdown files, not Python. Provisioning syncs each spec to
+> Foundry (`src/bootstrap.py` for self-host; the hosted postdeploy hook for
+> Hosted preview). `prompt.py` is for
 > *per-request* input construction only.
 
 ```bash
@@ -117,11 +151,14 @@ Before `azd up`, make two decisions and wire one piece of OIDC plumbing. These t
 # <customer-short-name> with the customer's short name (e.g., contoso)
 az login --tenant <customer-tenant-id>
 azd auth login
-azd env new <customer-short-name>-dev
-azd up
+accel deploy --env <environment-name> --region <region> --dry-run
+accel deploy --env <environment-name> --region <region> --execute
+accel deploy --env <environment-name> --region <region> --execute --apply
 ```
 
-`azd up` provisions: Microsoft Foundry · Azure AI Search · Key Vault · Container Apps · Application Insights · Managed Identity. No keys. Content filters via IaC. Dashboards pre-wired to the brief's KPI events.
+For `selfhost`, the apply path invokes root `azd up`; Hosted preview invokes
+nested `azd provision` followed by `azd deploy`. Resources use managed identity
+and IaC content filters. Partners wire declared KPI events and alerts.
 
 ~10–15 minutes; URL of the deployed agent prints at the end.
 
@@ -131,18 +168,27 @@ azd up
 
 **Where:** VS Code's integrated terminal (repo root). Use the same terminal session as Step 5 so the API URL is still on screen.
 
+> **Target scope:** the full quality/red-team chain below targets the self-host
+> SSE API. Hosted preview currently runs a fresh-session Responses smoke only;
+> do not treat that smoke as equivalent acceptance.
+
 Before you start iterating, run the acceptance chain once against the freshly deployed flagship. The numbers it produces are the engagement's **known-good starting point**: every PR in Step 7 has to clear this same bar.
 
 ```bash
-# Replace <api-url> with the URL azd up printed in Step 5
-python evals/quality/run.py --api-url <api-url>
-python evals/redteam/run.py --api-url <api-url>
-python scripts/enforce-acceptance.py
+accel evaluate --api-url <api-url>
+accel evaluate --api-url <api-url> --execute
+
+# Optional consumption-based Foundry relevance + groundedness evaluators:
+accel evaluate --api-url <api-url> --foundry --execute
 ```
 
 `enforce-acceptance.py` reports pass / fail against every threshold in `accelerator.yaml.acceptance` (quality, groundedness, safety, P50/P95 latency, cost per call). If a threshold fails on the unmodified flagship, fix the deploy first — quotas, model region, or grounding seed are the usual culprits — before you start authoring scenario-specific changes.
 
-Capture the output (a screenshot or `enforce-acceptance.py > baseline.txt` in the customer fork) so the team has a reference when later PRs move a number.
+The unified run writes a local acceptance artifact for UAT:
+
+```powershell
+accel uat report
+```
 
 ---
 
@@ -156,6 +202,13 @@ In VS Code, just talk to Copilot:
 
 Copilot follows `copilot-instructions.md` — creates `src/tools/servicenow_ticket.py` with HITL scaffolding, wires it, adds a unit test.
 
+Before committing:
+
+```powershell
+accel review
+accel validate --full --execute
+```
+
 ```bash
 git checkout -b feat/servicenow-tool
 git add -A && git commit -m "Add ServiceNow tool"
@@ -163,7 +216,7 @@ gh pr create
 ```
 
 The PR triggers:
-1. `scripts/accelerator-lint.py` (30 deterministic rules)
+1. `scripts/accelerator-lint.py` (deterministic policy checks)
 2. `evals/quality/` (must clear thresholds in `accelerator.yaml -> acceptance`)
 3. `evals/redteam/` (XPIA + jailbreak must pass)
 4. `build + type check`
@@ -176,18 +229,20 @@ Any red light blocks merge. Green = `azd deploy` against customer env.
 
 **Where:** VS Code — edit the React + Vite + TypeScript starter under `patterns/sales-research-frontend/` in the editor; run `npm install` / `npm run dev` / `swa deploy` from the integrated terminal.
 
-Steps 1–7 give you a working SSE API. To put a UI in front of it for your
-customer, fork the [frontend pattern](patterns/sales-research-frontend/README.md) —
-a minimal React + Vite + TypeScript starter that consumes `/research/stream`
-and is deployable to Azure Static Web Apps. It's reference material, not a
-finished product: the customer's real UX is the partner's value-add.
+For the self-host target, Steps 1–7 give you an SSE API plus
+`GET /scenario/metadata`. Fork the
+[Accelerator Workbench](patterns/sales-research-frontend/README.md): the
+flagship keeps tailored sales layouts, while other scenarios receive a
+JSON-Schema-generated form and validated result panels.
 
 **Before customer-facing**, you also wire — none of which the accelerator ships: end-user auth (Easy Auth / App Gateway / Front Door), state persistence (Cosmos / Postgres / Redis), and the HITL approval surface (Logic Apps / Teams / ServiceNow that `HITL_APPROVER_ENDPOINT` resolves to). The full ownership boundary lives in [`docs/partner-playbook.md`](docs/partner-playbook.md#what-the-accelerator-gives-you-vs-what-you-still-own) — call it out in the SOW.
 
 If your customer already has an internal portal or Power Platform surface,
 the same pattern shows how to call the SSE endpoint from any client; lift
-`src/services/researchClient.ts` and the `StreamEvent` types in
-`src/types/research.ts` into their codebase.
+`src/services/scenarioClient.ts` and `src/types/scenario.ts`.
+
+Hosted preview exposes Responses/Invocations protocols and requires a matching
+client adapter; the shipped workbench is not that adapter.
 
 ---
 

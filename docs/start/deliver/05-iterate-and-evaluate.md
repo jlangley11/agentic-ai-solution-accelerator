@@ -5,9 +5,11 @@
 !!! info "Step at a glance"
     **🎯 Goal** — Customise prompts, tools, and retrieval; grow the eval suite; ship through PR-gated CI until acceptance thresholds from `accelerator.yaml` are green and KPI events are emitting in App Insights.
 
-    **📋 Prerequisite** — [7. Provision the customer's Azure](04-provision-the-customers-azure.md) complete — `/healthz` returns 200; API URL captured. Recommended: 30-second smoke test in step 7 returned `✅ READY` (`python evals/quality/run.py --api-url <url> --smoke`) so you start this step from a known-good baseline.
+    **📋 Prerequisite** — deployment healthy, API URL captured, and smoke
+    evaluation green.
 
-    **💻 Where you'll work** — VS Code (Copilot Chat for the agent edits, integrated terminal for `git push`); GitHub web (PRs + Actions runs).
+    **💻 Where you'll work** — Your coding-agent client/editor, local terminal,
+    and GitHub web for PRs and Actions.
 
     **✅ Done when** — Quality evals ≥ acceptance thresholds in `accelerator.yaml`; redteam green; lint green; KPI events emitting in App Insights against real traffic.
 
@@ -17,7 +19,8 @@
     Full reference: [Custom agents overview](../../agents-index.md).
 
 ??? success "What success looks like"
-    `python scripts/enforce-acceptance.py` against the customer environment finishes with:
+    `accel evaluate --api-url <url> --execute` reports acceptance and writes
+    the local acceptance artifact.
 
     ```
     ✅ All acceptance thresholds met for env=<customer>-dev
@@ -38,24 +41,26 @@
 
 Before any custom changes, run the acceptance chain once against the freshly deployed flagship. Those numbers are the engagement's **known-good starting point** — every subsequent PR has to clear this same bar.
 
-```bash
-# Replace <api-url> with the URL azd up printed in step 7
-python evals/quality/run.py --api-url <api-url>
-python evals/redteam/run.py --api-url <api-url>
-python scripts/enforce-acceptance.py
+```powershell
+accel evaluate --api-url <api-url>
+accel evaluate --api-url <api-url> --execute
 ```
 
-`enforce-acceptance.py` reports pass / fail against every threshold in `accelerator.yaml.acceptance` (quality, groundedness, safety, P50/P95 latency, cost per call). If a threshold fails on the unmodified flagship, fix the deploy first — quotas, model region, or grounding seed are the usual culprits — before authoring scenario-specific changes.
+The unified evaluator reports every threshold in
+`accelerator.yaml.acceptance`. If the unmodified flagship misses, fix the
+deployment before authoring scenario-specific changes.
 
-Capture the output (a screenshot or `> baseline.txt` in the customer fork) so the team has a reference when later PRs move a number.
+The result is captured under `.accelerator/artifacts/acceptance-report.json`
+for the subsequent UAT report.
 
-## Iterate with Copilot
+## Iterate with a coding agent
 
-In VS Code, just talk to Copilot:
+Use your selected coding-agent client:
 
 > *"Add a tool to create a ticket in ServiceNow; it should require HITL for anything with priority high."*
 
-Copilot follows `.github/copilot-instructions.md` — creates `src/tools/servicenow_ticket.py` with HITL scaffolding, registers it on the right worker agent, adds a unit test, and adds a redteam case.
+The agent follows `AGENTS.md` (and its client-specific adapter), using
+`/add-tool` when available.
 
 For agent edits, edit the spec markdown:
 
@@ -63,12 +68,13 @@ For agent edits, edit the spec markdown:
 docs/agent-specs/<agent>.md   # ## Instructions section
 ```
 
-…then `azd provision` (or the next `azd up`) syncs the spec to Foundry.
+…then the next target-aware deployment syncs the spec to Foundry.
 
 !!! warning "Never edit instructions in the Foundry portal"
-    `bootstrap.py` overwrites portal drift on next start. Edit `docs/agent-specs/<agent>.md` and re-provision instead.
+    Shared provisioning overwrites portal drift. Edit
+    `docs/agent-specs/<agent>.md` and deploy instead.
 
-For new specialist workers, use the scaffolder:
+For new specialist workers, use `/add-worker-agent`. Its low-level mechanism is:
 
 ```bash
 python scripts/scaffold-agent.py <agent_id> --scenario <scenario-id> \
@@ -77,7 +83,8 @@ python scripts/scaffold-agent.py <agent_id> --scenario <scenario-id> \
 
 The scaffolder appends to the declarative `WORKERS` registry in `src/scenarios/<id>/workflow.py`, creates the three-layer files (`prompt.py`, `transform.py`, `validate.py`), writes a Foundry agent spec stub, **and appends the new agent id to every existing case's `exercises` array in `evals/quality/golden_cases.jsonl`** so the `agent_has_golden_case` lint rule stays green automatically. It is transactional and re-run safe; refine each case's `query` and `expected` to actually exercise the new worker before the next eval run.
 
-Then fill the stubs with `/implement-worker <worker_id>` (single worker) or `/implement-workers` (every scaffolded-but-unfinished worker, walked in dependency order). Both read the brief + the worker's manifest entry and produce real `prompt.py` / `transform.py` / `validate.py` + Foundry agent spec — no manual three-layer authoring required.
+Then fill the stubs with `/implement-worker` or `/implement-workers`. Run
+`accel review` and `accel validate --full --execute` before opening the PR.
 
 ## Ship through CI
 
@@ -89,12 +96,13 @@ gh pr create
 
 The PR triggers four gates:
 
-1. **`scripts/accelerator-lint.py`** — 30 deterministic rules.
+1. **`scripts/accelerator-lint.py`** — deterministic policy checks.
 2. **`evals/quality/`** — must clear thresholds in `accelerator.yaml -> acceptance`.
 3. **`evals/redteam/`** — XPIA + jailbreak must pass; new tools trigger new cases.
 4. **build + type check** — `ruff` + `pyright`.
 
-Any red light blocks merge. Green = `azd deploy` against the customer environment via the GitHub Environment registered in step 7.
+Any red light blocks merge. Green allows the target-aware deployment workflow
+for the customer environment registered in step 7.
 
 ## Watch the dashboard
 
@@ -109,11 +117,16 @@ The shipped API is SSE-only. Many partner teams stand up a quick reference UI fo
 ```bash
 cd patterns/sales-research-frontend
 npm install
+npm test
+npm run typecheck
 npm run dev
 # or `swa deploy` to Azure Static Web Apps
 ```
 
-The starter is a minimal React + Vite + TypeScript SSE consumer — reference material, not a finished product. The customer's real UX is the partner's value-add. Before customer-facing UI ships, also wire end-user auth (Easy Auth / App Gateway / Front Door), state persistence (Cosmos / Postgres / Redis) and the HITL approval surface (Logic Apps / Teams / ServiceNow that `HITL_APPROVER_ENDPOINT` resolves to). The full ownership boundary lives in [Reference → Delivery context → Partner playbook](../../partner-playbook.md#what-the-accelerator-gives-you-vs-what-you-still-own).
+The workbench keeps the tailored sales UX and generates generic forms/results
+from `/scenario/metadata`. It renders only final or explicitly validated
+partial output. Production auth, durable multi-user state, branding, and the
+external HITL approval surface remain customer deployment work.
 
 → [Reference → Frontend starter](../../../patterns/sales-research-frontend/README.md)
 

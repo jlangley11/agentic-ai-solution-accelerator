@@ -91,6 +91,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Lifecycle:
+      - Unified workflow: lifecycle.md
+      - CLI reference: reference/accelerator-cli.md
+      - Artifact authority: reference/artifact-model.md
+      - Coding-agent portability: reference/agent-portability.md
   - Get ready:
       - start/ready/01-get-oriented.md
       - start/ready/02-set-up-your-machine.md
@@ -118,12 +123,15 @@ nav:
           - Architecture decisions:
               - Index: adr/index.md
               - "0001 · Microsoft Agent Framework": adr/0001-microsoft-agent-framework.md
-              - "0002 · Foundry portal owns instructions": adr/0002-foundry-portal-owns-instructions.md
+              - "0002 · Repository owns Foundry instructions": adr/0002-repo-owned-foundry-instructions.md
               - "0003 · Supervisor + workers flagship": adr/0003-supervisor-and-workers-flagship.md
               - "0004 · HITL is a primitive": adr/0004-hitl-is-a-primitive.md
-              - "0005 · Azure AI Search only": adr/0005-azure-ai-search-only.md
+              - "0005 · FoundryIQ over governed Search": adr/0005-foundryiq-over-governed-search.md
               - "0006 · ABAC-constrained RBAC-Admin": adr/0006-abac-constrained-rbac-admin.md
               - "0007 · Three-layer agent module": adr/0007-three-layer-agent-module.md
+              - "0008 · Unified accelerator CLI": adr/0008-unified-accelerator-cli.md
+              - "0009 · Private evidence ledger": adr/0009-private-evidence-ledger.md
+              - "0010 · Schema-driven workbench": adr/0010-schema-driven-workbench.md
           - Version matrix: version-matrix.md
       - Frontend starter: patterns/sales-research-frontend/README.md
       - Reference scenarios:
@@ -131,6 +139,7 @@ nav:
           - RFP response: references/rfp-response/README.md
       - Custom agents:
           - Overview: agents-index.md
+          - Unified accelerator: agents/accelerator.md
           - Delivery guide: agents/delivery-guide.md
           - Discover scenario: agents/discover-scenario.md
           - Ingest PRD: agents/ingest-prd.md
@@ -150,6 +159,7 @@ nav:
           - Solution brief guide: discovery/SOLUTION-BRIEF-GUIDE.md
           - Discovery deep flow: discovery/how-to-use.md
           - Handover template: handover/handover-packet-template.md
+          - RAI impact assessment template: governance/rai-impact-assessment-template.md
           - Sandbox lab guide: enablement/hands-on-lab.md
           - Day-2 runbook: customer-runbook.md
           - Quickstart cheat-sheet: QUICKSTART.md

@@ -3,11 +3,13 @@
 *Step 5 of 10 · Deliver to a customer*
 
 !!! info "Step at a glance"
-    **🎯 Goal** — Run the workshop (or `/ingest-prd` if a PRD/BRD/spec exists) and fill `docs/discovery/solution-brief.md` with numeric success criteria, KPI events, RAI risks.
+    **🎯 Goal** — Register and govern source evidence, run the workshop, approve
+    requirements, and fill the solution brief with measurable outcomes and risks.
 
     **📋 Prerequisite** — [4. Clone for the customer](01-clone-for-the-customer.md) complete; customer stakeholder workshop scheduled or PRD in hand.
 
-    **💻 Where you'll work** — Customer workshop room (or Teams) for the conversation; the cloned customer repo in VS Code + Copilot Chat to drive `/discover-scenario` after the workshop.
+    **💻 Where you'll work** — customer workshop + local `accel intake` +
+    `/discover-scenario` in your chosen coding-agent client.
 
     **✅ Done when** — `docs/discovery/solution-brief.md` has zero `TBD`; success criteria are numeric (baseline → target with %); 3–6 KPI events named; solution shape chosen; 3–5 RAI risks listed; `accelerator.yaml` updated by the custom agent.
 
@@ -18,7 +20,9 @@
 
 ---
 
-The brief is the **single source of truth** for the engagement. Every downstream artifact — prompts, tools, retrieval schema, HITL gates, eval thresholds, dashboards — derives from it. A weak brief makes every later step harder.
+The private evidence ledger records provenance; the brief is the
+customer-approved intent contract; `accelerator.yaml` is the executable
+contract. A weak or unapproved requirement must not silently reach code.
 
 ## The five discovery artifacts
 
@@ -29,8 +33,11 @@ Five artifacts ship under `docs/discovery/`. Use them in this order:
 | 1 | [`use-case-canvas.md`](../../discovery/use-case-canvas.md) | 1-page exec alignment before you spend workshop time | Partner lead + customer sponsor, async |
 | 2 | [`SOLUTION-BRIEF-GUIDE.md`](../../discovery/SOLUTION-BRIEF-GUIDE.md) | How to run the workshop that fills the brief | Read by partner lead; optional coaching for junior facilitators |
 | 3 | [`discovery-workbook.csv`](../../discovery/discovery-workbook.csv) — *download* | Structured capture during the live workshop | Partner facilitator (typing) + customer SMEs (answering) |
-| 4 | [`solution-brief.md`](../../discovery/solution-brief.md) | Canonical engagement doc | Output of `/discover-scenario` |
+| 4 | [`solution-brief.md`](../../discovery/solution-brief.md) | Customer-approved intent; manifest is executable | Output of the discovery specialist |
 | 5 | [`roi-calculator.xlsx`](../../discovery/roi-calculator.xlsx) — *download* | Quantifies the hypothesis in Section 4 of the brief | Partner lead, after Section 3 of the brief is filled |
+
+The CLI also generates `docs/discovery/requirements-traceability.md` from
+approved local requirements and their implementation/evaluation links.
 
 ## The flow
 
@@ -42,11 +49,21 @@ Five artifacts ship under `docs/discovery/`. Use them in this order:
 
 If the customer handed you a written spec **before** the workshop, you can pre-draft the brief from it instead of starting blank:
 
-```
-/ingest-prd
+```powershell
+accel intake add <prd> <security-document> <workshop-file>
+accel intake list
+accel intake review <source-id>
+accel intake disclose <source-id> approved_for_model --apply
 ```
 
-…in Copilot Chat, pointed at the file (path inside the cloned repo or local path). Supported formats: `.md`, `.txt`, `.docx`, text-extractable `.pdf`. The custom agent runs `scripts/extract-brief-from-doc.py`, maps evidence to the 7-section brief schema, and writes a **draft** `docs/discovery/solution-brief.md` with a `STATUS: AI-extracted draft` banner and per-section `<!-- evidence: ... -->` comment blocks.
+Then run `/ingest-prd` using the registered source IDs.
+Supported formats: `.md`, `.txt`, `.csv`, `.docx`, text-extractable `.pdf`,
+`.pptx`, `.xlsx`, and `.xlsm`. Sources remain local-only until an explicit
+disclosure decision is recorded. The custom agent maps approved evidence to the
+brief schema and writes a **draft** `docs/discovery/solution-brief.md` with a
+`STATUS: AI-extracted draft` banner and per-section
+`<!-- evidence-ref: ... -->` comments containing IDs only. Source excerpts stay
+in `.accelerator/private/evidence.db`.
 
 Treat every CONFIRMED field as a hypothesis (the LLM read the PRD, not the customer). Run the workshop on the remaining `TBD`s.
 
@@ -58,13 +75,14 @@ The full PRD-ingestion flow lives in [Reference → Discovery how-to → "If the
 
 ### Immediately after
 
-3. **Solution brief** — in Copilot Chat:
+3. **Solution brief** — use `/discover-scenario` for the interview and gap-fill:
 
    ```
    /discover-scenario
    ```
 
-   The custom agent produces the 7-section brief at `docs/discovery/solution-brief.md` **and** updates `accelerator.yaml` fields (`solution.*`, `acceptance.*`, `kpis[]`). It does **not** touch `scenario:` — that comes from `/scaffold-from-brief` in the next step.
+   The custom agent produces the brief and engagement-level manifest values.
+   Initial scenario structure is handled later by `accel scaffold`.
 
    If you ran `/ingest-prd` first, `/discover-scenario` detects the draft banner and enters **gap-fill mode** — asks only about `TBD` fields, preserves every confirmed field byte-for-byte, strips the banner and evidence comments on exit.
 
@@ -72,7 +90,9 @@ The full PRD-ingestion flow lives in [Reference → Discovery how-to → "If the
 
 ### Before scaffolding
 
-5. Walk the sponsor through the brief + ROI calculator together. If either has `TBD` fields or the ROI doesn't clear the customer's hurdle rate, **iterate before running `/scaffold-from-brief`**. A scaffold is expensive to redo; a discovery redo is cheap.
+5. Walk the sponsor through the brief + ROI calculator together. Record
+   requirement decisions/links, export traceability, and iterate before
+   `accel design`.
 
 ## What "good" looks like
 

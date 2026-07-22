@@ -19,21 +19,19 @@ not in front of a customer.
 
 After the lab you can:
 
-1. Deploy the flagship scenario to your own sandbox subscription with
-   `azd up` and confirm it works end-to-end.
+1. Deploy the flagship scenario through `accel deploy` and confirm it works
+   end-to-end.
 2. Open the reference front-end locally and drive the workflow from a
    browser.
 3. Read App Insights telemetry emitted by real browser traffic, and know
    which dashboard panels require partner-wired emitters to light up.
-4. Run the quality and redteam evals against your deployment and read
-   `scripts/enforce-acceptance.py` output.
+4. Run `accel evaluate` and inspect the acceptance artifact.
 5. Edit an agent's instructions the supported way (spec file + `azd
    provision`), not by portal drift.
 6. Swap the model via `accelerator.yaml → models[]`.
 7. Scaffold a new side-effect tool via `/add-tool` with HITL baked in,
    and know why the redteam case is not optional.
-8. Scaffold a new scenario with `/scaffold-from-brief` and know what
-   it actually does vs what you still author by hand.
+8. Preview/apply a new scenario with `accel design` and `accel scaffold`.
 
 ---
 
@@ -48,8 +46,9 @@ After the lab you can:
 3. The tools listed in the "Prerequisites" section of `docs/getting-started/setup-and-prereqs.md`
    (Azure CLI, `azd`, `gh`, `git`, PowerShell 7 on Windows, Python 3.11+). Docker/Podman is optional — `azd up` builds the container image remotely in Azure Container Registry by default.
 4. A GitHub org/account where you can push a private template clone.
-5. VS Code with GitHub Copilot Chat enabled (required for the
-   custom agents under `.github/agents/`).
+5. A supported coding-agent client. VS Code is optional; `/accelerator` and
+   specialist agents are available in Copilot, while the shared skill works
+   from Copilot CLI, Codex, and Claude Code.
 
 If any prereq is missing, fix it before continuing — this lab does
 not work around a broken local environment. The troubleshooting
@@ -75,7 +74,7 @@ You'll move between four places as you go through the lab. Every lab below opens
 
 | Where | What you do there | How to open it |
 |---|---|---|
-| **VS Code** | Run all repo-local commands in the integrated terminal (`` Ctrl+` ``), edit files (`accelerator.yaml`, agent specs, evals, prompts), and talk to GitHub Copilot Chat in the right sidebar (💬 icon or `Ctrl+Alt+I`; pick a custom agent from the agents dropdown, or type `/` for the slash equivalents like `/discover-scenario` and `/add-tool`) | After cloning, `code .` from any shell opens it on the repo |
+| **Terminal / editor** | Run `accel`, edit files, review diffs, and use your chosen coding-agent client | `code .`, `copilot`, `codex`, or `claude` |
 | **GitHub web (github.com)** | Watch Actions runs (optional in the lab; required for the real partner motion) | Your browser, on the cloned repo |
 | **Azure portal (portal.azure.com)** | Inspect the resource group, App Insights logs and dashboards, Foundry quota | Your browser, signed into the same tenant `azd` deployed to |
 | **Foundry portal (ai.azure.com)** | Visually confirm agents (Lab 5 demonstrates that portal edits get overwritten by spec files) | Your browser → https://ai.azure.com → sign in with the same tenant → select the project named in `azd env get-values` (look for `AZURE_AI_FOUNDRY_PROJECT_NAME`) → **Agents** in the left nav |
@@ -105,10 +104,10 @@ Lab 2 also has you open a local browser tab at `http://localhost:5173` for the r
    Copilot is not going to enforce the partner guardrails — stop and
    fix before continuing.
 
-3. Authenticate + provision:
+3. Install, authenticate, preview, and deploy:
 
    **About preflight:** the partner motion in `QUICKSTART.md` Step 4 has you run
-   `/configure-landing-zone` and `/deploy-to-env` before `azd up`. The lab skips
+   `/configure-landing-zone` and `/deploy-to-env` before customer deployment. The lab skips
    both: it deploys Tier 1 (`standalone`) into a sandbox where evals run locally,
    so a GitHub Environment isn't required yet. You'll meet both custom agents during
    your first real customer deploy. Cross-reference `QUICKSTART.md` Step 4 for
@@ -121,18 +120,22 @@ Lab 2 also has you open a local browser tab at `http://localhost:5173` for the r
    #   az login --tenant <sandbox-tenant-id>
    #   az account set --subscription <sandbox-subscription-id>
    azd auth login
-   azd env new lab-dev
-   azd up
+   python -m pip install -e ".[dev]"
+   accel environment list
+   accel deploy --env dev --region <region> --dry-run
+   accel deploy --env dev --region <region> --execute
+   accel deploy --env dev --region <region> --execute --apply
    ```
 
-   `azd up` provisions Foundry, AI Search, Key Vault, Container
+   The approved apply runs `azd up`, provisioning Foundry, AI Search, Key Vault, Container
    Apps, App Insights, and the user-assigned MI. The Container App
    then runs its in-app bootstrap (`src/bootstrap.py`) at FastAPI
    startup to create/verify Foundry agents and seed the AI Search
    `accounts` index before `/healthz` returns 200. Expect ~10–15
    minutes total.
 
-   `azd up` will prompt you for an Azure region — pick one with `gpt-5-mini` `GlobalStandard` quota (verified in step 2 of [Prerequisites](#prerequisites)).
+   Replace `<region>` with one that has `gpt-5-mini` `GlobalStandard` quota
+   (verified in step 2 of [Prerequisites](#prerequisites)).
 
    > **If `/healthz` returns 503 / startup probe fails** immediately after Bicep finishes, that's typically RBAC propagation lag — the role assignments Bicep just created haven't fully propagated. The startup probe budget is 10 minutes (60 × 10s); in normal conditions this absorbs the lag without intervention. If the probe still fails after the budget, see Troubleshooting #5 in `docs/getting-started/setup-and-prereqs.md`.
 
@@ -140,8 +143,8 @@ Lab 2 also has you open a local browser tab at `http://localhost:5173` for the r
 
 This lab is a **backend smoke test**, not a workflow validation. Lab 2 is the first user-facing success signal.
 
-- The final line of `azd up` prints an API URL. Hit `/healthz` —
-  expect 200 with `{"status": "ok", "bootstrap": "complete"}`. This
+- The deployment prints an API URL. Hit `/healthz` —
+  expect 200 with `{"status":"ok","scenario":"sales-research"}`. This
   only proves the Container App booted and bootstrap completed; it
   does **not** prove `/research/stream` produces a usable briefing.
   That's Lab 2.
@@ -170,7 +173,7 @@ UX is the partner's value-add; this lab just proves the wiring.
 
 **Steps:**
 
-1. Grab the deployed API URL from `azd up`'s final output (or
+1. Grab the deployed API URL from the deployment output (or
    `azd env get-values | Select-String AZURE_CONTAINER_APP_URL`). You want
    the base URL — the pattern appends `/research/stream` itself.
 2. From the repo root:
@@ -357,7 +360,7 @@ when a smoke test misbehaves.
 
 ## Lab 4 — Run evals + acceptance (baseline)
 
-**Where:** VS Code's integrated terminal (repo root). All three commands run locally against the deployed API URL.
+**Where:** local terminal. The unified command runs all deterministic suites.
 
 **Goal:** understand the two-step eval flow.
 
@@ -366,11 +369,8 @@ this same chain.
 
 1. From the repo root:
 
-   ```bash
-   # Replace <your-api-url> with the deployed endpoint (e.g., https://my-app.azurecontainerapps.io)
-   python evals/quality/run.py --api-url <your-api-url>
-   python evals/redteam/run.py --api-url <your-api-url>
-   python scripts/enforce-acceptance.py
+   ```powershell
+   accel evaluate --api-url <your-api-url> --execute
    ```
 
    !!! note "First call may pause for ~30–60s"
@@ -380,7 +380,7 @@ this same chain.
        `transport error`. You'll see `warming up endpoint via .../healthz...`
        on stderr; once the app responds, cases start streaming.
 
-2. Read the output of `enforce-acceptance.py`. It reports which
+2. Read the acceptance output/artifact. It reports which
    thresholds from `accelerator.yaml.acceptance` passed or failed.
    The shipped thresholds are **baselined against the flagship
    sales-research scenario** (4-worker fan-out, ~150–180s, ~$0.45–
@@ -388,7 +388,7 @@ this same chain.
    not to enforce a universal SLA. When you change scenarios, models,
    or worker count, **re-baseline them** to match the new reality.
 3. Lower the `quality_threshold` in `accelerator.yaml` by 0.2 and
-   re-run `enforce-acceptance.py`. Notice: the quality gate now
+   re-run `accel evaluate`. Notice: the quality gate now
    passes trivially. **Revert** — loosening a gate to make CI green
    is the wrong move; the right move is either improving the workflow
    or *justifying* a new threshold in the brief.
@@ -446,10 +446,8 @@ truth.
 
 **Now re-run acceptance:**
 
-```bash
-python evals/quality/run.py --api-url <your-api-url>
-python evals/redteam/run.py --api-url <your-api-url>
-python scripts/enforce-acceptance.py
+```powershell
+accel evaluate --api-url <your-api-url> --execute
 ```
 
 Compare to your Lab 4 baseline. A prompt edit can move quality scores in either
@@ -460,7 +458,7 @@ try again. The acceptance gate is the contract.
 
 ## Lab 6 — Swap the model
 
-**Where:** VS Code — editor to edit `accelerator.yaml`, integrated terminal for `azd up` and the eval chain.
+**Where:** Editor for `accelerator.yaml`; terminal for `accel deploy/evaluate`.
 
 **Goal:** do a model swap the supported way.
 
@@ -468,16 +466,14 @@ try again. The acceptance gate is the contract.
    under `models:` with a different model your sandbox has quota
    for (e.g. `gpt-4.1-mini` instead of `gpt-5-mini`, with a valid
    `version` and a `capacity` within your quota).
-2. Run `azd up`. Bicep parses the new manifest at compile time
+2. Run `accel deploy --env dev --region <region> --execute --apply`. Bicep parses the new manifest at compile time
    (`loadYamlContent`), Foundry re-deploys the model in place, and
    on Container App restart `src/bootstrap.py` re-resolves the
    slug → deployment_name map.
 3. Re-run the eval chain from Lab 4:
 
-   ```bash
-   python evals/quality/run.py --api-url <your-api-url>
-   python evals/redteam/run.py --api-url <your-api-url>
-   python scripts/enforce-acceptance.py
+   ```powershell
+   accel evaluate --api-url <your-api-url> --execute
    ```
 
    Quality may shift — that's the point. If a threshold drops, the model
@@ -486,7 +482,7 @@ try again. The acceptance gate is the contract.
 **Check your work:**
 
 - Try `azd env set AZURE_AI_FOUNDRY_MODEL_NAME=some-other-model`
-  and run `azd up`. Notice: Bicep ignores the env var entirely
+  and re-run the approved `accel deploy` flow. Notice: Bicep ignores the env var entirely
   because the model now comes from `accelerator.yaml -> models[]`
   via `loadYamlContent` at compile time. Raw env-var overrides are
   unsupported; the manifest is the source of truth.
@@ -533,10 +529,8 @@ Confirm your new case appears in the output and the safety bar in
 
 ### Now re-run acceptance
 
-```bash
-python evals/quality/run.py --api-url <your-api-url>
-python evals/redteam/run.py --api-url <your-api-url>
-python scripts/enforce-acceptance.py
+```powershell
+accel evaluate --api-url <your-api-url> --execute
 ```
 
 The redteam re-run picks up your new case; quality + acceptance ensure the tool
@@ -556,9 +550,11 @@ didn't regress the scenario.
 
 ## Lab 8 — Scaffold a new scenario
 
-**Where:** VS Code — Copilot Chat sidebar for `/discover-scenario` and `/scaffold-from-brief`, integrated terminal for `accelerator-lint.py`, editor for inspecting and customising the generated files.
+**Where:** coding-agent client for discovery/specialist authoring; terminal for
+`accel design/scaffold/validate`; editor for the generated diff.
 
-**Goal:** use `/scaffold-from-brief` as the default partner path, then inspect the generated structure and the brief-driven files you must still customise before customer deployment.
+**Goal:** use the deterministic scaffold preview/apply path, then inspect the
+customer-specific work that remains.
 
 1. In Copilot Chat, run `/discover-scenario` against a realistic
    sandbox scenario you make up (e.g. "summarize support tickets
@@ -568,49 +564,46 @@ didn't regress the scenario.
    from your answers — it does **not** touch the `scenario:`
    block (that comes next).
 
-2. In Copilot Chat, run `/scaffold-from-brief`. When prompted, give
-   it a scenario id (e.g. `ticket-summary`) and a display name
-   (e.g. `Ticket Summary`). The custom agent calls
-   `scripts/scaffold-scenario.py` to materialise
+2. Run:
+
+   ```powershell
+   accel design
+   accel scaffold --scenario-id ticket-summary --dry-run
+   accel scaffold --scenario-id ticket-summary --apply
+   ```
+
+   The CLI materialises
    `src/scenarios/ticket_summary/` (schema, workflow, retrieval,
    supervisor agent package) plus the supervisor spec stub at
-   `docs/agent-specs/accel-ticket-summary-supervisor.md`, then
-   pastes the printed `scenario:` YAML block into
-   `accelerator.yaml`, then walks the brief-to-files customisation
-   checklist below.
+   `docs/agent-specs/accel-ticket-summary-supervisor.md` and updates the
+   manifest transactionally. Use specialist agents for the checklist below.
 
    Treat its output as a **guided checklist, not a finished
    implementation.** The scaffold gives you structure; the brief
    tells you what to fill in.
 
 !!! info "Behind the scenes / fallback path"
-    `/scaffold-from-brief` is a thin wrapper over a Python script.
-    If the custom agent fails midway, or if you're working without
-    Copilot Chat (Codex CLI, Claude Code, Cursor, etc.), run the
-    script directly:
+    `accel scaffold` wraps `scripts/scaffold-scenario.py` and updates the
+    manifest. For low-level debugging you may run the script directly, but its
+    printed YAML then requires manual handling and is not the preferred path.
 
     ```bash
     python scripts/scaffold-scenario.py ticket-summary --display "Ticket Summary"
     ```
 
-    Then paste the printed `scenario:` YAML block into
-    `accelerator.yaml` by hand and walk the brief-to-files
-    checklist below manually. The script only handles the
-    structural scaffold — it does not do the brief-driven
-    per-file customisation.
 
 3. Walk the **brief → files** checklist below. The authoritative
    copy lives in `.github/agents/scaffold-from-brief.agent.md`
    — the condensed version here mirrors it for lab use. If the two
    ever diverge, update both in the same PR.
 
-4. Run `python scripts/accelerator-lint.py`. In a fresh scaffold,
+4. Run `accel validate --full --execute`. In a fresh scaffold,
    **all rules should pass `0 blocking, 0 warning findings`** — the
    scaffolder also seeded `evals/quality/golden_cases.jsonl` with a
    stub case (`q-001`, `exercises: ["supervisor"]`, `must_cite: false`,
    TODO query) so the `agent_has_golden_case` and
    `golden_cases_exercises_valid` rules pass immediately. Each
-   `python scripts/scaffold-agent.py …` you run later transparently
+   `/add-worker-agent` run (via `scaffold-agent.py`) transparently
    appends the new agent id to that stub's `exercises` array, so lint
    stays green as you grow the scenario. The `prompt.py`,
    `transform.py`, `validate.py`, and `retrieval.py` are minimal
@@ -621,14 +614,15 @@ didn't regress the scenario.
 
 | Brief area | Files to verify / customise |
 |---|---|
-| Problem + persona (Section 1) | `src/scenarios/<package>/agents/supervisor/prompt.py` — rewrite the intro |
+| Problem + persona (Section 1) | `docs/agent-specs/<supervisor>.md` system instructions |
+| UX contract (Sections 5b–5d) | Request/response Pydantic schemas + `scenario.experience` metadata |
 | Solution shape (Section 5, if not supervisor-routing) | Re-shape `src/scenarios/<package>/workflow.py` for `single-agent` or `chat-with-actioning` |
 | Grounding sources (Section 5) | `src/scenarios/<package>/retrieval.py` + declare indexes under `scenario.retrieval.indexes` |
 | Side-effect tools + HITL (Section 5) | `src/tools/<tool_name>.py` (each wrapped in `hitl.checkpoint(...)`); `src/accelerator_baseline/hitl.py` per-tool rules |
 | Constraints / controls (Section 6) | `infra/main.parameters.json` + `accelerator.yaml.controls.*` |
 | Acceptance / evals (Sections 3 + 7) | `evals/quality/golden_cases.jsonl` (scaffolder seeded a stub `q-001` exercising every scaffolded worker — refine `query`/`expected` and grow the suite); `evals/redteam/cases.jsonl` (one case per RAI risk) |
 | KPIs (Section 4) | Register each event in `src/accelerator_baseline/telemetry.py`; append a `KqlItem/1.0` per KPI to `infra/dashboards/roi-kpis.json` |
-| Worker agents (if supervisor-routing) | `python scripts/scaffold-agent.py <worker-id> --scenario <scenario-id> --capability "..."` for each worker named in the brief, then run `/define-grounding` (wires FoundryIQ + AI Search indexes + catalog tools per worker) and `/implement-workers` (fills every stub three-layer file in dependency order). Both are declarative — no Python written by hand. |
+| Worker agents (if supervisor-routing) | Use `/add-worker-agent`, then `/define-grounding` (FoundryIQ + Search indexes + read-only catalog intent) and `/implement-workers`. |
 
 **Check your work:**
 
@@ -640,10 +634,8 @@ didn't regress the scenario.
   until real behaviour is authored, the supervisor spec reflects
   your domain, golden + redteam cases exist, and lint reports
   `0 blocking, 0 warning findings`.
-- Decision rule for future engagements: **default path is
-  `/scaffold-from-brief`; the Python script is the debug / fallback
-  mechanic.** Knowing both matters when a custom agent run fails
-  partway and you have to finish by hand.
+- Decision rule: `accel scaffold` is the default structural path; specialist
+  agents author behavior; the raw Python script is a debug fallback.
 
 ---
 

@@ -27,6 +27,9 @@ build/
 .baseline/history/
 .baseline/migrations/
 
+# Unified accelerator CLI — local/private engagement state
+.accelerator/
+
 # Env
 .env
 .env.local
@@ -54,3 +57,4 @@ infra/avm-reference/*.json
 evals/quality/results.jsonl
 evals/quality/smoke-results.jsonl
 evals/redteam/results.jsonl
+evals/foundry/results.jsonl

@@ -7,16 +7,26 @@
 
     **📋 Prerequisite** — [5. Discover with the customer](02-discover-with-the-customer.md) complete — `docs/discovery/solution-brief.md` has zero `TBD`.
 
-    **💻 Where you'll work** — VS Code (Copilot Chat sidebar + Source Control panel for diff review).
+    **💻 Where you'll work** — Terminal for deterministic commands; your
+    coding-agent client and editor for specialist authoring and diff review.
 
-    **✅ Done when** — `/scaffold-from-brief` has run; the diff is reviewed and committed; `python scripts/accelerator-lint.py` passes.
+    **✅ Done when** — `accel design` passes; the scaffold preview was approved
+    and applied; specialist authoring is complete; `accel validate --full
+    --execute` passes.
 
-!!! tip "Custom agents used here"
-    [`/scaffold-from-brief`](../../../.github/agents/scaffold-from-brief.agent.md) → [`/define-grounding`](../../../.github/agents/define-grounding.agent.md) → [`/implement-workers`](../../../.github/agents/implement-workers.agent.md)
+!!! tip "Specialists used after the CLI scaffold"
+    [`/define-grounding`](../../../.github/agents/define-grounding.agent.md) →
+    [`/implement-workers`](../../../.github/agents/implement-workers.agent.md)
 
-    Run them in that order. `/scaffold-from-brief` lays down the structural shape (folders, stub three-layer files, manifest skeleton). `/define-grounding` wires FoundryIQ + AI Search indexes + catalog tools into each worker declaratively. `/implement-workers` walks the supervisor DAG and fills every stub `prompt.py` / `transform.py` / `validate.py` + Foundry agent spec in dependency order.
+    `accel scaffold` lays down the structural shape. `/define-grounding` wires
+    FoundryIQ + AI Search indexes + catalog-tool declarations. `/implement-workers`
+    fills every worker's three-layer module and Foundry spec. The legacy
+    `/scaffold-from-brief` prompt remains a compatibility entry point.
 
     Full reference: [Custom agents overview](../../agents-index.md).
+
+    These agents remain conversational specialists. `accel` owns readiness,
+    preview/apply behavior, lifecycle state, and validation.
 
 ??? success "What success looks like"
     `git status` after the scaffold run shows changes spread across (typical):
@@ -31,29 +41,33 @@
     modified:   infra/main.parameters.json
     ```
 
-    `python scripts/accelerator-lint.py` finishes with:
-
-    ```
-    ✅ accelerator-lint: 30/30 rules passed
-    ```
+    `accel validate --full --execute` finishes successfully with no policy,
+    test, lint, or type failures.
 
 ---
 
-In Copilot Chat:
+Start with deterministic design and scaffold commands:
 
+```powershell
+accel design
+accel scaffold --scenario-id <scenario-id> --dry-run
+accel scaffold --scenario-id <scenario-id> --apply
 ```
-/scaffold-from-brief
-```
 
-Copilot reads the filled brief and customises the repo. The **Lands in** column below shows paths for the flagship scenario (`sales-research`).
+The dry run lists every file and the exact `accelerator.yaml` change. Applying
+is transactional: a manifest-write failure rolls back newly generated files.
+The **Lands in** column below shows flagship paths.
 
-If you scaffold a **new** scenario via `python scripts/scaffold-scenario.py <scenario-id>` (e.g., `customer-service`, `rfp-response`), substitute `<scenario-id>` for `sales_research` in the `src/scenarios/<...>/` paths. Everything outside `src/scenarios/` is scenario-agnostic and stays put.
+For a new scenario, substitute its package id for `sales_research` in the
+`src/scenarios/<...>/` paths. Everything outside `src/scenarios/` remains
+scenario-agnostic.
 
 | Brief field → | Lands in (flagship paths shown; `src/scenarios/<id>/` for custom scenarios) |
 |---|---|
-| Problem + persona | `src/scenarios/sales_research/agents/supervisor/prompt.py` system prompt |
+| Problem + persona | `docs/agent-specs/<supervisor>.md` system instructions |
+| Request/response UX contract | Scenario `request_schema`, `response_schema`, and `experience` metadata in `accelerator.yaml` |
 | Solution shape | Keep flagship OR run `/switch-to-variant` for a walkthrough of re-authoring under `patterns/single-agent` or `patterns/chat-with-actioning` (manual re-authoring walkthroughs, not drop-ins) |
-| Grounding sources | `src/retrieval/ai_search.py` (scenario-agnostic client) + scenario-specific index schema at `src/scenarios/sales_research/retrieval.py` + `infra/modules/ai-search.bicep` |
+| Grounding sources | `scenario.agents[].retrieval` (`foundry_tool` or `none`) + scenario index schema + `scenario.retrieval.indexes[]` |
 | Side-effect tools | New files under `src/tools/` with HITL scaffolding |
 | HITL gates | Per-tool `HITL_POLICY` constant + `checkpoint(...)` calls; `accelerator.yaml -> solution.hitl` engagement-level summary |
 | Constraints | `infra/main.parameters.json` + `accelerator.yaml` |
@@ -69,27 +83,39 @@ flowchart LR
     classDef gate fill:#fff3bf,stroke:#e67700,stroke-width:2px,color:#000
     classDef obs fill:#99e9f2,stroke:#0c8599,stroke-width:2px,color:#000
 
-    B["<b>docs/discovery/<br/>solution-brief.md</b>"]:::brief
-    B --> P["Prompts &<br/>worker agents"]:::code
-    B --> R["Retrieval &<br/>tools"]:::code
-    B --> I["Infra (Bicep)<br/>+ landing zone"]:::infra
-    B --> Y["accelerator.yaml<br/>(KPIs · HITL · gates)"]:::gate
-    B --> E["Eval cases<br/>(quality + redteam)"]:::obs
-    B --> TM["Telemetry events<br/>+ dashboard panels"]:::infra
-    B --> A["Acceptance gate<br/>(CI must pass)"]:::gate
+    B["<b>solution-brief.md</b><br/>approved customer intent"]:::brief
+    B --> D["accel design<br/>readiness + reconciliation"]:::gate
+    D --> Y["accelerator.yaml<br/>executable contract"]:::gate
+    Y --> S["accel scaffold<br/>preview → approved apply"]:::code
+    S --> P["Agent specs &<br/>worker modules"]:::code
+    S --> R["Grounding &<br/>tools"]:::code
+    S --> I["Infra (Bicep)<br/>+ landing zone"]:::infra
+    S --> E["Eval cases<br/>(quality + redteam)"]:::obs
+    S --> TM["Telemetry events<br/>+ dashboard panels"]:::infra
+    Y --> A["Acceptance gate<br/>(CI must pass)"]:::gate
+    E --> A
 ```
 
-Re-run `/scaffold-from-brief` whenever the brief changes — the same expansion reapplies across every artefact.
+`accel scaffold` is initial materialization and refuses to overwrite an
+existing scenario. Later brief changes are reviewed implementation diffs;
+specialist agents may update prompts, workers, tools, grounding, evals, and
+telemetry without re-scaffolding.
 
 ## Wire grounding & implement workers
 
-`/scaffold-from-brief` only materialises the **structural** shape — folders, stub three-layer files, manifest skeleton. Two follow-up custom agents turn the stubs into a working scenario, and they're the natural next steps before you commit:
+`accel scaffold` materialises the **structural** shape — folders, stub
+three-layer files, and manifest update. Two specialist agents turn the stubs
+into a working scenario:
 
 ```
 /define-grounding
 ```
 
-…declaratively wires each worker to its facts source. Two grounding modes: `foundry_tool` (FoundryIQ Knowledge Base — start here for any worker that makes factual claims; AI Search lives underneath FoundryIQ) and `none` (purely transformational workers — routers, formatters, aggregators). It also lets you list any Foundry portal **catalog tools** each worker should call. Output: a fully populated `scenario.agents[]` block plus matching `scenario.retrieval.indexes[]` entries, all validated by lint. No Python written; the startup bootstrap (`src/bootstrap.py`) provisions FoundryIQ Knowledge Sources + Knowledge Bases + agent attachments on the next `azd deploy`.
+…declaratively wires each worker to its facts source. Two grounding modes:
+`foundry_tool` (FoundryIQ KB; AI Search lives underneath) and `none`
+(transformational workers). It also records governed portal catalog-tool
+intent. Shared provisioning creates Knowledge Sources, KBs, and managed agent
+attachments on the next target-aware deployment.
 
 ```
 /implement-workers
@@ -101,19 +127,22 @@ After both have run, the scenario has real prompts, real validators, real ground
 
 ## Authoring agent instructions
 
-Agent system instructions live in `docs/agent-specs/<agent>.md` under the `## Instructions` heading — edit those Markdown files, not Python. On `azd up` (next step), the FastAPI startup bootstrap (`src/bootstrap.py`) syncs each spec verbatim to the Foundry portal once the Container App boots. `prompt.py` is for *per-request* input construction only.
+Agent system instructions live in `docs/agent-specs/<agent>.md` under
+`## Instructions` — edit those Markdown files, not Python. Shared provisioning
+syncs them during deployment. `prompt.py` is for *per-request* input only.
 
 ## Review the diff
 
-Open VS Code's **Source Control** panel (`Ctrl+Shift+G`). Walk every changed file. Then:
+Open VS Code's **Source Control** panel (`Ctrl+Shift+G`) or run:
 
-```bash
-git add -A
-git commit -m "Scaffold from brief"
-python scripts/accelerator-lint.py
+```powershell
+accel review
+accel validate --full --execute
 ```
 
-The lint runs **30 deterministic rules** against `accelerator.yaml` + repo state — manifest shape, per-agent model references, content-filter attachment, HITL coverage on side-effect tools, workflow secrets documented, deploy chain gating, and more. CI re-runs it on every PR, but running it locally first saves a round-trip.
+The policy gate covers manifest shape, models, response metadata, content
+filters, HITL, data governance, skill synchronization, deployment targeting,
+workflow secrets, and documentation integrity. CI re-runs the same contract.
 
 If the lint flags anything, fix it now — every later step assumes the lint is green.
 

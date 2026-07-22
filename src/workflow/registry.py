@@ -60,6 +60,14 @@ class ScenarioAgent:
 
 
 @dataclass(frozen=True)
+class ScenarioExperience:
+    kind: str = "api"
+    title: str = ""
+    description: str = ""
+    output_sections: tuple[dict[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
 class ScenarioIndex:
     name: str
     seed: str
@@ -83,6 +91,8 @@ class ScenarioContext:
     retrieval_indexes: tuple[ScenarioIndex, ...]
     evals_quality: str
     evals_redteam: str
+    response_schema: type[BaseModel] | None = None
+    experience: ScenarioExperience | None = None
 
 
 @dataclass(frozen=True)
@@ -98,6 +108,8 @@ class ScenarioBundle:
     retrieval_indexes: tuple[ScenarioIndex, ...]
     evals_quality: str
     evals_redteam: str
+    response_schema: type[BaseModel] | None = None
+    experience: ScenarioExperience | None = None
 
 
 def _load_yaml(path: pathlib.Path) -> dict:
@@ -175,6 +187,24 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
         raise ValueError(
             "scenario.request_schema must resolve to a pydantic BaseModel subclass"
         )
+
+    response_schema_cls: type[BaseModel] | None = None
+    response_schema_ref = scenario.get("response_schema")
+    if response_schema_ref is not None:
+        resolved_response = _resolve_attr(
+            package,
+            response_schema_ref,
+            "response_schema",
+        )
+        if not (
+            isinstance(resolved_response, type)
+            and issubclass(resolved_response, BaseModel)
+        ):
+            raise ValueError(
+                "scenario.response_schema must resolve to a pydantic "
+                "BaseModel subclass"
+            )
+        response_schema_cls = resolved_response
 
     # workflow_factory
     factory = _resolve_attr(package, scenario["workflow_factory"], "workflow_factory")
@@ -261,6 +291,29 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
     evals = scenario.get("evals") or {}
     quality_dataset = evals.get("quality_dataset", "")
     redteam_dataset = evals.get("redteam_dataset", "")
+    experience_raw = scenario.get("experience")
+    experience: ScenarioExperience | None = None
+    if experience_raw is not None:
+        if not isinstance(experience_raw, dict):
+            raise ValueError("scenario.experience must be a mapping")
+        output_sections_raw = experience_raw.get("output_sections") or []
+        if not isinstance(output_sections_raw, list) or not all(
+            isinstance(item, dict) for item in output_sections_raw
+        ):
+            raise ValueError("scenario.experience.output_sections must be a list")
+        experience = ScenarioExperience(
+            kind=str(experience_raw.get("kind") or "api"),
+            title=str(experience_raw.get("title") or scenario["id"]),
+            description=str(experience_raw.get("description") or ""),
+            output_sections=tuple(
+                {
+                    str(key): str(value)
+                    for key, value in item.items()
+                    if isinstance(key, str)
+                }
+                for item in output_sections_raw
+            ),
+        )
 
     ctx = ScenarioContext(
         id=scenario["id"],
@@ -271,6 +324,8 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
         retrieval_indexes=tuple(indexes),
         evals_quality=quality_dataset,
         evals_redteam=redteam_dataset,
+        response_schema=response_schema_cls,
+        experience=experience,
     )
 
     workflow = factory(ctx)
@@ -291,6 +346,8 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
         retrieval_indexes=ctx.retrieval_indexes,
         evals_quality=ctx.evals_quality,
         evals_redteam=ctx.evals_redteam,
+        response_schema=ctx.response_schema,
+        experience=ctx.experience,
     )
 
 
@@ -299,7 +356,7 @@ def read_scenario_raw(
 ) -> dict[str, Any]:
     """Return the raw ``scenario:`` block without resolving imports.
 
-    Used by callers (e.g. evals, scaffolding helpers, ``src.bootstrap``)
+    Used by callers (e.g. evals, scaffolding helpers, ``src.provisioning``)
     that need the declared values without booting the whole app. Raises
     ``ValueError`` if the block is missing or the manifest is unreadable.
     """

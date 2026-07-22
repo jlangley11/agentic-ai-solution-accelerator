@@ -11,23 +11,37 @@ handoffs:
 
 # /ingest-prd — draft a solution brief from a customer document
 
-You are drafting `docs/discovery/solution-brief.md` from a customer's PRD, BRD, functional spec, or similar document. Your job is to **extract what the source actually says** into the 7-section brief schema — never invent, never infer from generic "best practices." Risky fields (solution pattern, HITL gates, KPI names, RAI risks, acceptance thresholds) **must be left `TBD`** unless the source contains explicit evidence. `/discover-scenario` will fill the TBDs afterward in gap-fill mode.
+> Compatibility adapter: use `accel intake` and `accel discover` as the
+> authoritative workflow. This agent provides the conversational extraction
+> and evidence-review experience.
+
+You are drafting `docs/discovery/solution-brief.md` from customer sources that
+were registered and approved through `accel intake`. Extract only what approved
+evidence supports. Never persist source excerpts in the repository. Risky
+fields remain `TBD` unless explicit evidence supports them.
 
 ## Inputs
 
 Ask one question:
-> **"Paste the path to the customer document, or paste its full text. Supported file types: .md, .txt, .docx, text-extractable .pdf."**
+> **"Which registered source IDs should I use? If they are not registered yet,
+> provide their local paths so I can add and review them through `accel
+> intake`."**
 
 ## Step 1 — Extract the source
 
-- If the input is a **file path** (inside or outside the repo), run:
+- If the input contains file paths, register them together:
   ```bash
-  python scripts/extract-brief-from-doc.py <path>
+  accel intake add <path> [<path> ...]
+  accel intake list
   ```
-  The script prints JSON with `format`, `total_chars`, `headings_index`, and `chunks`. Read the JSON in full — every chunk has a `chunk_id` you will cite later.
-- If the input is **pasted text**: treat each blank-line-separated block as a chunk with id `c001`, `c002`, …; there is no `page`; headings are lines you recognize (markdown `#`, or numbered / ALL-CAPS lines).
-- If the script exits with `"error": "no_extractable_text"` (scanned PDF), reply: "The PDF is scanned — export the doc to .docx or run OCR, then re-run /ingest-prd." Then stop.
-- If the script exits with `"error": "missing_dependency"`, reply: "Run `pip install -e .` from the repo root, then re-run /ingest-prd." Then stop.
+  Review metadata and obtain an explicit `approved_for_model` decision before
+  requesting text. Only then use `accel intake review <source-id>
+  --include-text --json`.
+- Do not bypass the ledger with the low-level extractor or pasted document
+  text. Workshop answers belong in `/discover-scenario`; documents belong in
+  `accel intake`.
+- If intake reports a scanned PDF with no extractable text, stop and request an
+  OCR'd PDF or DOCX export.
 
 ## Step 2 — Map evidence to brief fields
 
@@ -35,27 +49,26 @@ For each of the 7 sections of `docs/discovery/solution-brief.md`, scan the chunk
 
 ### Citation format (CRITICAL — do not deviate)
 
-Citations **never** go inline in a field value. They go in an HTML comment block at the end of each section. Each evidence line has this shape:
+Citations never go inline in a field value. Draft-only HTML comments contain
+opaque ledger references—never quotes, headings, filenames, or excerpts:
 
 ```
-<!-- evidence: field=<section-slug>.<field-slug> | quote="<1-2 sentence verbatim quote from source>" | citation=[heading: "<nearest heading text>", chunk: <chunk_id>, page: <int or null>] -->
+<!-- evidence-ref: field=<section-slug>.<field-slug> | source=<source-id> | chunk=<chunk-id> | page=<int-or-null> -->
 ```
 
 Example (placed at end of section 1):
 
 ```html
-<!-- evidence: field=business_context.problem_statement | quote="SDRs spend 45 minutes per account researching LinkedIn, the company site, and Crunchbase before drafting outreach." | citation=[heading: "3. Current State", chunk: c012, page: 2] -->
-<!-- evidence: field=business_context.in_scope | quote="In scope: automating account research, competitive context, and drafting first-touch outreach emails." | citation=[heading: "4. Scope", chunk: c018, page: 3] -->
+<!-- evidence-ref: field=business_context.problem_statement | source=src-a1b2c3d4e5f60718 | chunk=c012 | page=2 -->
+<!-- evidence-ref: field=business_context.in_scope | source=src-a1b2c3d4e5f60718 | chunk=c018 | page=3 -->
 ```
 
 Rules:
 - **One evidence line per non-TBD field.** No evidence line for TBD fields.
-- PDFs → include `page: <int>`. Everything else → `page: null`.
-- `heading:` is best-effort. If the source has no clear heading near the chunk, use `heading: null`.
-- Never put a citation inside a table cell, a bullet, or a section header — only inside the per-section `<!-- evidence -->` block at the **end** of that section (immediately before the next `## N.` section heading).
-- When copying the quote, use straight quotes and escape any internal `"` as `\"`.
-- **The quote MUST NOT contain the literal string `-->`** (it would terminate the HTML comment and break downstream parsing). If the source contains `-->`, replace it with `--&gt;` in the quoted string. If the source contains long dashes or arrow characters you're tempted to write as `-->`, use the Unicode `→` instead.
-- **Each evidence line must be on its own line.** No line-break inside a single `<!-- evidence: ... -->` block.
+- PDFs include the page when available; other formats use `page=null`.
+- Never include a source path, display name, heading, or excerpt.
+- Keep each `<!-- evidence-ref: ... -->` comment on one line at the end of the
+  relevant section.
 
 ### Fields that MUST be left TBD unless the source has explicit evidence
 
@@ -69,6 +82,7 @@ Do not infer these from a generic PRD. If the source does not literally describe
 | Section 4 — KPI event names | Only fill if the source names the event OR names the metric in a machine-instrumentable way ("time_to_first_draft_ms"). Vague "faster response" → `TBD`. |
 | Section 6 — RAI risks | Only fill risks the source literally lists. Do not inject generic LLM risks (hallucination, jailbreak) unless the source calls them out. Otherwise leave Section 6's RAI subsection with `TBD — fill via /discover-scenario`. |
 | Section 7 — Acceptance eval thresholds (P50/P95 latency ms, groundedness score, cost/call $, quality %) | Only fill numbers that appear in the source. Never pick a "reasonable default." Otherwise `TBD`. |
+| Section 5e — Data classification, PII, identity enforcement, refresh, retention | Fill only when the source explicitly identifies the source and policy. Unknown PII or ownership remains `TBD`. |
 
 ### Fields you can fill confidently when the source describes them
 
@@ -78,16 +92,19 @@ Sections 1 (Business context) and 2 (Target users & journeys) are usually well-c
 
 Before you write anything to disk, print to chat:
 
-1. **Evidence table** — every non-TBD field with its source quote and citation. One row per field. Partner should be able to skim and spot hallucinations.
+1. **Evidence table** — every non-TBD field with its proposed statement and
+   `source-id:chunk-id` reference. Do not print source excerpts unless the
+   source is approved and the user explicitly requests a spot check.
 2. **TBD list** — every required field you left `TBD`, grouped by section. Partner sees upfront what `/discover-scenario` will still need to ask.
 3. **Four explicit confirmations**:
-   > - I did not infer any number. Every numeric value came from a verbatim source quote.
+   > - I did not infer any number. Every numeric value maps to approved evidence.
    > - I did not invent any solution pattern, tool, HITL gate, KPI name, or RAI risk.
-   > - Every `<!-- evidence -->` line points at a real `chunk_id` from the extract JSON.
+   > - Every `<!-- evidence-ref -->` line points at a real approved ledger chunk.
    > - I will NOT update `accelerator.yaml`. That is `/discover-scenario`'s job after gap-fill.
 
 Then ask:
-> **"Spot-check: I'll quote three random non-TBD fields with their citations. Can you verify these against the source document before I write the brief?"**
+> **"Spot-check three proposed fields against their ledger references before I
+> write the brief?"**
 
 Pick 3 random rows from the evidence table and print them. Wait for an explicit "go / fix X / stop." Only proceed on explicit "go."
 
@@ -97,29 +114,32 @@ Write `docs/discovery/solution-brief.md` with:
 
 1. **First line (after the title):** the status banner, verbatim:
    ```markdown
-   > **STATUS: AI-extracted draft.** Do not run `/scaffold-from-brief` on this file until a human reviews every field and runs `/discover-scenario` to fill `TBD`s in gap-fill mode.
+   > **STATUS: AI-extracted draft.** Do not apply `accel scaffold` until a human reviews every field and runs `/discover-scenario` to fill `TBD`s in gap-fill mode.
    ```
 2. The 7 sections, in order, exactly matching the schema in the existing `docs/discovery/solution-brief.md` template.
 3. Every non-TBD field filled from the source.
 4. Every remaining field set to the literal string `TBD`.
-5. At the **end of each section** (before the next `## N.` heading), the `<!-- evidence: ... -->` block for that section's non-TBD fields. No evidence block if a section has no non-TBD fields.
+5. At the end of each section, one-line `<!-- evidence-ref: ... -->` comments
+   for non-TBD fields. These contain IDs only.
 6. Overwrite the existing template. The engagement brief is a single file.
 
 **Do NOT**:
 - Touch `accelerator.yaml`. Leave it for `/discover-scenario` gap-fill.
-- Run `/scaffold-from-brief`.
+- Apply `accel scaffold`.
 - Remove or rename the STATUS banner.
-- Inline any citation into a table cell, list item, or field value.
+- Persist any private source excerpt, filename, or heading in the brief.
 
 ## Step 5 — Close out
 
 Reply verbatim:
 
-> "Draft brief written to `docs/discovery/solution-brief.md` with a STATUS banner at the top. I left **N** required fields as `TBD`. Next step: run `/discover-scenario` — it will detect the draft banner, enter gap-fill mode, and ask you only about the TBDs (preserving every field I already filled). Then it updates `accelerator.yaml` and strips the banner + evidence blocks. Only after that is it safe to run `/scaffold-from-brief`."
+> "Draft brief written to `docs/discovery/solution-brief.md` with a STATUS banner at the top. I left **N** required fields as `TBD`. Next step: run `/discover-scenario` — it will detect the draft banner, enter gap-fill mode, and ask you only about the TBDs (preserving every field I already filled). Then it updates `accelerator.yaml` and strips the banner + evidence blocks. Only after that is it safe to preview and apply `accel scaffold`."
 
 ## Style
 
-- One document ingested per session. If there are multiple source docs, concatenate them before running the script or run `/ingest-prd` once per doc and merge by hand.
+- Multiple documents may participate in one discovery session through the
+  local evidence ledger. Detect and surface contradictory requirements rather
+  than merging them silently.
 - Never write the brief until step 3's spot-check returned "go."
 - Never infer. Never soften "the source doesn't say" into a filled field.
 - If the source contradicts itself (e.g., two different target latency numbers), flag the contradiction in chat and leave the field `TBD`.

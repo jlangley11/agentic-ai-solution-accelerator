@@ -1,11 +1,43 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ResearchForm } from "./components/ResearchForm";
 import { StreamingViewer } from "./components/StreamingViewer";
 import { ResultPanel } from "./components/ResultPanel";
 import { runResearch, RESEARCH_STREAM_URL } from "./services/researchClient";
 import type { ResearchBriefing, ResearchRequest, StreamEvent } from "./types/research";
+import type { ScenarioMetadata } from "./types/scenario";
+import { fetchScenarioMetadata } from "./services/scenarioClient";
+import { ScenarioWorkbench } from "./components/ScenarioWorkbench";
 
 export default function App() {
+  const [metadata, setMetadata] = useState<ScenarioMetadata | null>(null);
+  const [metadataUnavailable, setMetadataUnavailable] = useState(false);
+
+  useEffect(() => {
+    void fetchScenarioMetadata()
+      .then(setMetadata)
+      .catch(() => setMetadataUnavailable(true));
+  }, []);
+
+  if (!metadata && !metadataUnavailable) {
+    return (
+      <div className="app">
+        <div className="card" role="status">
+          Loading scenario metadata…
+        </div>
+      </div>
+    );
+  }
+  if (metadata && metadata.id !== "sales-research") {
+    return (
+      <div className="app">
+        <ScenarioWorkbench metadata={metadata} />
+      </div>
+    );
+  }
+  return <SalesResearchApp />;
+}
+
+function SalesResearchApp() {
   const [busy, setBusy] = useState(false);
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [briefing, setBriefing] = useState<ResearchBriefing | null>(null);
@@ -16,12 +48,9 @@ export default function App() {
   const [interruption, setInterruption] = useState<
     { last_seq: number; last_event?: string } | null
   >(null);
-  // Live "thinking" buffer per agent — accumulated from `chunk` events
-  // so the UI can show streaming progress while a worker is producing
-  // its 30-60s response. Cleared on each new submit.
-  const [workerThoughts, setWorkerThoughts] = useState<Record<string, string>>(
-    {},
-  );
+  // Per-agent character counters from `chunk` events. Raw unvalidated model
+  // text is never retained; counts only drive human-readable progress copy.
+  const [workerProgress, setWorkerProgress] = useState<Record<string, number>>({});
   const abortRef = useRef<AbortController | null>(null);
 
   async function handleSubmit(req: ResearchRequest) {
@@ -31,7 +60,7 @@ export default function App() {
     setError(null);
     setToolWarnings([]);
     setInterruption(null);
-    setWorkerThoughts({});
+    setWorkerProgress({});
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -46,9 +75,9 @@ export default function App() {
           // that has thoughts but hasn't emitted ``partial`` yet.
           if (evt.type === "chunk") {
             const key = evt.worker_id ?? evt.agent;
-            setWorkerThoughts((prev) => ({
+            setWorkerProgress((prev) => ({
               ...prev,
-              [key]: (prev[key] ?? "") + evt.delta,
+              [key]: (prev[key] ?? 0) + evt.delta.length,
             }));
             return;
           }
@@ -110,7 +139,7 @@ export default function App() {
 
   // An agent is "still thinking" if we've seen chunks but no partial yet.
   const completedWorkers = new Set(partials.map((p) => p.worker_id));
-  const liveThoughts = Object.entries(workerThoughts).filter(
+  const liveProgress = Object.entries(workerProgress).filter(
     ([agent]) => !completedWorkers.has(agent),
   );
 
@@ -136,7 +165,7 @@ export default function App() {
                 <button type="button" className="cancel-inline" onClick={handleCancel}>Cancel</button>
               )}
               {!busy && briefing && (
-                <button type="button" className="new-research-btn" onClick={() => { setBriefing(null); setEvents([]); setError(null); setToolWarnings([]); setInterruption(null); setWorkerThoughts({}); }}>
+                <button type="button" className="new-research-btn" onClick={() => { setBriefing(null); setEvents([]); setError(null); setToolWarnings([]); setInterruption(null); setWorkerProgress({}); }}>
                   New research
                 </button>
               )}
@@ -203,11 +232,16 @@ export default function App() {
             <StreamingViewer
               events={events}
               busy={busy}
-              liveThoughts={liveThoughts}
+              liveProgress={liveProgress}
             />
           </details>
         )}
-        <ResultPanel briefing={briefing} events={events} isComplete={!busy && briefing !== null} busy={busy} workerThoughts={workerThoughts} />
+        <ResultPanel
+          briefing={briefing}
+          events={events}
+          isComplete={!busy && briefing !== null}
+          busy={busy}
+        />
       </main>
 
       <footer className="app-footer">

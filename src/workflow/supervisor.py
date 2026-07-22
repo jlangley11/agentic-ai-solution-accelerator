@@ -441,9 +441,25 @@ class SupervisorDAG:
                 # change. Popped after validation so downstream
                 # consumers (other workers, the SSE wire format) never
                 # see the private key.
-                data["_retrieved_uris"] = list(
+                allowed_sources = set(
                     state.retrieved_uris.get(spec.module.AGENT_NAME, [])
                 )
+                dependency_queue = list(spec.depends_on)
+                visited_dependencies: set[str] = set()
+                while dependency_queue:
+                    dependency_id = dependency_queue.pop()
+                    if dependency_id in visited_dependencies:
+                        continue
+                    visited_dependencies.add(dependency_id)
+                    dependency = self._workers[dependency_id]
+                    allowed_sources.update(
+                        state.retrieved_uris.get(
+                            dependency.module.AGENT_NAME,
+                            [],
+                        )
+                    )
+                    dependency_queue.extend(dependency.depends_on)
+                data["_retrieved_uris"] = sorted(allowed_sources)
                 try:
                     ok, err = spec.module.validate_response(data)
                 finally:

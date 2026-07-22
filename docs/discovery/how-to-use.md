@@ -14,7 +14,7 @@ reads well but doesn't tie to measurable ROI.
 | 1 | [`use-case-canvas.md`](use-case-canvas.md) | 1-page exec alignment before you spend workshop time | Partner lead + customer sponsor, async |
 | 2 | [`SOLUTION-BRIEF-GUIDE.md`](SOLUTION-BRIEF-GUIDE.md) | How to run the discovery workshop that fills the brief | Read by partner lead; optional coaching for junior facilitators |
 | 3 | [`discovery-workbook.csv`](discovery-workbook.csv) — *download* | Structured capture during the live workshop | Partner facilitator (typing) + customer SMEs (answering) |
-| 4 | [`solution-brief.md`](solution-brief.md) | Canonical engagement doc — every downstream artifact derives from it | Output of `/discover-scenario` Copilot custom agent (or manually from workbook) |
+| 4 | [`solution-brief.md`](solution-brief.md) | Customer-approved intent; `accelerator.yaml` remains the executable contract | Output of the discovery specialist (or manually from workbook) |
 | 5 | [`roi-calculator.xlsx`](roi-calculator.xlsx) — *download* | Quantifies the hypothesis in Section 4 of the brief | Partner lead, after Section 3 of the brief is filled |
 
 > **Downloads:** the workbook ([`discovery-workbook.csv`](discovery-workbook.csv)) and ROI calculator ([`roi-calculator.xlsx`](roi-calculator.xlsx)) are partner-fillable templates — click to download, fork per engagement.
@@ -36,47 +36,79 @@ solution design doc, etc.) **before** the workshop, you can pre-draft
 the solution brief from it instead of starting blank. This reduces
 workshop time to confirming gaps rather than building from scratch.
 
-Supported source formats: `.md`, `.txt`, `.docx`,
-text-extractable `.pdf` (scanned PDFs must be OCR'd first).
+Supported local intake formats: `.md`, `.txt`, `.csv`, `.docx`,
+text-extractable `.pdf`, `.pptx`, `.xlsx`, and `.xlsm` (scanned PDFs must be
+OCR'd first).
+
+Default limit: **50 MiB per source** (`ACCELERATOR_MAX_SOURCE_BYTES` can lower
+or raise it for an approved environment). Intake extracts text, not document
+behavior: macros are never executed; spreadsheets use cached cell values;
+PowerPoint intake reads slide text/tables, not image OCR; PDFs require a text
+layer. Export complex or scanned material to an OCR'd PDF, DOCX, CSV, or text
+file before intake.
 
 Flow:
 
-1. **Run `/ingest-prd`** in Copilot Chat and give it the file path.
-   - **Where:** GitHub Copilot Chat sidebar in VS Code — point Copilot at the PRD/BRD file already in your repo or a local path.
-   The custom agent invokes `scripts/extract-brief-from-doc.py`, maps
-   evidence to the 7-section brief schema, and writes a **draft**
+1. **Register all source documents locally**:
+
+   ```powershell
+   accel intake add <prd> <security-doc> <workshop-notes>
+   accel intake list
+   ```
+
+   Sources are local-only until reviewed. Record an explicit disclosure
+   decision before model-assisted extraction.
+
+2. **Review and approve each source for model use**, then run `/ingest-prd`
+   using the registered source IDs:
+
+   ```powershell
+   accel intake review <source-id>
+   accel intake disclose <source-id> approved_for_model --apply
+   ```
+
+   The specialist requests text only through the approved ledger interface,
+   maps evidence to the brief schema, and writes a **draft**
    `docs/discovery/solution-brief.md` with:
    - A `> **STATUS: AI-extracted draft**` banner at the top.
-   - Per-section `<!-- evidence: ... -->` HTML comment blocks with a
-     verbatim quote + citation (`chunk_id`, plus `page` for PDFs) for
-     every non-TBD field.
+   - Per-section `<!-- evidence-ref: ... -->` comments containing opaque
+     source/chunk/page IDs only—never excerpts, paths, or headings.
    - Risky fields (solution pattern, HITL gates, side-effect tools,
      KPI event names, RAI risks, acceptance thresholds) set to `TBD`
      unless the source contains explicit evidence — **not** inferred.
-   - A self-audit table + spot-check prompt before the draft is
-     written; answer "go" only after verifying the quoted evidence
-     against the source doc.
-2. **Review the draft** with the customer sponsor. Treat CONFIRMED
+   - A self-audit table + spot-check prompt before the draft is written.
+3. **Review the draft** with the customer sponsor. Treat CONFIRMED
    fields as hypotheses (the LLM read the PRD, not the customer).
    Flag anything the PRD got wrong or that's stale.
-3. **Run the workshop** using the remaining `TBD`s as the agenda. The
+4. **Record reviewed requirement candidates** and decisions in the ledger,
+   then export sanitized traceability:
+
+   ```powershell
+   accel intake requirement add --category <category> --statement <text> `
+     --evidence <source-id>:<chunk-id> --apply
+   accel intake requirement decide <requirement-id> approved `
+     --by <reviewer> --apply
+   accel intake requirement export --apply
+   ```
+
+5. **Run the workshop** using the remaining `TBD`s as the agenda. The
    canvas + workbook are still useful — but now they're focused on
    gaps rather than full intake.
-4. **Run `/discover-scenario`** after the workshop (or live during
+6. **Run the discovery specialist** after the workshop (or live during
    it). It will detect the draft banner and enter **gap-fill mode**:
    - Asks **only** about `TBD` fields.
    - Preserves every confirmed field byte-for-byte.
    - On exit, strips the `STATUS: AI-extracted draft` banner **and**
-     every `<!-- evidence -->` block before copying values into
+     every `<!-- evidence-ref -->` block before copying values into
      `accelerator.yaml` (`solution.*`, `acceptance.*`, `kpis[]`).
-5. **Quantify the hypothesis** in `roi-calculator.xlsx` once the
+7. **Quantify the hypothesis** in `roi-calculator.xlsx` once the
    brief's Section 3 and Section 4 are final.
 
 What `/ingest-prd` does **not** do:
 - Update `accelerator.yaml`. That's `/discover-scenario` gap-fill's
   job, after the TBDs are resolved.
-- Run `/scaffold-from-brief`. The draft banner explicitly blocks that
-  until a human has reviewed every field.
+- Apply `accel scaffold`. The draft banner explicitly blocks structural
+  application until a human has reviewed every field.
 - Replace the workshop. It replaces the blank-page phase of the
   workshop, not the conversation with the customer sponsor.
 
@@ -90,15 +122,14 @@ What `/ingest-prd` does **not** do:
 
 ### Immediately after
 
-3. **Solution brief** — run `/discover-scenario` in Copilot Chat with
-   the filled workbook as context (paste it, or point Copilot at the
-   file). The custom agent produces the 7-section brief at
+3. **Solution brief** — run the discovery specialist with the reviewed
+   workshop answers. If the agent must read the workbook file, register and
+   approve it through `accel intake` first. The specialist produces the brief at
    `docs/discovery/solution-brief.md` **and** updates
    `accelerator.yaml` fields (`solution.*`, `acceptance.*`, `kpis[]`).
    It does **not** touch `scenario:` — that comes from
-   `/scaffold-from-brief` + `scripts/scaffold-scenario.py` in the
-   scaffold stage.
-   - **Where:** GitHub Copilot Chat sidebar in VS Code.
+   `accel scaffold` in the scaffold stage.
+   - **Where:** any supported coding-agent client.
 
 4. **ROI calculator** — open `roi-calculator.xlsx`, fill blue cells on
    the `Inputs` sheet with numbers from brief Section 3 + Section 4. Read the `ROI`
@@ -113,7 +144,7 @@ What `/ingest-prd` does **not** do:
 
 5. Walk the sponsor through the brief + ROI calculator together. If
    either has TBD fields or the ROI doesn't clear the customer's
-   hurdle rate, iterate before running `/scaffold-from-brief`. A
+   hurdle rate, iterate before applying `accel scaffold`. A
    scaffold is expensive to redo; a discovery redo is cheap.
 
 ## What ships in the repo vs what's engagement-specific

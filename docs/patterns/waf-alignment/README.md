@@ -49,9 +49,9 @@ Legend:
 
 | Decision | Posture | How |
 |---|---|---|
-| Single-manifest solution definition | 🟢 | `accelerator.yaml` is the only source of truth; `scripts/accelerator-lint.py` validates. |
+| Single executable manifest | 🟢 | `accelerator.yaml` is the executable scenario/deployment contract; `scripts/accelerator-lint.py` validates it. |
 | Eval-as-merge-gate | 🟢 | PR-time `.github/workflows/evals.yml` runs `evals/quality/` + `evals/redteam/` against a standing staging URL (`vars.EVALS_API_URL`) and must pass before merge. |
-| Post-deploy regression safety net | 🟢 | `.github/workflows/deploy.yml` re-runs the same eval suites after `azd up` emits a fresh API URL on pushes to `main`; a regression there fails the deploy job and surfaces the delta. |
+| Post-deploy regression safety net | 🟢 | Self-host deploys re-run acceptance after a fresh API URL is emitted; Hosted preview currently runs a fresh-session protocol smoke. |
 | Application Insights wired by default | 🟢 | `infra/modules/monitor.bicep` + `azure-monitor-opentelemetry` in `pyproject.toml`. |
 | Weekly SDK freshness signal | 🟢 | `.github/workflows/version-matrix.yml` + `scripts/ga-sdk-freshness.py`. |
 | Runbooks for incidents | 🟡 | Pattern-guided; partner owns runbook authoring per engagement. |

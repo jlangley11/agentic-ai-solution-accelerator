@@ -5,6 +5,9 @@ is written for a **Microsoft partner delivery lead** running an engagement from
 SOW to production handover using this accelerator. It explains **why** the
 motion is shaped this way and **what "done" looks like** at each stage.
 
+`accel next` is the executable companion: it reads persistent artifacts and
+returns the current stage, blockers, approval level, and next command.
+
 > **Looking for the step-by-step?** Use the [partner walkthrough](start/index.md) — *Get ready* (one-time) + *Deliver to a customer* (per engagement). This playbook is the reasoning behind the motion; the walkthrough is the action list.
 
 ---
@@ -19,16 +22,16 @@ discover ──► scaffold ──► provision ──► iterate ──► UAT 
    │           │            │            │          │          └─ alerting on App Insights KPI events
    │           │            │            │          └─ acceptance thresholds in accelerator.yaml
    │           │            │            └─ PR-gated: lint + quality evals + redteam
-   │           │            └─ azd up against a GitHub Environment (per deploy/environments.yaml)
-   │           └─ /scaffold-from-brief drives src/, infra/, evals/, telemetry, dashboards
-   └─ /discover-scenario produces docs/discovery/solution-brief.md + updates accelerator.yaml
+   │           │            └─ accel deploy resolves the target from deploy/environments.yaml
+   │           └─ accel scaffold changes structure; specialist agents author behavior
+   └─ accel intake/discover + specialist interview produce approved intent and requirements
 ```
 
 Stages **1–2** are partner-facing ("co-build with the customer in real time"). Stages
 **3–7** are engineering execution with the customer's Azure tenant in the loop.
 
 !!! info "Why is the accelerator shaped this way?"
-    The seven non-obvious decisions — MAF + Foundry, portal-owned instructions, supervisor + workers, HITL as a primitive, AI Search only, ABAC-constrained RBAC, three-layer agent module — are recorded in [Architecture decision records](adr/index.md). Read those before deviating from a default; each ADR documents what breaks if you flip it.
+    The non-obvious decisions — MAF + Foundry, repo-owned instructions, supervisor + workers, HITL as a primitive, governed retrieval, ABAC-constrained RBAC, and the three-layer worker module — are recorded in [Architecture decision records](adr/index.md). Read those before deviating from a default; each ADR documents what breaks if you flip it.
 
 ---
 
@@ -38,8 +41,8 @@ This matters for scoping the SOW honestly.
 
 | Concern                      | In the accelerator                                                                 | Partner owns                                        |
 |------------------------------|-------------------------------------------------------------------------------------|-----------------------------------------------------|
-| Discovery structure          | `/discover-scenario` custom agent + `docs/discovery/solution-brief.md` template         | Customer workshop facilitation, stakeholder map     |
-| Scenario scaffold            | `/scaffold-from-brief` + `scripts/scaffold-scenario.py` + `scripts/scaffold-agent.py` | Scenario-specific prompts, tools, grounding sources |
+| Discovery structure          | `accel intake/discover`, private evidence ledger, `/discover-scenario`, brief template | Workshop facilitation, disclosure decisions, stakeholder map |
+| Scenario scaffold            | `accel design/scaffold` + specialist worker/tool agents | Scenario-specific prompts, tools, grounding sources |
 | Infra                        | `infra/` (AVM-based) + `azure.yaml` + `deploy/environments.yaml`                     | Customer network / private-link overlay if required |
 | CI / CD                      | `.github/workflows/{deploy,evals,lint}.yml` + `scripts/accelerator-lint.py`         | Branch protection, required reviewers               |
 | Quality + safety evals       | `evals/quality/`, `evals/redteam/`                                                  | Customer golden cases, customer-specific redteam    |
@@ -49,7 +52,7 @@ This matters for scoping the SOW honestly.
 | End-user / app-level auth    | Service-to-service Managed Identity everywhere (Foundry, Search, Key Vault all Entra-only, no keys); HTTPS-only ingress | **Who can call the API / load the UI** — Entra Easy Auth on Container Apps, App Gateway + WAF, or Front Door. The shipped API has no end-user auth dependency. |
 | State persistence            | **Nothing.** `/research/stream` is in-memory per request; no datastore in `infra/`.                                       | Cosmos / Postgres / Redis / browser IndexedDB if the customer UX needs run history, multi-user separation, or durable HITL state. |
 | HITL approval surface        | The **contract**: `HITL_POLICY` constant + `checkpoint(...)` call + lint enforcement + `tool.hitl_*` events + `HITL_DEV_MODE=1` stub for labs/evals | The **production approver** — Logic Apps, Teams adaptive card, ServiceNow, email — that `HITL_APPROVER_ENDPOINT` points at. The accelerator does not ship an approval UI. |
-| Customer-facing UI           | Reference frontend at `patterns/sales-research-frontend/` — plain React + Vite + TypeScript, deployable to Azure Static Web Apps. Proves the SSE wiring. | UX, branding, design system, run history, auth flow, HITL approval surface. Fork as a starter; the customer's real UX is the partner team's value-add. |
+| Customer-facing UI           | Schema-driven reference workbench plus tailored sales layout, validated streaming, citations, local demo history, and feedback telemetry | Production auth, durable multi-user state, branding, and external HITL approval service |
 | SOW / commercial terms       | **Nothing**                                                                         | **You** — templates live in your partner practice   |
 | Customer training material   | **Nothing shipped today.** The shipped partner-team self-paced walkthrough is `docs/enablement/hands-on-lab.md`; customer-facing training is partner-owned. | Role-based customer training, support ops |
 
@@ -62,17 +65,23 @@ their branding) — not the template itself.
 
 ## Stage 1 — Discovery
 
-**Where:** Customer workshop room (or Teams) for the conversation; **VS Code** (Copilot Chat sidebar) to drive `/discover-scenario` (and `/ingest-prd` if a PRD/BRD/spec exists). The brief lands in `docs/discovery/solution-brief.md` for review in the editor.
+**Where:** Customer workshop room (or Teams), a local terminal for `accel
+intake/discover`, and a supported coding-agent client for the structured
+interview. The brief lands in `docs/discovery/solution-brief.md`.
 
 **Goal:** produce a complete `docs/discovery/solution-brief.md` and update
 `accelerator.yaml` so the scaffolding step has everything it needs.
 
-**How:** run `/discover-scenario` in GitHub Copilot Chat (or any chat-mode-aware
-IDE). The custom agent walks you (or you + customer live) through 7
+**How:** run `accel intake` for source documents, record disclosure and
+requirement decisions, then use the discovery specialist for the live interview. It walks
+you (or you + customer live) through
 sections: business context, personas, measurable success criteria, ROI
 hypothesis, solution shape, constraints/risks, acceptance evals.
 
-> **Customer already provided a PRD / BRD / functional spec?** Run `/ingest-prd` first to pre-draft the brief from the source doc, then `/discover-scenario` enters gap-fill mode on the remaining `TBD`s. Full flow: [`docs/discovery/how-to-use.md`](discovery/how-to-use.md), "If the customer already provided a PRD / BRD / functional spec" section.
+> **Customer already provided a PRD / BRD / functional spec?** Register it
+> with `accel intake add`, review its metadata, approve disclosure before
+> model-assisted extraction, then use `/ingest-prd` and the discovery specialist
+> in gap-fill mode. See [`docs/discovery/how-to-use.md`](discovery/how-to-use.md).
 
 **What "good" looks like:**
 
@@ -94,7 +103,8 @@ hypothesis, solution shape, constraints/risks, acceptance evals.
 - Missing HITL gates → "Which tool calls are irreversible? Those need approval
   thresholds, not just logging."
 
-**Deliverable:** `docs/discovery/solution-brief.md` + edits to
+**Deliverable:** local evidence/requirements traceability,
+`docs/discovery/solution-brief.md` + edits to
 `accelerator.yaml` (`solution.pattern`, `solution.hitl`,
 `solution.data_residency`, `solution.identity`, `acceptance.*`, `kpis[].name`).
 
@@ -107,35 +117,34 @@ hypothesis, solution shape, constraints/risks, acceptance evals.
 **Goal:** adapt the repo to the customer's scenario — a clean diff reviewers
 can follow.
 
-**How:** run three custom agents in sequence. Each custom agent is declarative — it
-edits files and updates the manifest; you review the diff after each step
-before moving to the next.
+**How:** use the CLI for readiness and structural changes, then specialist
+agents for customer-specific authoring:
 
 ```
-/scaffold-from-brief    →  structural shape (folders, stub three-layer files, manifest skeleton)
-/define-grounding       →  per-worker FoundryIQ vs none mode + AI Search indexes + catalog tools
+accel design
+accel scaffold --scenario-id <id> --dry-run
+accel scaffold --scenario-id <id> --apply
+/define-grounding       →  per-worker FoundryIQ vs none + Search indexes + read-only catalog intent
 /implement-workers      →  fills every stub prompt.py / transform.py / validate.py + Foundry agent spec
 ```
 
-`/scaffold-from-brief` is a thin wrapper over `scripts/scaffold-scenario.py`;
-the script and the `scaffold-agent.py` it pairs with auto-seed
+`accel scaffold` wraps `scripts/scaffold-scenario.py` transactionally; that
+script and `scaffold-agent.py` auto-seed
 `evals/quality/golden_cases.jsonl` with a stub `q-001` so lint stays green
 without manual eval-file edits.
 
-**What `/scaffold-from-brief` materializes** (one custom agent invocation;
-the underlying CLI is `python scripts/scaffold-scenario.py <scenario-id>`):
+**What `accel scaffold` materializes:**
 
 - `src/scenarios/<package>/{__init__,schema,workflow,retrieval}.py`
 - `src/scenarios/<package>/agents/supervisor/{__init__,prompt,transform,validate}.py`
 - `docs/agent-specs/accel-<scenario-id>-supervisor.md`
 - `data/samples/<package>.json`
-- A `scenario:` snippet printed to your terminal to paste into
-  `accelerator.yaml`
+- A transactionally updated `accelerator.yaml` scenario block
 - A stub `q-001` in `evals/quality/golden_cases.jsonl` (refine the
   `query` and `expected` fields to encode real customer success criteria)
 
 **What `/define-grounding` writes:** per-worker `retrieval:` blocks
-(mode = `foundry_tool` or `none`) and `catalog_tools:` lists in
+(mode = `foundry_tool` or `none`) and read-only `catalog_tools:` lists in
 `accelerator.yaml -> scenario.agents[]`, plus matching entries in
 `scenario.retrieval.indexes[]`. FoundryIQ is the consolidated enterprise
 knowledge layer; AI Search lives underneath it. **Always start with
@@ -151,10 +160,10 @@ scaffolded-but-unfinished worker, walked in dependency order off the
 `/implement-worker <worker_id>` to fill a single worker (same code path,
 narrower scope).
 
-**Manual touch-ups after the custom-agent trio runs:**
+**Authoring after the structural scaffold:**
 
-- Paste the `scenario:` snippet into `accelerator.yaml` and re-sync
-  `solution.*`, `acceptance.*`, and `kpis[]` from the brief
+- Re-sync `solution.*`, governed grounding-source metadata, `acceptance.*`, and
+  `kpis[]` from the approved brief
 - Refine each golden case's `query` and `expected` fields to encode
   real customer success criteria; add 4+ more cases per scenario
 - Add a redteam case per RAI risk in `evals/redteam/cases.jsonl`
@@ -173,10 +182,11 @@ customization; the scripts alone only do the structural scaffold.
 **What "good" looks like:**
 
 !!! tip "Authoring agent instructions"
-    **Agent system instructions live in `docs/agent-specs/<foundry_name>.md` under `## Instructions`.** Edit those Markdown files, not Python — `src/bootstrap.py` syncs them verbatim to the Foundry portal at FastAPI startup on `azd up` / `azd deploy`. `prompt.py` is for per-request input only.
+    **Agent system instructions live in `docs/agent-specs/<foundry_name>.md`
+    under `## Instructions`.** Edit those files, not Python. Shared
+    provisioning syncs them during deployment; `prompt.py` is per-request only.
 
-- `python scripts/accelerator-lint.py` passes with **0 blocking, 0 warning**
-- `pytest tests/` passes (supervisor-DAG test stays green)
+- `accel validate --full --execute` passes
 - Each `prompt.py` is a **per-request input builder only** — no system
   instructions inline. The agent's system instructions live in
   `docs/agent-specs/<foundry_name>.md` (see [agent-specs README](agent-specs/README.md))
@@ -199,7 +209,9 @@ ID and the build still green.
 
 ## Stage 3 — Provision
 
-**Where:** VS Code (Copilot Chat sidebar for `/configure-landing-zone` and `/deploy-to-env`; integrated terminal — signed into the customer's Azure tenant — for `azd env new` + `azd up` and the baseline eval chain); github.com → repo → Settings → Environments to confirm OIDC + secrets landed; Azure portal (portal.azure.com → resource group) to verify the deployed resources.
+**Where:** coding-agent client for landing-zone/environment authoring; terminal
+signed into the customer's tenant for `accel deploy/evaluate`; GitHub and Azure
+portals for environment, OIDC, and resource verification.
 
 **Goal:** deploy the scaffolded solution to the customer's Azure against a
 named environment.
@@ -221,9 +233,10 @@ named environment.
 2. `/deploy-to-env <env-name>` to register a new GitHub Environment entry in
    `deploy/environments.yaml` and scaffold the required secrets / variables
    per the "Required GitHub secrets and variables" section of `docs/getting-started/setup-and-prereqs.md`.
-3. From the customer's deployment-owner machine: `azd env new <customer-short-name>-dev`
-   (e.g., `azd env new contoso-dev`) then `azd up`. First deploy takes ~15 min on a clean subscription. The
-   `azd` hooks in `azure.yaml` run automatically as part of `azd up`:
+3. From the customer's deployment-owner machine, run `accel environment list`,
+   then preview/preflight/apply with `accel deploy`. First deploy takes ~15 min on a clean subscription. The
+   `accel deploy` resolves the environment target and invokes the corresponding
+   `azd` project:
    - `preprovision` → none (Bicep `loadYamlContent` parses `accelerator.yaml -> models[]` at compile time)
    - `postprovision` → none. Foundry agent create/update **and**
      AI Search index seeding both run inside the Container App at FastAPI startup via `src/bootstrap.py` (creates/verifies Foundry agents declared in
@@ -234,17 +247,16 @@ named environment.
    path in `src/main.py`, depending on scenario shape.
 5. Confirm each Foundry agent appears in the portal with the placeholder
    instructions ready for editing. Restart the Container App revision (Container Apps -> Revisions -> Restart) or
-   rerun `azd deploy` for recovery / troubleshooting — normal
-   `azd up` cycles handle both.
-6. **Establish the acceptance baseline** before exiting this stage. Run the full chain against the dev environment:
+   rerun the target-aware `accel deploy` apply flow for recovery.
+6. **Establish the acceptance baseline** before exiting this stage:
 
    ```bash
-   python evals/quality/run.py --api-url <api-url>
-   python evals/redteam/run.py --api-url <api-url>
-   python scripts/enforce-acceptance.py
+   accel evaluate --api-url <api-url> --execute
    ```
 
-   The numbers are the engagement's known-good starting point. Every PR in Stage 4 has to clear this same bar — capture the output (`> baseline.txt` in the customer fork is enough) so the team has a reference when later changes move a number. If a threshold fails on the unmodified flagship, fix the deploy first (quotas, model region, grounding seed) before scaffolding scenario logic.
+   This full chain applies to `selfhost`. Hosted preview currently has a
+   fresh-session protocol smoke, not equivalent full acceptance. For self-host,
+   retain the generated acceptance artifact as the known-good baseline.
 
 **What "good" looks like:**
 
@@ -262,7 +274,7 @@ named environment.
 - `infra/alz-overlay/` guard passes if Tier 3 is enabled (`tier3InputGuard`
   in `infra/main.bicep` fails fast on missing inputs).
 
-**If `azd up` fails:** first place to look is `docs/getting-started/setup-and-prereqs.md`
+**If deployment fails:** first inspect the CLI `blocking_issues`, then see `docs/getting-started/setup-and-prereqs.md`
 ("Troubleshooting — top 5"). The most common failures are model-quota (wrong region),
 OIDC (federated credentials not wired), and AI Search role assignment (needs
 **Search Index Data Contributor** + **Search Service Contributor**, not
@@ -276,11 +288,12 @@ OIDC (federated credentials not wired), and AI Search role assignment (needs
 
 **Goal:** move the agent quality from "it runs" to "it meets acceptance."
 
-**How:** partner refines prompts, tools, and grounding via Copilot Chat
+**How:** partner refines prompts, tools, grounding, response schemas, and
+experience metadata via a coding agent
 inside the repo. Every change is a PR. CI runs four gates, all of
 which must pass before merge:
 
-- `scripts/accelerator-lint.py` — ~30 deterministic policy checks (AST-only,
+- `scripts/accelerator-lint.py` — deterministic policy checks,
   fast); see the `acceptance` section of `accelerator.yaml` for the policy set
 - `evals/quality/run.py` — quality evals against golden cases
 - `evals/redteam/run.py` — safety evals against the scenario's RAI cases
@@ -288,8 +301,8 @@ which must pass before merge:
   `.github/workflows/deploy.yml`
 
 **Where agent instructions live:** `docs/agent-specs/<foundry_name>.md` is
-the **authoring source of truth**; `src/bootstrap.py` syncs the spec verbatim
-to the Foundry portal at FastAPI startup on every `azd up` / `azd deploy`.
+the **authoring source of truth**; shared provisioning syncs the spec to the
+matching Foundry agent version during deployment.
 Treat the repo as the audit trail — every PR that edits a `prompt.py`, an
 agent spec, a tool, or an acceptance threshold is the durable record. The
 `/explain-change` custom agent is a **read-only CI preflight** — it tells you
@@ -324,7 +337,7 @@ partner-wired on top.
 
 **Goal:** customer accepts the solution against their own bar.
 
-**How:** customer runs their golden cases on the deployed dev environment.
+**How:** customer runs their golden cases on the deployed environment.
 Partner adds each customer case to `evals/quality/golden_cases.jsonl` so it's
 permanently regression-protected. The pass bar is
 `accelerator.yaml.acceptance.*` — quality threshold, groundedness threshold,
@@ -333,6 +346,8 @@ safety pass, P50/P95 latency, cost per call.
 **What "good" looks like:**
 
 - Customer signs off against the acceptance thresholds — not against vibes
+- `accel uat report` captures the reviewed acceptance result and
+  `accel uat signoff` records sponsor approval
 - HITL exercised end-to-end for at least one irreversible tool (e.g., CRM
   write, email send). **The accelerator does not ship a HITL approval UI:**
   the flagship HITL pattern (`docs/patterns/rai/README.md`, "Principle 3") is
@@ -350,26 +365,29 @@ custom agent has a triage tree for each.
 
 ## Stage 6 — Production handover
 
-**Where:** VS Code (Copilot Chat sidebar for `/deploy-to-env <customer-short-name>-prod`; integrated terminal for `azd env new` + `azd up` against prod; editor to fill in `docs/handover/handover-packet-template.md`); Azure portal → App Insights for alert wiring; live customer ops handover meeting (Teams + screen share) to walk the packet, runbook, killswitch, and approvers.
+**Where:** coding-agent client for environment authoring; terminal for
+target-aware `accel deploy` and handover commands; Azure portal for alert
+wiring; live customer ops meeting for acceptance.
 
 **Goal:** move the solution to the customer's production environment and
 hand day-2 operations over.
 
 **How:**
 
-1. `/deploy-to-env <customer-short-name>-prod` (e.g., `contoso-prod`) to register the prod environment
-2. `azd env new <customer-short-name>-prod`; `azd up` in prod — the `postprovision`
-   startup bootstrap (`src/bootstrap.py`) re-runs Foundry agent create/update and AI Search seeding automatically
-   against the prod project + search service
+1. Use `/deploy-to-env <customer-short-name>-prod` to register the production
+   environment in `deploy/environments.yaml`.
+2. Preview, approve, and apply `accel deploy --env <customer-short-name>-prod
+   --region <region>`. The self-host target runs root `azd up`; Hosted preview
+   runs nested `azd provision` followed by `azd deploy`.
 3. Wire App Insights alerting on the KPIs the engagement committed to
    in `accelerator.yaml.kpis[]` (customer-owned — `kpis[]` carries
    `{name, type, baseline, target}` metadata only; the matching telemetry
    event per KPI is wired in scenario code, and neither
    alerts nor dashboards beyond `infra/dashboards/roi-kpis.json` are
    auto-created)
-4. Capture the handover artifacts — deployment URL, alert configuration,
-   the HITL approver endpoint URL + runbook, killswitch procedure,
-   and the archived `docs/discovery/solution-brief.md` copy
+4. Preview `accel handover generate --env <env> --dry-run`, approve/apply the
+   draft, review customer-owned fields, then record ops acceptance with
+   `accel handover approve --approver <name> --apply`.
 
 **Handover to whom:** the customer's internal owner per the SOW. If the
 partner is retaining operations, skip to stage 7. If the customer's ops
@@ -384,7 +402,7 @@ path, customer-specific deviations from shipped defaults, SLAs, contacts).
 
 - Zero manual steps outside the documented scripts — anything that isn't in
   a script or custom agent is a risk item in the handover
-- Customer can repro `azd up` from scratch against a new env without
+- Customer can reproduce `accel deploy` against a new declared environment without
   partner assistance
 - The handover packet lists owner, SLA, alerting, and rollback — no
   implicit knowledge
@@ -412,32 +430,37 @@ no spreadsheets, no screenshots of runs.
 
 ---
 
-## Custom agents and scripts at a glance
+## Commands and specialist agents at a glance
 
 | When you need to…                            | Use                                                                  |
 |----------------------------------------------|----------------------------------------------------------------------|
-| Run structured discovery                     | `/discover-scenario`                                                 |
-| Pre-draft the brief from a customer PRD      | `/ingest-prd`                                                        |
-| Adapt the repo to the brief                  | `/scaffold-from-brief`                                               |
-| Wire FoundryIQ + AI Search + catalog tools per worker | `/define-grounding`                                                  |
+| Determine the current stage                   | `accel next`                                                        |
+| Inspect all blockers/stages                    | `accel status --verbose`                                            |
+| Register and govern source documents           | `accel intake …`                                                    |
+| Run structured discovery                       | `accel discover` + `/discover-scenario`                             |
+| Pre-draft from approved evidence               | `/ingest-prd`                                                       |
+| Preview/apply the initial scenario              | `accel design` + `accel scaffold --dry-run/--apply`                 |
+| Wire FoundryIQ + Search + read-only catalog intent    | `/define-grounding`                                                  |
 | Fill every scaffolded worker (3-layer + Foundry spec) | `/implement-workers` (or `/implement-worker <id>` for a single worker) |
 | Add a worker agent post-scaffold             | `/add-worker-agent`                                                  |
 | Add a tool (local Python or Foundry)         | `/add-tool`                                                          |
 | Swap from flagship to a variant pattern      | `/switch-to-variant`                                                 |
 | Choose landing-zone tier / reconfigure infra | `/configure-landing-zone`                                            |
 | Register a new GitHub Environment            | `/deploy-to-env`                                                     |
-| Preflight the deploy before `azd up`         | `python scripts/preflight-deploy.py --region <region>`               |
+| Preview/preflight/execute deployment          | `accel deploy --dry-run/--execute/--apply`                           |
 | Validate the ALZ overlay (Tier 3)            | `python scripts/validate-alz.py`                                     |
 | Decommission the engagement safely           | `/teardown` (or `python scripts/teardown-preflight.py --env <name>`) |
-| Preflight the current diff / see which CI checks will fire | `/explain-change`                                                    |
-| Full engagement companion                    | `/delivery-guide`                                                    |
-| Scaffold a scenario from the CLI             | `python scripts/scaffold-scenario.py <id>`                           |
-| Scaffold an agent from the CLI               | `python scripts/scaffold-agent.py <agent_id> --scenario <scenario-id> --capability "<one-liner>"` |
+| Review current diff and impact                | `accel review`                                                       |
+| Run repository validation                     | `accel validate --full --execute`                                   |
+| Run acceptance                                | `accel evaluate --api-url <url> --execute`                           |
+| Produce UAT/handover records                  | `accel uat …` + `accel handover …`                                  |
+| Full engagement companion                     | `/accelerator` or `/delivery-guide`                                 |
+| Scaffold a worker                             | `/add-worker-agent` (raw script is the debug fallback)              |
 | Lint the repo against policy                 | `python scripts/accelerator-lint.py`                                 |
-| Create / update Foundry agents               | restart the Container App revision (`azd deploy` or portal)         |
-| Seed the AI Search index                     | restart the Container App revision (`azd deploy` or portal)         |
+| Create / update Foundry agents               | target-aware `accel deploy` apply                                  |
+| Seed the AI Search index                     | target-aware `accel deploy` apply                                  |
 | Check SDK pin freshness                      | `python scripts/ga-sdk-freshness.py`                                 |
-| Enforce acceptance thresholds                | `python scripts/enforce-acceptance.py`                               |
+| Optional native Foundry evaluation            | `accel evaluate --foundry --execute`                                |
 
 These scripts are mostly Python / Azure-SDK-based; a few utility scripts
 (e.g., `explain-change.py`) shell out to

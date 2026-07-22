@@ -11,14 +11,23 @@ handoffs:
 
 # /define-grounding — wire knowledge + tools to each worker
 
-Use this after `/scaffold-from-brief` (or any time grounding shifts) to declare **how each worker gets its facts and which side tools it can call**. Outcome: a fully populated `scenario.agents[]` block in `accelerator.yaml` plus matching `scenario.retrieval.indexes[]` entries, validated by `scripts/accelerator-lint.py`.
+> Compatibility adapter: run `accel next` before this specialist. Persistent
+> lifecycle and approval state remains owned by the local CLI.
 
-This is **declarative only** — you don't write Python, you don't click around the Foundry portal. The accelerator's startup bootstrap (`src/bootstrap.py`) reads the manifest on the next `azd deploy` and provisions FoundryIQ Knowledge Sources + Knowledge Bases + agent attachments. Partner-attached catalog tools (Foundry portal) are preserved across deploys (Phase 2b).
+Use this after `accel scaffold` (or whenever grounding shifts) to declare how
+each worker gets facts and which read-only catalog tools it uses. Outcome: a
+reviewed `scenario.agents[]` block plus matching retrieval indexes.
+
+The manifest edit is declarative. Shared provisioning creates FoundryIQ
+Knowledge Sources, KBs, and managed attachments on the next deployment.
+Read-only catalog tools require a documented environment attachment after the
+manifest change and are preserved by provisioning.
 
 ## Preconditions
 - `docs/discovery/solution-brief.md` is complete (section 5 names the grounding sources and any external systems the workers must call).
 - `accelerator.yaml -> scenario.agents[]` lists every worker (each entry has at minimum `id` and `foundry_name`).
-- The Bicep-provisioned AI Search account exists (it underpins FoundryIQ — created automatically by `azd up`).
+- The Bicep-provisioned AI Search account exists (it underpins FoundryIQ and is
+  created by the approved target-aware deployment).
 
 ## Step 1 — Pick the grounding mode per worker
 
@@ -29,7 +38,8 @@ Two modes are supported. **Always start with `foundry_tool`** unless the worker 
 | `foundry_tool` | Worker needs grounded facts (any factual claim, citation, or retrieval). FoundryIQ is the consolidated enterprise knowledge layer; AI Search lives **underneath** it. | A `retrieval:` block on the agent + an entry in `scenario.retrieval.indexes[]`. |
 | `none`         | Worker is purely transformational — receives upstream worker outputs and reshapes them. No external facts. | Nothing under `retrieval:` (omit the block entirely). |
 
-For `foundry_tool` mode, paste this snippet under the matching `scenario.agents[]` entry, edit values, and remove the comments:
+For `foundry_tool` mode, present a proposed diff using this shape. Apply it to
+the matching `scenario.agents[]` entry only after approval:
 
 ```yaml
 - id: <worker_id>
@@ -66,54 +76,62 @@ Two lint rules guard this block:
 
 ## Step 3 — List Foundry portal catalog tools (optional)
 
-If a worker needs an external system call covered by the Foundry built-in tool catalog (1300+ MCP tools — ServiceNow, Confluence, GitHub, Jira, etc.), declare it on the agent so the manifest stays the contract:
+If a worker needs a **read-only** external call from the Foundry catalog,
+declare it so the manifest remains the reviewed intent:
 
 ```yaml
-- id: ticket_creator
-  foundry_name: accel-<scenario-id>-ticket-creator
+- id: account_lookup
+  foundry_name: accel-<scenario-id>-account-lookup
   retrieval:
     mode: foundry_tool
-    index: tickets
+    index: accounts
   catalog_tools:                  # optional; partner-attached in the Foundry portal
-    - servicenow_create_incident
-    - github_open_issue
+    - servicenow_get_incident
+    - github_list_issues
 ```
 
-The accelerator does **not** attach catalog tools through Bicep — the catalog is too dynamic to model declaratively. After `azd deploy`, attach each tool in the Foundry portal under the agent's **Tools** section:
+The accelerator does not yet resolve catalog tools automatically. After
+deployment, attach each declared read-only tool in the Foundry portal and
+verify the attachment:
 
 > **Foundry portal — Agents → `<foundry_name>` → Tools → Add tool → Built-in tools → pick from catalog → Save.**
 
-Bootstrap (`src/bootstrap.py`) preserves these attachments across future deploys; only the agent's instructions and model are rewritten on each `azd deploy`. The `catalog_tools[]` entry exists for documentation and lint coverage — the runtime contract is whatever is attached in the portal.
+Shared provisioning preserves non-managed catalog attachments while refreshing
+the repo-owned instructions, selected model, and managed KB tool. The manifest
+is the reviewed contract; the portal attachment is environment state that must
+match it.
 
 ### Side-effect catalog tools require HITL
 
-Any catalog tool that **writes, sends, or deletes** in an external system must be gated by Human-in-the-Loop. The accelerator's `src/accelerator_baseline/hitl.py` only wraps in-process tools (`src/tools/<tool>.py`); catalog tools call out from inside Foundry and bypass that wrapper. To gate them, you have two options:
+Do not attach a catalog tool that writes, sends, or deletes. It would bypass
+the accelerator's mandatory `hitl.checkpoint(...)` boundary. Implement the
+action as an in-process tool via `/add-tool`, then leave the side-effect catalog
+tool unattached.
 
-1. **(Recommended) Re-implement as an in-process tool.** Run `/add-tool` to create `src/tools/<tool_name>.py`; the scaffolder wraps it with `hitl.checkpoint(...)` and emits the right telemetry. Then **do not** attach the matching catalog tool in the portal — your Python wrapper supersedes it.
-2. **Keep it as a catalog tool, with portal-side approvals.** Configure the action's "Requires approval" workflow inside the Foundry portal. Document the approver in your runbook. The accelerator will still capture the call in the agent's run trace (visible in the Foundry portal trace UI).
-
-The lint rule `catalog-tool-hitl` warns when a catalog tool with a side-effect-shaped name (`*_create_*`, `*_send_*`, `*_delete_*`, `*_update_*`, `*_post_*`) is attached without a matching `src/tools/<tool>.py` HITL wrapper, so the partner can't accidentally ship an unapproved write path.
+The `catalog-tool-hitl` rule flags side-effect-shaped declarations. Treat any
+such finding as blocking even if the current lint severity is a warning.
 
 ## Step 4 — Validate
 
 ```bash
-python scripts/accelerator-lint.py     # 0 blocking, 0 warning expected
-python -c "from src.main import app; print('OK')"
+accel review
+accel validate --full --execute
 ```
 
 If lint fails on `scenario-manifest`, your `retrieval.mode` or schema ref is wrong. If it fails on `retrieval-source-data-fields`, a `source_data_fields` entry doesn't exist in the index schema. If the lint warns on `catalog-tool-hitl`, follow the side-effect guidance above.
 
-## What happens on the next `azd deploy`
+## What happens on the next deployment
 
-`src/bootstrap.py` reads `accelerator.yaml`, then for every `foundry_tool` agent:
+Shared provisioning reads `accelerator.yaml`, then for every
+`foundry_tool` agent:
 1. Provisions a Knowledge Source (AI Search index ↔ FoundryIQ wrapper) if absent.
 2. Provisions a Knowledge Base bound to that source if absent.
 3. Attaches an MCP tool to the agent pointing at the Knowledge Base.
 4. Refreshes instructions + model from `docs/agent-specs/<foundry_name>.md`.
-5. **Preserves** any catalog tools the partner attached in the portal (Phase 2b merge).
+5. Preserves non-managed read-only catalog tools attached for the environment.
 
 ## Guardrails
 - Never edit `retrieval.mode` to a value other than `foundry_tool` or `none`.
 - Never attach a Knowledge Base by clicking in the portal — declare it here so the spec is reproducible.
-- Never attach a side-effect catalog tool without a HITL story (see Step 3 callout).
+- Never attach a side-effect catalog tool; implement it through `/add-tool`.
 - AI Search is **always** wired underneath FoundryIQ; no agent should be configured to query AI Search directly.

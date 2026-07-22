@@ -1,0 +1,38 @@
+{
+  "skill_name": "accelerator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We just cloned this accelerator for Contoso. What should I do next?",
+      "expected_output": "Runs or recommends the accelerator next/status command, reports the detected stage, and does not guess from chat history.",
+      "files": [],
+      "expectations": [
+        "Runs or recommends `accel next` or the module equivalent before prescribing a stage.",
+        "Uses persistent repository state rather than conversation history.",
+        "Does not apply repository or cloud changes without preview and approval."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I have a PRD, a security PDF, and a CSV of workshop answers. Use them to start discovery.",
+      "expected_output": "Uses multi-document intake, keeps sources local-only, reviews metadata, and requests explicit disclosure before model-assisted extraction.",
+      "files": [],
+      "expectations": [
+        "Uses one multi-document intake operation.",
+        "Keeps new sources local-only by default.",
+        "Requires explicit disclosure before model-assisted source-text use."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Deploy the dev environment to eastus2.",
+      "expected_output": "Previews the deployment and runs preflight before requesting separate approval to execute azd deployment.",
+      "files": [],
+      "expectations": [
+        "Previews the deployment before execution.",
+        "Runs deployment preflight before azd deployment.",
+        "Requests separate approval before external Azure execution."
+      ]
+    }
+  ]
+}

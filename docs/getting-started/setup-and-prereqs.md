@@ -2,7 +2,9 @@
 
 > **Walkthrough version:** [*Get ready → 2. Set up your machine*](../start/ready/02-set-up-your-machine.md) covers the same setup with the linear-flow framing. This page remains the **authoritative deep reference** for prereqs, secrets, and troubleshooting — bookmark it.
 
-**One-time** workstation + subscription readiness.Run this once per partner machine and once per Azure subscription you'll deploy into; you do not re-read this every customer engagement. This is the authoritative reference for **setup, prereqs, secrets, and troubleshooting** — when this page and a custom agent disagree on setup mechanics, this page wins.
+**One-time** workstation + subscription readiness. Run this once per partner
+machine and once per Azure subscription. Executable CLI help and environment
+manifests win on command/target details; this page is the deep explanation.
 
 ## Where you'll work
 
@@ -10,17 +12,16 @@ This document is the authoritative reference for prereqs, secrets, and troublesh
 
 | Where | What you do here |
 |---|---|
-| **VS Code** | Run installs and verify versions in the integrated terminal (`` Ctrl+` ``); run `azd up` and the eval chain there too; edit `.env` for local dev; edit `accelerator.yaml` and `infra/main.parameters.json` to override defaults |
+| **Terminal / coding-agent CLI** | Run `accel next`, inspect previews, and execute approved operations. Use VS Code, Copilot CLI, Codex, or Claude Code for authoring and diff review. |
 | **GitHub web (github.com)** | Repo → Settings → Environments → wire `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` and `AZURE_LOCATION` per environment; Settings → Secrets and variables → Actions for repo-level vars |
-| **Azure portal (portal.azure.com)** | Confirm Foundry quota in your target region (Foundry → Quotas) before `azd up`; inspect the deployed resource group and resources after |
+| **Azure portal (portal.azure.com)** | Confirm Foundry quota in the target region before deployment; inspect the resulting resources |
 
 ## What you ship
 
 A partner clone of this template deploys a working agentic AI solution into the
-customer's Azure in ~15 minutes via `azd up`. The flagship scenario (Sales
+customer's Azure through target-aware `accel deploy`. The flagship scenario (Sales
 Research & Personalized Outreach) is runnable out of the box; swap it for your
-own scenario by editing `accelerator.yaml -> scenario:` and scaffolding under
-`src/scenarios/<id>/` with `python scripts/scaffold-scenario.py <id>`.
+own scenario with `accel design` and `accel scaffold --scenario-id <id>`.
 
 ## Prerequisites
 
@@ -28,32 +29,52 @@ You will need:
 
 | Tool | Why |
 |------|-----|
-| Azure subscription (Contributor) | `azd up` creates resources here |
+| Azure subscription (Contributor) | The approved deployment creates resources here |
 | Azure CLI `>= 2.55` | fallback for targeted `az` calls |
 | Azure Developer CLI (`azd`) `>= 1.10` | one-shot provision + deploy |
 | GitHub CLI (`gh`) `>= 2.50` | repo bootstrap + secrets |
 | Git | template clone + branch work |
+| Python 3.11+ | Required for the preferred `accel` lifecycle, local tests, and authoring tools |
 | PowerShell 7 *(Windows only)* | required because some `azd` lifecycle hooks (e.g. `postdeploy`) run with `pwsh` |
 | Docker or Podman *(optional)* | only needed for local container builds; `azd up` uses ACR remote build by default |
 
-> **No Python required to deploy.** Earlier versions of this accelerator required a repo-local Python hook venv (`scripts/setup-hooks`) before `azd up`. That hook surface is gone. `azd up` now goes from a fresh clone straight to a working deployment with no Python on the partner's machine — provisioning is pure Bicep, and post-provision tasks (Foundry agent creation, AI Search index seeding) run inside the Container App at FastAPI startup. Python 3.11+ is still required if you want to **work in the repo locally** — running `pytest`, `scripts/accelerator-lint.py`, scenario scaffolding, or `uvicorn src.main:app` for local dev. See "Repo development (optional)" below.
+> **Direct self-host `azd up` does not require the lifecycle CLI.** The preferred guided
+> experience does require Python because `accel` owns lifecycle state,
+> previews, evidence intake, evaluation, UAT, and handover. Direct `azd`
+> remains a recovery/minimal deployment path.
 
 Model quota: the accelerator deploys a `GlobalStandard` Azure OpenAI model
 (default `gpt-5-mini`, 30k TPM — overrideable through the `accelerator.yaml`
 `models:` block; see [Customizing models per agent](#customizing-models-per-agent)
-below). Confirm quota in your target region before running `azd up`.
+below). Confirm quota in your target region before deployment.
 
-### Repo development (optional)
-
-Skip this section unless you plan to run scripts, tests, or the FastAPI app from your machine.
+### Install the guided CLI and development tools
 
 - **Any CPython 3.11+** that resolves on `PATH` as `python` (Windows) or `python3` (macOS/Linux). python.org installers, winget, your distro's package manager, scoop, and **activated Conda environments** all work. Tested on **3.11–3.13**.
 - The Microsoft Store Python alias (`%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe`) is **not** a real interpreter — install one of the above instead, or activate a Conda env.
 - Install the dev extras: `pip install -e ".[dev]"` from the repo root.
+- Confirm the entry point: `accel --help`, then run `accel next`.
+- Optional integrations:
+  - `pip install -e ".[evals]"` for Foundry-native relevance/groundedness.
+  - `pip install -e ".[mcp]"` for the `accel-mcp` stdio server.
+
+Reference workbench checks:
+
+```powershell
+Set-Location patterns\sales-research-frontend
+npm install
+npm test
+npm run typecheck
+npm run build
+npm audit
+```
 
 ## Required GitHub secrets and variables
 
-> **Lab vs. production motion.** Everything from this section through "Private network access" is for the **production / customer motion** in `QUICKSTART.md` — OIDC for CI deploys, multi-environment manifests, HITL approver webhooks, and private networking. The **sandbox lab** (`docs/enablement/hands-on-lab.md`) does not need any of it: it runs `azd up` locally against a sandbox subscription (covered by `azd auth login`) and runs evals locally against the deployed API URL. Skip ahead to "Sandbox smoke-test" below if you're rehearsing in a sandbox.
+> **Lab vs. production motion.** Everything from this section through "Private
+> network access" is for the production/customer motion. The sandbox lab uses
+> the declared `dev` environment through `accel deploy` with local `azd`
+> authentication and runs evals against that endpoint.
 
 Every secret / variable referenced in `.github/workflows/*.yml` is listed
 below. The accelerator lint (`scripts/accelerator-lint.py` →
@@ -83,6 +104,7 @@ to deploy to:
 | Name | Purpose | Example |
 |------|---------|---------|
 | `AZURE_LOCATION` | Azure region for this environment | `eastus2` |
+| `AZURE_PRINCIPAL_ID` | Entra object id of the GitHub OIDC service principal; required by the hosted-preview workspace to create Foundry/Search role assignments | `az ad sp show --id <AZURE_CLIENT_ID> --query id -o tsv` |
 
 Do **not** set `AZURE_ENV_NAME` anywhere. The azd environment name is derived from
 `deploy/environments.yaml` (the `name:` field of the resolved entry). Setting it as
@@ -95,8 +117,8 @@ lint rule rejects that shape.
 |------|---------|---------|
 | `EVALS_API_URL` | API base URL used by the PR-triggered `evals` workflow (`.github/workflows/evals.yml`). Only required if you run evals standalone against an already-deployed environment. | `https://<ca-name>.<region>.azurecontainerapps.io` |
 
-The `deploy.yml` workflow does NOT need `EVALS_API_URL` — it runs `azd up` first
-and passes the API URL to the downstream evals job via a job output
+The `deploy.yml` workflow does NOT need `EVALS_API_URL` — it deploys the
+resolved target first and passes the API URL via a job output
 (`needs.azd-up.outputs.api_url`). Only configure `EVALS_API_URL` if you want
 PR-time evals to run against an existing deployment rather than waiting for a
 full deploy chain.
@@ -107,11 +129,13 @@ full deploy chain.
 |------|---------|
 | `AZURE_AI_FOUNDRY_ENDPOINT` | Foundry project endpoint (Bicep output) |
 | `AZURE_AI_FOUNDRY_ACCOUNT_NAME` | Parent Cognitive Services account name (Bicep output) |
-| `AZURE_AI_FOUNDRY_MODEL` | Model deployment name emitted by Bicep (`infra/modules/foundry.bicep` is the source of truth — agents never declare their own model) |
+| `AZURE_AI_FOUNDRY_MODEL` | Default model deployment emitted by Bicep; per-agent overrides come from `accelerator.yaml` model slugs |
 | `AZURE_SUBSCRIPTION_ID` | Subscription for management-plane pre-flight checks |
 | `AZURE_RESOURCE_GROUP` | RG holding the Foundry account |
 | `HITL_APPROVER_ENDPOINT` | Webhook URL for side-effect approvals (prod) |
 | `HITL_DEV_MODE` | Set to `1` to auto-approve in dev — never in prod |
+| `AZURE_AI_FOUNDRY_OPENAI_ENDPOINT` | Model endpoint used by optional Foundry evaluators |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Model deployment fallback for optional Foundry evaluators |
 
 ## Sandbox smoke-test (no customer involvement)
 
@@ -128,12 +152,14 @@ code .
 az login --tenant <your-sandbox-tenant-id>
 azd auth login
 
-# 3. Provision + deploy
-azd env new sandbox-dev
-azd up           # ~10-15 min: Foundry + Search + KV + ACA + App Insights
+# 3. Register/select a declared environment, preview, and deploy
+accel environment list
+accel deploy --env dev --region <region> --dry-run
+accel deploy --env dev --region <region> --execute
+accel deploy --env dev --region <region> --execute --apply
 ```
 
-`azd up` returns the API URL. Hit `/healthz` to confirm the scenario loaded;
+The deployment returns the API URL. Hit `/healthz` to confirm the scenario loaded;
 hit the scenario's endpoint (default `/research/stream`) with a sample payload
 to run the flagship end-to-end.
 
@@ -160,54 +186,50 @@ Two modes:
 | Where you're running | Where to set `HITL_*` |
 |---|---|
 | Local dev (running `uvicorn` or `python -m src.main` against your sandbox) | `.env` file in the repo root (loaded by `load_settings()`). `HITL_DEV_MODE=1` lives here only. |
-| Sandbox `azd up` (manual deploy from your machine) | `azd env set HITL_APPROVER_ENDPOINT "<url>"` so it's persisted in `.azure/<env-name>/.env` and injected into the Container App. Never `azd env set HITL_DEV_MODE 1` for a deployed environment. |
+| Sandbox self-host deploy from your machine | Set `HITL_APPROVER_ENDPOINT` in the selected azd environment so it is injected into the Container App. Never persist `HITL_DEV_MODE=1` in a deployed environment. |
 | CI deploys (`deploy.yml` against a GitHub Environment) | github.com → repo → Settings → Environments → `<env>` → Environment secrets. Add `HITL_APPROVER_ENDPOINT` there; the workflow forwards it into `azd env set` before `azd up`. |
 
 Failures to reach the approver are treated as rejections (fail-closed).
 
 ## Scenario customization
 
-1. Read `docs/discovery/SOLUTION-BRIEF-GUIDE.md` and fill
-   `docs/discovery/solution-brief.md` — or run `/discover-scenario` in Copilot
-   Chat to generate it from a workshop.
-2. Run `python scripts/scaffold-scenario.py <id>` to materialize a new
-   scenario skeleton under `src/scenarios/<id>/` plus an agent-spec stub.
-3. Paste the printed `scenario:` YAML block over the block in
-   `accelerator.yaml`. The accelerator lint (`scenario_manifest_valid`)
-   verifies every declared import resolves and every required key is present.
-4. Customize the prompts, transforms, validators, retrieval schema, seed
-   data, and eval golden cases to the brief.
-5. `python scripts/accelerator-lint.py` locally before PR; CI re-runs it.
+1. Run `accel next`; register source documents with `accel intake`.
+2. Use `/discover-scenario` for the workshop interview and approved brief.
+3. Run `accel design`, preview `accel scaffold`, then apply it. The CLI updates
+   the `scenario:` manifest block transactionally—no YAML copying.
+4. Use specialist agents for grounding, workers, tools, prompts, and evals.
+5. Run `accel review` and `accel validate --full --execute` before PR.
 
 ## Customizing models per agent
 
-The accelerator deploys a single `gpt-5-mini` model by default. To assign different models to different agents (e.g. supervisor on `gpt-5`, workers on `gpt-5-mini`), declare a `models:` block in `accelerator.yaml` and set `scenario.agents[].model: <slug>` per agent. Bicep provisions each deployment under the shared content-filter policy on the next `azd up`; FastAPI startup re-points each Foundry agent. Two lint rules (`models_block_shape`, `agent_model_refs_exist`) keep the block well-formed.
+The accelerator deploys a single `gpt-5-mini` model by default. To assign
+different models per agent, edit `accelerator.yaml.models[]` and
+`scenario.agents[].model`. The next target-aware deployment provisions models
+under the shared content-filter policy and shared provisioning updates agents.
 
 Full mechanics, YAML example, and lint behavior live in [`docs/patterns/architecture/README.md` → Customizing models per agent](../patterns/architecture/README.md#customizing-models-per-agent).
 
 ## CI chain
 
-`.github/workflows/deploy.yml` runs three jobs, chained so the first deploy
-of a freshly cloned repo is green without any manual URL plumbing:
+`.github/workflows/deploy.yml` resolves the selected entry from
+`deploy/environments.yaml`, gates both deployment targets on policy lint, and:
 
-1. `accelerator-lint` — ruff, pyright, `scripts/accelerator-lint.py`
-2. `azd-up` (`needs: [accelerator-lint]`) — runs `azd up` and publishes
-   `api_url` as a job output
-3. `evals` (`needs: [azd-up]`) — pulls `needs.azd-up.outputs.api_url`,
-   runs quality + red-team evals, enforces `accelerator.yaml::acceptance`
+- runs `azd up` plus acceptance for `selfhost`;
+- runs nested `azd provision` + `azd deploy` plus a fresh-session protocol
+  smoke for `hosted-preview`.
 
 This chain is enforced by `deploy_gated_on_lint_and_evals` in the
 accelerator lint.
 
 The separate `.github/workflows/evals.yml` runs on every PR against the
 already-deployed `EVALS_API_URL` (if configured). Use this for fast feedback
-between full `azd up` cycles.
+between full deployment cycles.
 
 ## Private network access
 
 For regulated customers, set the Bicep param `enablePrivateLink=true` to disable public access on Foundry and AI Search. Provisioning the actual VNet, private endpoints, and private-DNS zones is **bring-your-own** at Tier 1 (standalone) — see the full procedure and the path to Tier 2 (AVM with PEs provisioned for you) in [`docs/patterns/azure-ai-landing-zone/README.md` → Tier 1 / Going private without leaving Tier 1](../patterns/azure-ai-landing-zone/README.md#tier-1--standalone-default).
 
-## What `azd up` provisions
+## What the self-host target provisions
 
 - Cognitive Services account (`kind=AIServices`, GA)
 - Default content filter (`accelerator-default-policy`) blocking Medium+ on Hate/Sexual/Violence/Selfharm
@@ -222,11 +244,11 @@ For regulated customers, set the Bicep param `enablePrivateLink=true` to disable
    startup bootstrap (`src/bootstrap.py`) verifies the deployment exists
    before agents are created. If you changed the `models:` block in
    `accelerator.yaml` or the region lacks quota, edit the manifest and
-   re-run `azd up` after fixing it or requesting a quota increase for
+   re-run the approved `accel deploy` flow after fixing it or requesting quota for
    `GlobalStandard <model>`.
 2. **`preflight: has no RAI (content filter) policy bound`** — Bicep attaches
    the default policy; if it drifted (portal edit, partial deploy), re-run
-   `azd up` so the ARM deployment reapplies. The lint rule
+   the deployment so ARM reapplies it. The lint rule
    `content_filter_attached` catches this at template-edit time.
 3. **`scenario_manifest_valid: module:attr does not resolve`** — the
    `scenario:` block in `accelerator.yaml` points at an import path the lint
@@ -237,7 +259,7 @@ For regulated customers, set the Bicep param `enablePrivateLink=true` to disable
 4. **`secrets-doc` lint failure** — a workflow added a `secrets.NEW_NAME` or
    `vars.NEW_NAME` reference, but no entry was added to the tables above.
    Add it before merging.
-5. **`azd up` completes but `/healthz` returns 503 / startup probe fails** —
+5. **Deployment completes but `/healthz` returns 503 / startup probe fails** —
    the FastAPI startup bootstrap (`src/bootstrap.py`) is failing inside the
    Container App. The most common cause is RBAC propagation lag: the user-
    assigned MI's role assignments (`Cognitive Services OpenAI User` +
@@ -246,8 +268,8 @@ For regulated customers, set the Bicep param `enablePrivateLink=true` to disable
    budget is 10 minutes (60 retries × 10s) which absorbs this in normal
    conditions; if the probe still fails, inspect Container App logs in App
    Insights (`traces | where operation_Name == "lifespan.startup"`) and
-   confirm the role assignments are present. `azd deploy` (not full `azd up`)
-   triggers a revision restart that re-runs bootstrap.
+   confirm the role assignments are present. Reapply the target-aware deploy
+   after remediation.
 
 
 ---

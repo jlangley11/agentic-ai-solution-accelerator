@@ -140,16 +140,16 @@ MERMAID_TO_SVG: dict[str, tuple[str, str]] = {
     ),
     "start/deliver/03-scaffold-from-the-brief.md": (
         "assets/diagrams/brief-to-artifacts.svg",
-        "solution-brief.md fans out into prompts, retrieval, infra, "
-        "accelerator.yaml, eval cases, telemetry events, and the acceptance "
-        "gate. Re-running /scaffold-from-brief reapplies the fan-out.",
+        "Approved solution intent is reconciled into accelerator.yaml, then "
+        "accel scaffold previews and applies agent, grounding, infrastructure, "
+        "evaluation, telemetry, and acceptance artifacts.",
     ),
     "start/deliver/04-provision-the-customers-azure.md": (
         "assets/diagrams/oidc-topology.svg",
         "OIDC trust path: GitHub Environment + federated credential exchange "
         "tokens with the customer's Entra app registration; the service "
-        "principal has scoped RBAC on the resource group; deploy.yml runs "
-        "azd up against it. No secrets cross tenants.",
+        "principal has scoped RBAC on the resource group; deploy.yml runs the "
+        "resolved azd target against it. No secrets cross tenants.",
     ),
 }
 

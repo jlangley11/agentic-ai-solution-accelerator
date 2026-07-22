@@ -113,6 +113,31 @@ def _normalize_expected(expected: dict) -> dict:
     return exp
 
 
+def _citation_context(value: object) -> str:
+    """Collect citation quotes/snippets for optional Foundry evaluators."""
+    snippets: list[str] = []
+
+    def walk(current: object) -> None:
+        if isinstance(current, dict):
+            citations = current.get("citations")
+            if isinstance(citations, list):
+                for citation in citations:
+                    if not isinstance(citation, dict):
+                        continue
+                    for key in ("quote", "snippet", "content", "title", "url"):
+                        item = citation.get(key)
+                        if isinstance(item, str) and item.strip():
+                            snippets.append(item.strip())
+            for item in current.values():
+                walk(item)
+        elif isinstance(current, list):
+            for item in current:
+                walk(item)
+
+    walk(value)
+    return "\n".join(dict.fromkeys(snippets))
+
+
 def _estimate_cost_usd(
     briefing: dict,
     *,
@@ -152,6 +177,7 @@ async def run_case(
     model: str,
     cost_override: float | None,
     cost_per_second: float,
+    include_evaluator_inputs: bool = False,
 ) -> dict:
     started = time.time()
     payload = {k: v for k, v in case.items() if k not in RESERVED_CASE_KEYS}
@@ -214,13 +240,22 @@ async def run_case(
     )
     passed = score >= 0.6 and (groundedness >= 0.8 or not expected.get("must_cite"))
 
-    return {
+    result = {
         "case_id": case["case_id"], "suite": "quality",
         "passed": passed, "score": round(max(score, 0.0), 3),
         "groundedness": groundedness, "latency_ms": latency_ms,
         "cost_usd": cost_usd,
         "reason": "; ".join(reasons) or None,
     }
+    if include_evaluator_inputs:
+        result.update(
+            {
+                "query": json.dumps(payload, sort_keys=True),
+                "response": blob_raw,
+                "context": _citation_context(final_briefing),
+            }
+        )
+    return result
 
 
 async def main() -> int:
@@ -244,6 +279,12 @@ async def main() -> int:
         "--limit", type=int, default=None,
         help="Run only the first N cases (smoke testing / debugging). "
              "Default: run all cases.",
+    )
+    p.add_argument(
+        "--include-evaluator-inputs",
+        action="store_true",
+        help="Include query/response/context in local results for the optional "
+             "Foundry evaluator adapter. These fields can contain customer data.",
     )
     p.add_argument(
         "--smoke", action="store_true",
@@ -275,6 +316,7 @@ async def main() -> int:
                 model=args.model,
                 cost_override=args.cost_override,
                 cost_per_second=args.cost_per_second,
+                include_evaluator_inputs=args.include_evaluator_inputs,
             )
             results.append(r)
             if not args.smoke:

@@ -3,21 +3,30 @@
 *Step 7 of 10 · Deliver to a customer*
 
 !!! info "Step at a glance"
-    **🎯 Goal** — Stand up the customer's Foundry + supporting infra in their tenant via `azd up`, against a GitHub Environment that holds the customer's OIDC credentials.
+    **🎯 Goal** — Stand up the declared self-hosted or Hosted preview target
+    through `accel deploy`, against a GitHub Environment that holds the
+    customer's OIDC credentials.
 
     **📋 Prerequisite** — [6. Scaffold from the brief](03-scaffold-from-the-brief.md) complete — lint green; brief committed.
 
-    **💻 Where you'll work** — VS Code (Copilot Chat + integrated terminal); GitHub web (Settings → Environments — `/deploy-to-env` walks you there); Azure portal (resource group inspection after).
+    **💻 Where you'll work** — local terminal for `accel environment/deploy`;
+    specialist agents and GitHub web for landing-zone, OIDC, and Environment
+    registration; Azure portal for post-deploy inspection.
 
-    **✅ Done when** — Resource group exists in customer tenant; `/healthz` returns 200; Foundry agents are reachable; App Insights is wired; HITL approver endpoint is configured for the environment.
+    **✅ Done when** — Resources exist; the self-host `/healthz` + scenario
+    smoke or Hosted fresh-session Responses smoke passes; Foundry and monitoring
+    are reachable; required HITL wiring is configured.
 
 !!! tip "Custom agents used here"
     [`/configure-landing-zone`](../../../.github/agents/configure-landing-zone.agent.md) · [`/deploy-to-env`](../../../.github/agents/deploy-to-env.agent.md)
 
     Full reference: [Custom agents overview](../../agents-index.md).
 
+    After those customer-specific decisions, `accel environment list` and
+    `accel deploy` are the authoritative preflight/execution path.
+
 ??? success "What success looks like"
-    `azd up` ends with a summary like:
+    A self-host deployment ends with a summary like:
 
     ```
     SUCCESS: Your application was provisioned and deployed to Azure in 12m 4s.
@@ -29,23 +38,26 @@
     `curl <api-url>/healthz` returns:
 
     ```json
-    {"status": "ok", "bootstrap": "complete"}
+    {"status": "ok", "scenario": "<scenario-id>"}
     ```
 
     The customer's resource group lists at least: AIServices account · model deployment · Foundry project · Container App · App Insights · Log Analytics · AI Search · Key Vault · User-Assigned MI.
 
-!!! tip "30-second smoke test before you move on"
-    `/healthz` proves the container is alive — it does **not** prove the agent answers a customer question correctly. Before moving to step 8 (where you'll author the full eval set), run a 30-second smoke check against the deployed API:
+!!! tip "Smoke test before you move on"
+    For self-host, `/healthz` proves only that the container is alive. Run:
 
     ```bash
     python evals/quality/run.py --api-url <api-url> --smoke
     ```
 
-    This runs 2 representative cases from `evals/quality/golden_cases.jsonl`, prints a `✅ READY` / `❌ NEEDS ATTENTION` verdict, and points at the most common deployment-time issues if anything fails (RBAC propagation lag, AI Search index not seeded, Foundry agent not bootstrapped). If green, you have real confidence the deployment is sound; if red, you have a small set of failing cases to triage before authoring the full suite.
+    This runs representative SSE cases. Hosted preview instead uses the
+    fresh-session Responses protocol smoke built into its deployment path; full
+    hosted acceptance adaptation remains deferred.
 
 ---
 
-This step is two preflight custom agents plus one `azd up`. The custom agents do the GitHub plumbing (manifest entry, GitHub Environment, OIDC federated credential) so CI can deploy without a service-principal secret.
+This step combines specialist setup for landing zone/OIDC with a deterministic
+deployment preview and explicit Azure execution approval.
 
 ## Preflight: pick a landing-zone tier
 
@@ -65,8 +77,8 @@ For regulated customers: set `controls.private_endpoints = required` (implies Ti
 
 → Detail: [Reference → Architecture & governance → Azure AI landing zone](../../patterns/azure-ai-landing-zone/README.md).
 
-!!! tip "Walk the security review checklist with the customer's CCoE before `azd up`"
-    [Reference → Security review checklist](../../references/security-review-checklist.md) is a 6-section walkthrough designed for the customer's security reviewer. Most items are pre-satisfied by the accelerator (each row links to where the control is enforced); the ones that aren't — rotation cadence, allowed locations, breakglass — are decisions you record in the handover packet. Doing this *before* `azd up` avoids re-cutting the deploy after a late-arriving policy ask.
+!!! tip "Walk the security review checklist with the customer's CCoE before deployment"
+    [Reference → Security review checklist](../../references/security-review-checklist.md) is a 6-section walkthrough designed for the customer's security reviewer. Most items are pre-satisfied by the accelerator; the remaining rotation, location, and break-glass decisions belong in the handover packet. Complete it before deployment to avoid re-cutting the environment.
 
     For Tier 3 (`alz-integrated`) specifically, also run `python scripts/validate-alz.py` after filling `infra/alz-overlay/main.parameters.json` — it catches unfilled placeholders and unreachable hub resource IDs before they fail mid-deploy.
 
@@ -95,7 +107,7 @@ flowchart LR
       direction TB
       ENV["GitHub Environment<br/>(per customer · gates approvals)"]:::gh
       FC["Federated credential<br/>(subject = env + branch)"]:::cred
-      JOB["deploy.yml job · azd up"]:::job
+      JOB["deploy.yml job<br/>resolved azd target"]:::job
       ENV --> FC --> JOB
     end
     subgraph AZ["<b>Customer Azure tenant</b>"]
@@ -118,23 +130,27 @@ At handover, the federated credential is re-pointed to the customer's own repo �
 # <customer-short-name> with the customer's short name (e.g., contoso)
 az login --tenant <customer-tenant-id>
 azd auth login
-azd env new <customer-short-name>-dev
+accel environment list
 ```
 
-!!! tip "Run the deploy preflight before `azd up`"
-    `azd up` takes 10–15 minutes; if it fails 8 minutes in on a missing resource provider or a model not offered in your region, you've burned the time twice. The preflight runs `az`-based checks against your current login and surfaces the documented failure modes (RPs, region validity, Foundry availability, default-model availability, quota probe) up front:
+Preview, preflight, then execute:
 
-    ```bash
-    python scripts/preflight-deploy.py --region <region> [--tenant <guid>] [--subscription <guid>]
-    ```
-
-    All ✅ → run `azd up`. Any ❌ → the script prints the remediation command. Warnings (⚠️) are best-effort — review and proceed if you know better.
-
-```bash
-azd up
+```powershell
+accel deploy --env <environment-name> --region <region> --dry-run
+accel deploy --env <environment-name> --region <region> --execute
+accel deploy --env <environment-name> --region <region> --execute --apply
 ```
 
-`azd up` provisions, in ~10–15 minutes:
+The first command is read-only. The second runs Azure preflight checks. The
+third executes only after a separate approval. `deployment_target` always comes
+from `deploy/environments.yaml`; a conflicting CLI override is rejected.
+
+For `selfhost`, apply runs `azd up` in the repository root. For
+`hosted-preview`, it runs `azd provision` followed by `azd deploy` in the
+nested workspace. Direct `azd` commands remain the documented recovery path,
+not the preferred guided path.
+
+The self-host `azd up` path provisions, in ~10–15 minutes:
 
 - Cognitive Services account (`kind=AIServices`, GA)
 - Default content filter (`accelerator-default-policy`) blocking Medium+ on Hate/Sexual/Violence/Selfharm
@@ -145,14 +161,15 @@ azd up
 
 The deployed API URL prints at the end — keep it; the next step uses it.
 
-## Confirm the deploy is healthy
+## Confirm a self-host deploy is healthy
 
 ```bash
-# Replace <api-url> with the URL azd up printed
+# Replace <api-url> with the URL the deployment printed
 curl <api-url>/healthz
 ```
 
-200 = bootstrap succeeded (Foundry agents synced from `docs/agent-specs/`, AI Search index seeded, content filter attached, MI roles propagated).
+200 = the scenario process is healthy. Confirm the real agent path with the
+smoke evaluation; health alone does not prove grounding or agent provisioning.
 
 If `/healthz` returns 503, the FastAPI startup bootstrap is failing — most often RBAC propagation lag (1–3 minutes). Watch in App Insights:
 
@@ -160,9 +177,11 @@ If `/healthz` returns 503, the FastAPI startup bootstrap is failing — most oft
 traces | where operation_Name == "lifespan.startup"
 ```
 
-## Troubleshooting `azd up` and first boot
+## Troubleshooting deployment and first boot
 
-Customer deploys hit a small set of repeatable failure modes. Try these in order before re-running `azd up`. For other symptoms not listed here see the [troubleshooting cookbook](../../references/troubleshooting.md).
+Customer deploys hit a small set of repeatable failure modes. Try these in
+order before re-running the approved `accel deploy` flow. For other symptoms
+see the [troubleshooting cookbook](../../references/troubleshooting.md).
 
 ??? failure "RBAC role hasn't propagated yet (most common)"
     **Symptom.** `/healthz` returns 503; App Insights `traces` show `Forbidden` from Cognitive Services or AI Search during `lifespan.startup`.
@@ -180,14 +199,18 @@ Customer deploys hit a small set of repeatable failure modes. Try these in order
 
     **Cause.** The default model (`gpt-5-mini` GlobalStandard, 30 TPM) competes with other deployments in the region.
 
-    **Fix.** Either request quota in Azure portal → Quotas → Cognitive Services, or pick a region with headroom in `infra/main.parameters.json -> location`, or downsize TPM in `accelerator.yaml -> models[].capacity` and re-run `azd up`.
+    **Fix.** Request quota, choose a region with headroom, or reduce
+    `accelerator.yaml.models[].capacity`, then re-run the approved deploy flow.
 
 ??? failure "Foundry project failed to create"
     **Symptom.** `azd up` fails on `Microsoft.CognitiveServices/accounts/projects` resource.
 
-    **Cause.** Either the AIServices account isn't fully provisioned yet, or the subscription isn't enrolled for AI Foundry projects in the selected region.
+    **Cause.** Either the AIServices account is not fully provisioned, or the
+    subscription/region is not enabled for Microsoft Foundry projects.
 
-    **Fix.** Re-run `azd up` (idempotent — picks up where it left off). If it fails twice in the same place, check `https://ai.azure.com` lists the AIServices account and offers to create a project there manually.
+    **Fix.** Re-run the approved deploy flow (idempotent). If it fails twice,
+    confirm the AIServices account/project state in Foundry and inspect the
+    deployment diagnostics; do not create an unmanaged parallel project.
 
 ??? failure "AI Search index never seeded"
     **Symptom.** `/healthz` returns 200, but agent calls fail with `ResourceNotFound` for the search index, or eval cases get `0` retrieval hits.

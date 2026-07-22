@@ -1,10 +1,10 @@
 """Index definitions for the Sales Research & Outreach scenario.
 
 The ``schema`` callable is referenced from ``accelerator.yaml`` and is the
-single source of truth for the AI Search index shape. ``src/bootstrap.py``
-(running inside the Container App at FastAPI startup) calls it to
-create/update the index; at runtime the app doesn't need the schema — it
-only needs the index *name* to query.
+single source of truth for the AI Search index shape. ``src/provisioning.py``
+calls it before serving (through the self-host startup shim or provisioning
+CLI) to create/update the index; at runtime the app only needs the index
+*name* to query.
 
 Index shape (vector + semantic + AAD vectorizer):
     - ``id`` (key)
@@ -39,7 +39,6 @@ from azure.search.documents.indexes.models import (
     HnswAlgorithmConfiguration,
     SearchableField,
     SearchField,
-    SearchFieldDataType,
     SearchIndex,
     SemanticConfiguration,
     SemanticField,
@@ -80,33 +79,33 @@ def index_definition(name: str) -> SearchIndex:
     return SearchIndex(
         name=name,
         fields=[
-            SimpleField(name="id", type=SearchFieldDataType.String, key=True),
-            SearchableField(name="content", type=SearchFieldDataType.String),
+            SimpleField(name="id", type="Edm.String", key=True),
+            SearchableField(name="content", type="Edm.String"),
             SearchField(
                 name="contentVector",
-                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                type="Collection(Edm.Single)",
                 searchable=True,
                 vector_search_dimensions=EMBEDDING_DIMENSIONS,
                 vector_search_profile_name=PROFILE_NAME,
             ),
             SimpleField(
-                name="source", type=SearchFieldDataType.String, filterable=True
+                name="source", type="Edm.String", filterable=True
             ),
             SearchableField(
                 name="company_name",
-                type=SearchFieldDataType.String,
+                type="Edm.String",
                 filterable=True,
                 facetable=True,
             ),
             SearchableField(
                 name="industry",
-                type=SearchFieldDataType.String,
+                type="Edm.String",
                 filterable=True,
                 facetable=True,
             ),
             SimpleField(
                 name="last_refreshed",
-                type=SearchFieldDataType.DateTimeOffset,
+                type="Edm.DateTimeOffset",
                 filterable=True,
                 sortable=True,
             ),

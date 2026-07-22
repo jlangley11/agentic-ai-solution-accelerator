@@ -5,12 +5,11 @@ import { labelForAgent, statusForAgent } from "../data/agentStatus";
 interface Props {
   events: StreamEvent[];
   busy: boolean;
-  // Per-agent live thinking buffer (chunks accumulated since the agent
-  // started but before it emitted ``partial``). We don't render the raw
-  // text — it's JSON fragments — but the accumulated length drives a
+  // Per-agent progress counters accumulated from chunk lengths. Raw model
+  // text is never retained or rendered; the character count drives a
   // rotating, human-readable status copy per agent so the user knows
   // the model is making progress during 30-60s gpt-5-mini calls.
-  liveThoughts?: [agent: string, text: string][];
+  liveProgress?: [agent: string, characters: number][];
 }
 
 function describe(event: StreamEvent): { label: string; tone: string } {
@@ -68,16 +67,16 @@ function describe(event: StreamEvent): { label: string; tone: string } {
   }
 }
 
-export function StreamingViewer({ events, busy, liveThoughts }: Props) {
+export function StreamingViewer({ events, busy, liveProgress }: Props) {
   const thoughtsRef = useRef<HTMLDivElement | null>(null);
   // Auto-scroll the thoughts panel to the bottom as new chunks arrive.
   useEffect(() => {
     if (thoughtsRef.current) {
       thoughtsRef.current.scrollTop = thoughtsRef.current.scrollHeight;
     }
-  }, [liveThoughts]);
+  }, [liveProgress]);
 
-  if (events.length === 0 && !busy && !liveThoughts?.length) return null;
+  if (events.length === 0 && !busy && !liveProgress?.length) return null;
   return (
     <div className="card">
       <h2>
@@ -95,15 +94,15 @@ export function StreamingViewer({ events, busy, liveThoughts }: Props) {
           );
         })}
       </ol>
-      {liveThoughts && liveThoughts.length > 0 && (
+      {liveProgress && liveProgress.length > 0 && (
         <div className="live-thoughts" ref={thoughtsRef}>
-          {liveThoughts.map(([agent, text]) => (
+          {liveProgress.map(([agent, characters]) => (
             <div key={agent} className="live-thought">
               <span className="thought-agent">
                 <span className="pulse" aria-hidden="true" />{" "}
                 {labelForAgent(agent)} is working…
               </span>
-              <p className="thought-status">{statusForAgent(agent, text.length)}</p>
+              <p className="thought-status">{statusForAgent(agent, characters)}</p>
             </div>
           ))}
         </div>

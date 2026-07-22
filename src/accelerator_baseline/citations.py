@@ -34,6 +34,8 @@ from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlparse
 
+from .telemetry import Event, emit_event
+
 __all__ = [
     "require_citations",
     "assert_no_hallucinated_urls",
@@ -89,9 +91,10 @@ def assert_no_hallucinated_urls(
     """Reject citations whose URL host is not in ``retrieved_sources``.
 
     Returns ``(True, "")`` on success or ``(False, message)`` on the first
-    citation whose URL host does not match any retrieved source. Matches
-    by lowercased hostname so trailing-slash and path differences do not
-    trigger false positives.
+    citation whose normalized URL does not match a retrieved source. Scheme
+    and hostname are case-normalized, fragments are ignored, and trailing
+    slashes are equivalent. This prevents a fabricated path on a legitimately
+    retrieved host from being accepted as grounded.
 
     Behaviour:
         - Empty ``citations``: returns ``(True, "")``.
@@ -108,31 +111,70 @@ def assert_no_hallucinated_urls(
     """
     if not citations:
         return True, ""
-    retrieved_hosts: set[str] = set()
+    claimed = [citation for citation in citations if citation.get(field)]
+    if not claimed:
+        return True, ""
+    retrieved_urls: set[str] = set()
+    retrieved_ids: set[str] = set()
     for s in retrieved_sources:
         if not s:
             continue
-        try:
-            host = urlparse(s).hostname or s
-        except ValueError:
-            host = s
-        retrieved_hosts.add(str(host).lower())
-    if not retrieved_hosts:
+        normalized = _normalize_source_url(str(s))
+        if normalized is None:
+            retrieved_ids.add(str(s).lower())
+        else:
+            retrieved_urls.add(normalized)
+    if not retrieved_urls and not retrieved_ids:
+        emit_event(
+            Event(
+                name="citation.guard_bypassed",
+                ok=False,
+                args_redacted={"citation_count": len(claimed)},
+                error="no retrieved provenance was available",
+            )
+        )
         return True, ""
     for i, c in enumerate(citations):
         url = c.get(field)
         if not url:
             continue
-        try:
-            host = (urlparse(url).hostname or "").lower()
-        except ValueError:
-            host = ""
-        if host and host not in retrieved_hosts:
+        normalized = _normalize_source_url(str(url))
+        matches = (
+            normalized in retrieved_urls
+            if normalized is not None
+            else str(url).lower() in retrieved_ids
+        )
+        if not matches:
             return False, (
-                f"citations[{i}].{field} host {host!r} not in retrieved "
+                f"citations[{i}].{field} {url!r} not in retrieved "
                 "sources (possible hallucination)"
             )
     return True, ""
+
+
+def _normalize_source_url(value: str) -> str | None:
+    """Normalize an HTTP(S) source URL for exact provenance comparison."""
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        return None
+    scheme = parsed.scheme.lower()
+    host = parsed.hostname.lower()
+    port = parsed.port
+    default_port = 80 if scheme == "http" else 443
+    netloc = host if port in (None, default_port) else f"{host}:{port}"
+    path = parsed.path or "/"
+    if path != "/":
+        path = path.rstrip("/")
+    return parsed._replace(
+        scheme=scheme,
+        netloc=netloc,
+        path=path,
+        params="",
+        fragment="",
+    ).geturl()
 
 
 def extract_tool_trace_uris(response: Any) -> set[str]:
@@ -142,8 +184,11 @@ def extract_tool_trace_uris(response: Any) -> set[str]:
     hosted tool (FoundryIQ knowledge base, Bing grounding, etc.) supplies
     retrieved sources. Each citation lives on
     ``response.messages[i].contents[j].annotations[k]`` as a TypedDict
-    with at least ``type: "citation"`` and ``url``. This helper extracts
-    the set of URLs so a workflow can pass them to
+    with at least ``type: "citation"`` and ``url``. FoundryIQ citations use
+    an ``mcp://searchindex/<document-id>`` transport URL and carry the original
+    document URL under ``additional_properties.source``. This helper extracts
+    both values so validators can compare the model's public source URL with
+    the actual retrieved document provenance.
     :func:`assert_no_hallucinated_urls` even in ``foundry_tool``
     retrieval mode (where Python never sees the search call directly).
 
@@ -185,4 +230,9 @@ def extract_tool_trace_uris(response: Any) -> set[str]:
                 url = ann.get("url")
                 if isinstance(url, str) and url:
                     uris.add(url)
+                additional = ann.get("additional_properties")
+                if isinstance(additional, dict):
+                    source = additional.get("source")
+                    if isinstance(source, str) and source:
+                        uris.add(source)
     return uris

@@ -13,6 +13,9 @@
 #
 # The lint rule `deploy_matrix_matches_azure_envs` enforces this file's
 # shape and cross-references it against deploy.yml.
+#
+# `deployment_target` is optional for backward compatibility. Omitted values
+# resolve to `selfhost`; supported values are `selfhost` and `hosted-preview`.
 
 # Name of the environment deployed automatically on push to main.
 # Must appear in `environments[]` below.
@@ -21,4 +24,9 @@ default_env: dev
 environments:
   - name: dev
     github_environment: dev
+    deployment_target: selfhost
     description: Default partner sandbox — deployed automatically on push to main.
+  - name: hosted-preview
+    github_environment: hosted-preview
+    deployment_target: hosted-preview
+    description: Explicit preview-only Microsoft Foundry Hosted Agents deployment; never the default.

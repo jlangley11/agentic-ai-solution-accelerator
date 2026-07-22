@@ -25,16 +25,27 @@ Be clear about the baseline before picking tools:
 - **Grounding (retrieval agents):** handled server-side by the FoundryIQ Knowledge Base via MCPTool. For non-retrieval agents, no grounding is applied.
 - **Side-effect tools (`src/tools/`):** `crm_read_account`, `crm_write_contact`, `send_email`, `web_search` are **local Python stubs** executed by the workflow after the supervisor decides they're needed. They are HITL-gated (see `src/accelerator_baseline/hitl.py`) but they are **not** Foundry Azure Functions tools.
 
+!!! note "Two different MCP surfaces"
+    Foundry agents use an `MCPTool` to reach the FoundryIQ Knowledge Base.
+    Coding-agent clients may separately use the local `accel-mcp` stdio server
+    to call lifecycle/status/preview/apply operations. `accel-mcp` is a delivery
+    interface; it is not attached to the deployed customer agent.
+
 **Why this matters for the catalog.** When the partner wants to attach
 a *real* Foundry tool (File Search, Bing grounding, Code Interpreter,
 OpenAPI, MCP, etc.), the current path is **one of**:
 
-1. Attach it in the **Foundry portal** after `azd postprovision`, for engagements where the tool set is stable and portal-managed is acceptable.
-2. Extend `src/bootstrap.py` in the cloned repo to call `AIProjectClient.agents.create_agent(..., tools=[...])` with the tool schemas the engagement needs, and keep the tool list in the scenario manifest.
+1. Record the governed tool intent in
+   `scenario.agents[].catalog_tools[]`, attach the catalog tool in the
+   **Foundry portal**, and verify it after deployment. Shared provisioning
+   preserves non-managed existing tools when it refreshes the KB tool.
+2. If the engagement requires deterministic automatic attachment, extend
+   `src/provisioning.py` to resolve the manifest declaration and add
+   provisioning/readback tests. Do not create a parallel runtime client path.
 
-There is no shipped scaffold for path 2 yet — partners wire it per
-engagement. The accelerator ships the orchestration + grounding +
-HITL baseline; Foundry-attached tools are a per-engagement choice.
+There is no generic catalog-tool resolver for path 2 yet. Portal attachment is
+therefore an explicit, documented environment action; the manifest remains the
+reviewed intent and handover record.
 
 ---
 
@@ -122,7 +133,7 @@ This accelerator defaults to **orchestrate in Python** (supervisor DAG
 HITL approval gates, and evals against deterministic transforms.
 Foundry tools are easier to wire when:
 
-- The tool's side-effect is safe to auto-invoke (read-only SharePoint, Search).
+- The operation is read-only (for example SharePoint or Search retrieval).
 - The tool is a **purely knowledge-grounding** step (File Search / AI Search / Web Search).
 - You're happy for the Foundry Agent Service to own tool retries + telemetry.
 

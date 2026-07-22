@@ -19,6 +19,19 @@ def _require(name: str) -> str:
     return v
 
 
+def foundry_project_endpoint() -> str:
+    """Return the Foundry project endpoint for either supported runtime."""
+    for name in ("FOUNDRY_PROJECT_ENDPOINT", "AZURE_AI_FOUNDRY_ENDPOINT"):
+        value = os.environ.get(name)
+        if value:
+            return value
+    raise RuntimeError(
+        "Required env var 'FOUNDRY_PROJECT_ENDPOINT' or "
+        "'AZURE_AI_FOUNDRY_ENDPOINT' is not set. See azure.yaml + infra/ "
+        "parameters; `azd env get-values` should include it after `azd up`."
+    )
+
+
 @dataclass(frozen=True)
 class Settings:
     # Foundry
@@ -48,7 +61,7 @@ def _parse_origins(raw: str | None) -> tuple[str, ...]:
 
 def load_settings() -> Settings:
     return Settings(
-        foundry_project_endpoint=_require("AZURE_AI_FOUNDRY_ENDPOINT"),
+        foundry_project_endpoint=foundry_project_endpoint(),
         ai_search_endpoint=_require("AZURE_AI_SEARCH_ENDPOINT"),
         ai_search_index=os.environ.get("AZURE_AI_SEARCH_INDEX", "accounts"),
         appinsights_connection=os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"),

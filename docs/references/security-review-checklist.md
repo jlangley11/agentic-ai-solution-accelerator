@@ -1,6 +1,6 @@
 # Security review checklist
 
-A pre-`azd up` checklist for the partner to walk through with the
+A pre-deployment checklist for the partner to walk through with the
 customer's security / CCoE team. Every item links to where the control
 is enforced — Bicep file, lint rule, `accelerator.yaml` field, or
 runbook section.
@@ -71,8 +71,8 @@ adds private endpoints + DNS + hub peering — see
 
 - [ ] **Content filter policy is IaC-attached, not portal-edited.**
       `accelerator.yaml.controls.content_filters: iac`. Deployed by
-      `infra/modules/foundry.bicep`; portal drift overwritten by the
-      next `azd provision`.
+      `infra/modules/foundry.bicep`; portal drift is overwritten by the next
+      approved infrastructure deployment.
 - [ ] **XPIA + jailbreak baseline evals pass.**
       `evals/redteam/run.py` covers 10 baseline cases across 3
       technique families. See `evals/redteam/README.md` in the repo.
@@ -122,4 +122,4 @@ adds private endpoints + DNS + hub peering — see
 4. Close the review by running `python scripts/preflight-deploy.py
    --region <chosen-region>` and (if Tier 3) `python
    scripts/validate-alz.py` so any quota / permission / placeholder
-   issues surface before `azd up`.
+   issues surface before deployment.

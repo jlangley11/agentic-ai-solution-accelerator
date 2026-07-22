@@ -58,6 +58,7 @@ Turn every success metric into a golden-case assertion. Turn every RAI risk into
 
 ## After the workshop
 1. `/discover-scenario` will have produced the brief. Review it with the sponsor.
-2. `/scaffold-from-brief` applies it to the repo.
-3. `azd up` to dev environment; smoke test.
+2. Run `accel design`; preview and approve `accel scaffold`.
+3. Use the grounding/worker specialists, then apply `accel deploy` to dev and
+   run a smoke evaluation.
 4. First CI-gated PR iterates on the flagship prompt.

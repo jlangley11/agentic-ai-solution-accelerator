@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+    extensions:
+        azure.ai.agents: '>=1.0.0-beta.6'
+name: agentic-ai-solution-accelerator-hosted-preview
+services:
+    ai-project:
+        host: azure.ai.project
+        deployments:
+            - model:
+                format: OpenAI
+                name: gpt-5-mini
+                version: "2025-08-07"
+              name: gpt-5-mini
+              sku:
+                capacity: 30
+                name: GlobalStandard
+    hosted-supervisor:
+        project: app
+        host: azure.ai.agent
+        language: python
+        uses:
+            - ai-project
+        codeConfiguration:
+            dependencyResolution: remote_build
+            entryPoint: main.py
+            runtime: python_3_14
+        container:
+            resources:
+                cpu: "0.5"
+                memory: 1Gi
+        description: Preview-only hosted runtime for the accelerator supervisor workflow.
+        displayName: Accelerator Hosted Supervisor (Preview)
+        environmentVariables:
+            - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+              value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+            - name: FOUNDRY_PROJECT_ENDPOINT
+              value: ${FOUNDRY_PROJECT_ENDPOINT}
+            - name: AZURE_AI_FOUNDRY_ENDPOINT
+              value: ${AZURE_AI_FOUNDRY_ENDPOINT}
+            - name: AZURE_AI_FOUNDRY_ACCOUNT_ENDPOINT
+              value: ${AZURE_AI_FOUNDRY_ACCOUNT_ENDPOINT}
+            - name: AZURE_AI_FOUNDRY_ACCOUNT_NAME
+              value: ${AZURE_AI_FOUNDRY_ACCOUNT_NAME}
+            - name: AZURE_AI_FOUNDRY_PROJECT_NAME
+              value: ${AZURE_AI_FOUNDRY_PROJECT_NAME}
+            - name: AZURE_AI_FOUNDRY_OPENAI_ENDPOINT
+              value: ${AZURE_AI_FOUNDRY_OPENAI_ENDPOINT}
+            - name: AZURE_AI_FOUNDRY_MODEL
+              value: ${AZURE_AI_FOUNDRY_MODEL}
+            - name: AZURE_AI_FOUNDRY_MODEL_MAP
+              value: ${AZURE_AI_FOUNDRY_MODEL_MAP}
+            - name: AZURE_AI_FOUNDRY_EMBEDDING_DEPLOYMENT
+              value: ${AZURE_AI_FOUNDRY_EMBEDDING_DEPLOYMENT}
+            - name: AZURE_AI_SEARCH_ENDPOINT
+              value: ${AZURE_AI_SEARCH_ENDPOINT}
+            - name: AZURE_AI_SEARCH_RESOURCE_ID
+              value: ${AZURE_AI_SEARCH_RESOURCE_ID}
+            - name: AZURE_AI_FOUNDRY_SEARCH_CONNECTION_NAME
+              value: ${AZURE_AI_FOUNDRY_SEARCH_CONNECTION_NAME}
+            - name: AZURE_AI_FOUNDRY_KB_MCP_CONNECTION_NAME
+              value: ${AZURE_AI_FOUNDRY_KB_MCP_CONNECTION_NAME}
+            - name: AZURE_AI_FOUNDRY_KB_NAME
+              value: ${AZURE_AI_FOUNDRY_KB_NAME}
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              value: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+            - name: HOSTED_AGENT
+              value: ${HOSTED_AGENT}
+            - name: ENABLE_HOSTED_AGENTS
+              value: ${ENABLE_HOSTED_AGENTS}
+        kind: hosted
+        name: accel-hosted-supervisor
+        protocols:
+            - protocol: responses
+              version: 2.0.0
+            - protocol: invocations
+              version: 2.0.0
+infra:
+    provider: microsoft.foundry
+    path: infra
+    module: main
+hooks:
+    postdeploy:
+        run: python hooks/postdeploy.py
+    postprovision:
+        run: python hooks/normalize_env.py
+    predeploy:
+        - run: python hooks/bootstrap.py
+        - run: python hooks/prepare.py

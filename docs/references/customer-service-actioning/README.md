@@ -73,7 +73,9 @@ A chatbot deflects (1) and loses (2). An agentic solution does (1) AND (2) with 
 
 ## How to scaffold from this reference
 1. Copy this README's section content into the relevant parts of `docs/discovery/solution-brief.md`.
-2. Run `/scaffold-from-brief`.
-3. `/add-worker-agent` for each of: KBResearcher (or keep `account_researcher` renamed), OrderLookup, CaseActor, RefundActor, EscalationRouter.
+2. Run `accel design`, preview `accel scaffold --scenario-id
+   customer-service --dry-run`, then apply it.
+3. `/add-worker-agent` for each of: KBResearcher (or adapt `account_planner`),
+   OrderLookup, CaseActor, RefundActor, EscalationRouter.
 4. `/add-tool` for each side-effect tool above.
 5. Write 20–50 golden cases into `evals/quality/golden_cases.jsonl` derived from historical tier-1 tickets.

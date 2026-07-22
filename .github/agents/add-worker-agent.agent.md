@@ -11,6 +11,9 @@ handoffs:
 
 # /add-worker-agent — scaffold a new worker via scripts/scaffold-agent.py
 
+> Compatibility adapter: use `accel next` before changing the worker graph and
+> `accel validate` after the scaffolder and manual follow-ups complete.
+
 Use this when the brief or a follow-on requirement introduces a capability no current worker covers (e.g., "pricing calc", "risk scoring", "invoice classification").
 
 **Do not hand-scaffold.** `scripts/scaffold-agent.py` is the single supported entry point. It edits the declarative `WORKERS: dict[str, WorkerSpec]` registry in `src/scenarios/<scenario>/workflow.py` — that dict is the only attachment point the supervisor DAG reads. Hand edits whose shape doesn't match what the scaffolder expects flip the file to "no longer scaffold-managed" and break future automation.
@@ -26,7 +29,7 @@ Use this when the brief or a follow-on requirement introduces a capability no cu
 3. **One-sentence capability** (used by the supervisor router; quoted verbatim into the YAML snippet)
 4. **Upstream workers it depends on** (comma-separated list of existing worker ids the DAG must schedule first)
 5. **Whether it's optional** (the DAG can skip it and still produce a valid answer)
-6. **Foundry agent name** — defaults to `accel-<scenario-id>-<agent-id-with-underscores-to-hyphens>` (e.g. `risk_scoring` → `accel-sales-research-risk-scoring`). The scaffolder writes a `docs/agent-specs/<foundry_name>.md` stub; `src/bootstrap.py` provisions the agent in Foundry from that spec on the next `azd up` / `azd deploy`. Author the system instructions in the spec file — never directly in the Foundry portal (bootstrap overwrites portal drift) and never inside Python code.
+6. **Foundry agent name** — defaults to `accel-<scenario-id>-<agent-id-with-underscores-to-hyphens>` (e.g. `risk_scoring` → `accel-sales-research-risk-scoring`). The scaffolder writes a `docs/agent-specs/<foundry_name>.md` stub; shared provisioning syncs it on the next target-aware deployment. Author system instructions in the spec file — never in the portal or Python.
 
 ## Invoke the scaffolder
 ```bash
@@ -70,14 +73,16 @@ If lint reports `agent_has_golden_case` or `agents_registered_in_manifest_match_
 A new worker changes the supervisor's routing surface. Re-run the full acceptance chain against your deployed dev environment to confirm quality and safety still hold:
 
 ```bash
-python evals/quality/run.py --api-url <your-api-url>
-python evals/redteam/run.py --api-url <your-api-url>
-python scripts/enforce-acceptance.py
+accel evaluate --api-url <your-api-url> --execute
 ```
 
-`enforce-acceptance.py` reports pass/fail against every threshold in `accelerator.yaml.acceptance`. If quality regresses on a worker the new agent shouldn't have touched, the supervisor is mis-routing — tighten the new agent's one-sentence capability or its `_build_input_<agent_id>` payload. The same chain runs in CI and will block merge.
+If quality regresses on a worker the new agent should not have touched, the
+supervisor is mis-routing — tighten the capability or
+`_build_input_<agent_id>` payload.
 
 ## Guardrails
-- Never hardcode the Foundry system instructions in Python code. The authoring source of truth is `docs/agent-specs/<foundry-agent-name>.md`. Never edit instructions in the Foundry portal either — `src/bootstrap.py` overwrites portal drift on the next `azd deploy`.
+- Never hardcode Foundry system instructions in Python. The durable authoring
+  source is `docs/agent-specs/<foundry-agent-name>.md`; shared provisioning
+  overwrites portal drift on the next deployment sync.
 - Never bypass the scaffolder to "just quickly add" a worker. The declarative `WORKERS` registry is the contract every future tool (scheduler, telemetry, lints, docs) reads.
 - The supervisor is always-invoked; do not list it in `depends_on` or golden-case `exercises`.

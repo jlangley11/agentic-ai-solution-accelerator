@@ -43,6 +43,7 @@ except Exception:  # pragma: no cover - SDK may not be installed in lint envs
 
 from src.accelerator_baseline.killswitch import assert_enabled
 from src.accelerator_baseline.telemetry import Event, emit_event
+from src.config.settings import foundry_project_endpoint
 from src.tools import SIDE_EFFECT_TOOLS
 from src.workflow.base import BaseWorkflow
 from src.workflow.supervisor import SupervisorDAG, WorkerSpec, WorkerState
@@ -53,6 +54,7 @@ from .agents import (
     icp_fit_analyst,
     outreach_personalizer,
 )
+from .schema import ResearchBriefing
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +168,8 @@ class SalesResearchWorkflow:
     a malformed ``WORKERS`` dict fails at FastAPI startup rather than on
     first request.
     """
+
+    validated_partials = True
 
     def __init__(self, *, primary_index_name: str = "accounts") -> None:
         self._credential = DefaultAzureCredential()
@@ -381,8 +385,9 @@ class SalesResearchWorkflow:
         async with self._version_lock:
             if agent_name in self._agent_versions:
                 return self._agent_versions[agent_name]
-            endpoint = os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT")
-            if not endpoint:
+            try:
+                endpoint = foundry_project_endpoint()
+            except RuntimeError:
                 return None
             try:
                 from azure.ai.projects.aio import AIProjectClient
@@ -443,11 +448,7 @@ class SalesResearchWorkflow:
                 )
             )
             return "{}"
-        project_endpoint = os.environ.get("AZURE_AI_FOUNDRY_ENDPOINT")
-        if not project_endpoint:
-            raise RuntimeError(
-                "AZURE_AI_FOUNDRY_ENDPOINT is not set — required by FoundryAgent"
-            )
+        project_endpoint = foundry_project_endpoint()
         agent_version = await self._resolve_agent_version(agent_name)
         agent = FoundryAgent(
             project_endpoint=project_endpoint,
@@ -661,7 +662,7 @@ class SalesResearchWorkflow:
         else:
             steps.append("Draft personalized outreach referencing strategic initiatives.")
 
-        return {
+        briefing = {
             "executive_summary": bullets[:3],
             "next_steps": steps[:3],
             "requires_approval": [],
@@ -671,6 +672,7 @@ class SalesResearchWorkflow:
             "competitive_play": comp,
             "recommended_outreach": outreach,
         }
+        return ResearchBriefing.model_validate(briefing).model_dump(exclude_none=True)
 
 
 def build_workflow(context: Any) -> BaseWorkflow:
@@ -684,4 +686,3 @@ def build_workflow(context: Any) -> BaseWorkflow:
     indexes = getattr(context, "retrieval_indexes", ()) or ()
     primary = indexes[0].name if indexes else "accounts"
     return SalesResearchWorkflow(primary_index_name=primary)
-
