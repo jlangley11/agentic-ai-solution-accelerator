@@ -23,8 +23,8 @@ Use this when deploying the accelerator to a **new Azure environment** — a par
 2. **Azure region** (e.g. `eastus2`, `westeurope`) — will be the GitHub `vars.AZURE_LOCATION` for the new env.
 3. **Target Azure subscription id + tenant id** — will be the new env's `secrets.AZURE_SUBSCRIPTION_ID` and `secrets.AZURE_TENANT_ID`.
 4. **Entra app (client) id** for OIDC — either the existing CI app or a new per-env one.
-5. **Deployment target** — `selfhost` (root Container Apps default) or the explicit
-   preview-only `hosted-preview` nested workspace.
+5. **Deployment target** — must match `accelerator.yaml.architecture.decision`:
+   `selfhost`, `foundry-prompt`, or preview-gated `hosted-preview`.
 6. **Short description** — one line; appears in the manifest and in workflow dispatch logs.
 
 ## Step 1 — Add the manifest entry
@@ -38,7 +38,7 @@ environments:
     description: Default partner sandbox — deployed automatically on push to main.
   - name: <env-name>            # e.g., uat, prod
     github_environment: <env-name>
-    deployment_target: selfhost # or hosted-preview, never for default_env
+    deployment_target: selfhost # or foundry-prompt / hosted-preview
     description: <one-line purpose>
 ```
 
@@ -46,7 +46,7 @@ Conventions:
 - `name` — the azd env name. **Derived from the manifest** by `deploy.yml`; do NOT set `vars.AZURE_ENV_NAME`.
 - `github_environment` — the GitHub Environment name (repo Settings → Environments). Usually identical to `name`; use a different value only if organizational naming forces it.
 - `deployment_target` — optional for legacy entries and defaults to `selfhost`.
-  Allowed values are `selfhost` and `hosted-preview`.
+  Allowed values are `selfhost`, `foundry-prompt`, and `hosted-preview`.
 - Do NOT change `default_env` unless you actually want push-to-main to start deploying to this new env instead of `dev`.
 - `default_env` must remain a `selfhost` entry. Hosted Agents are preview-only
   and require explicit selection and acknowledgment.

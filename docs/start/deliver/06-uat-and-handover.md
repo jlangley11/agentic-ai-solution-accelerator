@@ -40,6 +40,8 @@ accel handover generate --env <environment-name> --apply
 Minimum contents:
 
 - **Endpoint inventory** — API URL, frontend URL (if any), Foundry project name, resource group name.
+- **Architecture decision** — prompt/Hosted type, orchestration, application
+  shell, target, rationale, approver, override, and requirements fingerprint.
 - **Approvers** — who is on-call for HITL approvals; backup; escalation.
 - **Dashboards** — App Insights workbook URL, KPI panels, latency panels, error panels.
 - **Alerts** — what fires, to whom, on what threshold; how to acknowledge.

@@ -33,6 +33,9 @@
         }
       ]
     },
+    "deploymentSurface": {
+      "value": "${AZURE_DEPLOYMENT_SURFACE=hosted-preview}"
+    },
     "dnsZonesResourceGroup": {
       "value": ""
     },

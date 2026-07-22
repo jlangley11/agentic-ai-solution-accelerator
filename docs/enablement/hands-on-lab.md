@@ -31,7 +31,7 @@ After the lab you can:
 6. Swap the model via `accelerator.yaml → models[]`.
 7. Scaffold a new side-effect tool via `/add-tool` with HITL baked in,
    and know why the redteam case is not optional.
-8. Preview/apply a new scenario with `accel design` and `accel scaffold`.
+8. Review/approve an Architecture Advisor recommendation, then scaffold it.
 
 ---
 
@@ -548,13 +548,13 @@ didn't regress the scenario.
 
 ---
 
-## Lab 8 — Scaffold a new scenario
+## Lab 8 — Decide and scaffold a new scenario
 
 **Where:** coding-agent client for discovery/specialist authoring; terminal for
 `accel design/scaffold/validate`; editor for the generated diff.
 
-**Goal:** use the deterministic scaffold preview/apply path, then inspect the
-customer-specific work that remains.
+**Goal:** understand the advisor evidence/override boundary, then use the
+architecture-aware scaffold path.
 
 1. In Copilot Chat, run `/discover-scenario` against a realistic
    sandbox scenario you make up (e.g. "summarize support tickets
@@ -568,6 +568,7 @@ customer-specific work that remains.
 
    ```powershell
    accel design
+   accel design --approved-by "Lab Partner Architect" --apply
    accel scaffold --scenario-id ticket-summary --dry-run
    accel scaffold --scenario-id ticket-summary --apply
    ```

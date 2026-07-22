@@ -108,7 +108,7 @@ The 8 labs walk the same surface with check-yourself prompts so you can self-che
 | 5 | Edit an agent spec in `docs/agent-specs/`, apply `accel deploy`, and watch the change land in Foundry. | Foundry portal shows the new instructions; portal-only edits get reverted on the next sync. | [Lab 5](../../enablement/hands-on-lab.md#lab-5--edit-an-agents-instructions-the-supported-way) |
 | 6 | Swap the model via `accelerator.yaml -> models[]` and re-deploy. | The chosen agent now runs on the new model; lint passes; eval scores haven't regressed. | [Lab 6](../../enablement/hands-on-lab.md#lab-6--swap-the-model) |
 | 7 | Use `/add-tool` to scaffold a side-effect tool — then read the auto-generated HITL + redteam case. | Tool calls fail-closed without HITL approval; redteam case fails the suite if you remove the HITL guard. | [Lab 7](../../enablement/hands-on-lab.md#lab-7--add-a-side-effect-tool-with-add-tool) |
-| 8 | Use `accel design` and `accel scaffold` for a new scenario. | Preview lists files/manifest diff; apply creates the scenario transactionally. | [Lab 8](../../enablement/hands-on-lab.md#lab-8--scaffold-a-new-scenario) |
+| 8 | Review/approve `accel design`, then scaffold a scenario. | Advisor explains prompt vs Hosted fit; scaffold reflects the approved decision. | [Lab 8](../../enablement/hands-on-lab.md#lab-8--decide-and-scaffold-a-new-scenario) |
 
 → Or open the [full lab guide](../../enablement/hands-on-lab.md) for all 8 labs in one page.
 

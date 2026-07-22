@@ -4,6 +4,7 @@ Usage::
 
     python scripts/scaffold-scenario.py <scenario-id> --display "Human Name"
     python scripts/scaffold-scenario.py order-triage --display "Order Triage"
+    python scripts/scaffold-scenario.py faq-helper --agent-type prompt-agent
 
 Creates:
 - ``src/scenarios/<package>/__init__.py``
@@ -27,6 +28,8 @@ Behaviour:
   enterprise knowledge layer and the recommended starting point for every
   scenario; partners on read-only-from-input scenarios can pass
   ``--no-retrieval`` to omit the retrieval blocks.
+- ``--agent-type prompt-agent`` emits a ``primary`` package; the default
+  hosted-agent shape emits ``supervisor`` so workers can be added later.
 
 Guardrails:
 - Scenario IDs may contain hyphens (``order-triage``); package dirs are
@@ -51,8 +54,16 @@ def _package_leaf(scenario_id: str) -> str:
     return scenario_id.replace("-", "_")
 
 
+def _agent_id(agent_type: str) -> str:
+    return "primary" if agent_type == "prompt-agent" else "supervisor"
+
+
+def _foundry_name(scenario_id: str, agent_type: str = "hosted-agent") -> str:
+    return f"accel-{scenario_id}-{_agent_id(agent_type)}"
+
+
 def _supervisor_foundry_name(scenario_id: str) -> str:
-    return f"accel-{scenario_id}-supervisor"
+    return _foundry_name(scenario_id)
 
 
 TEMPLATES: dict[str, Callable[[str, str], str]] = {
@@ -291,25 +302,21 @@ TEMPLATES: dict[str, Callable[[str, str], str]] = {
 SPEC_TEMPLATE = """# {agent_name}
 
 > **This file IS your agent's system instructions.** The `## Instructions`
-> section below is synced **verbatim** to the Foundry portal by
-> `src/bootstrap.py` (run inside the Container App at FastAPI startup) on
-> every `azd up` / `azd deploy`. **Edit this file to change agent behaviour.**
+> section below is synced **verbatim** by shared provisioning during
+> deployment. **Edit this file to change agent behaviour.**
 > Never put agent system instructions in Python code — `prompt.py` builds
 > *per-request* input, not system instructions.
 
-Foundry agent spec for the {sid} scenario's supervisor. The model comes
+Foundry agent spec for the {sid} scenario's {agent_role}. The model comes
 from ``AZURE_AI_FOUNDRY_MODEL`` (emitted by Bicep) - do NOT add a
 ``**Model:**`` field here (the lint blocks it).
 
 ## Instructions
 
-You are the supervisor agent for the {sid} scenario. **Replace this
+You are the {agent_role} for the {sid} scenario. **Replace this
 paragraph with the real system instructions for your scenario** — describe
 the agent's role, the exact JSON output contract, grounding rules, and any
-HITL-related obligations. Your job is to plan which worker agents to invoke
-for each request, and to synthesise their outputs into a single final
-briefing. Follow the accelerator's HITL + grounding policies; never call
-side-effect tools directly.
+HITL-related obligations. {responsibility}
 """
 
 
@@ -323,11 +330,15 @@ scenario:
   endpoint:
     path: /{leaf}/stream
   experience:
-    kind: form-report
+    kind: {experience_kind}
     title: {sid}
     description: ""
     output_sections:
       - {{ key: result, label: Result, layout: record }}
+  implementation:
+    agent_type: {agent_type}
+    orchestration_pattern: {orchestration_pattern}
+    application_shell: {application_shell}
   agents:
     - id: supervisor
       foundry_name: {agent_name}
@@ -369,11 +380,15 @@ scenario:
   endpoint:
     path: /{leaf}/stream
   experience:
-    kind: form-report
+    kind: {experience_kind}
     title: {sid}
     description: ""
     output_sections:
       - {{ key: result, label: Result, layout: record }}
+  implementation:
+    agent_type: {agent_type}
+    orchestration_pattern: {orchestration_pattern}
+    application_shell: {application_shell}
   agents:
     - {{ id: supervisor, foundry_name: {agent_name} }}
   evals:
@@ -382,19 +397,61 @@ scenario:
 """
 
 
-def _plan(scenario_id: str, *, no_retrieval: bool = False) -> list[tuple[pathlib.Path, str]]:
+def _plan(
+    scenario_id: str,
+    *,
+    no_retrieval: bool = False,
+    agent_type: str = "hosted-agent",
+) -> list[tuple[pathlib.Path, str]]:
     leaf = _package_leaf(scenario_id)
     pkg_root = ROOT / "src" / "scenarios" / leaf
-    agent_name = _supervisor_foundry_name(scenario_id)
+    agent_name = _foundry_name(scenario_id, agent_type)
     files: list[tuple[pathlib.Path, str]] = []
     for rel, tmpl in TEMPLATES.items():
         # Skip retrieval.py when --no-retrieval; the manifest won't reference it.
         if no_retrieval and rel == "retrieval.py":
             continue
-        files.append((pkg_root / rel, tmpl(scenario_id, leaf)))
+        rendered_path = rel
+        rendered = tmpl(scenario_id, leaf)
+        if agent_type == "prompt-agent":
+            rendered_path = rendered_path.replace("supervisor", "primary")
+            rendered = rendered.replace("Supervisor", "Primary").replace(
+                "supervisor",
+                "primary",
+            )
+            rendered = rendered.replace(
+                "src.workflow.primary",
+                "src.workflow.supervisor",
+            )
+            rendered = rendered.replace(
+                "You are the primary. Plan the workers and synthesise the final ",
+                "You are the primary prompt agent. Answer the request directly "
+                "and return the final ",
+            )
+            rendered = rendered.replace(
+                _supervisor_foundry_name(scenario_id),
+                agent_name,
+            )
+        files.append((pkg_root / rendered_path, rendered))
+    responsibility = (
+        "Answer the request directly using only declared tools and grounding. "
+        "Do not invent worker delegation."
+        if agent_type == "prompt-agent"
+        else "Plan which worker agents to invoke and synthesize their outputs. "
+        "Never call side-effect tools directly."
+    )
     files.append((
         ROOT / "docs" / "agent-specs" / f"{agent_name}.md",
-        SPEC_TEMPLATE.format(agent_name=agent_name, sid=scenario_id),
+        SPEC_TEMPLATE.format(
+            agent_name=agent_name,
+            sid=scenario_id,
+            agent_role=(
+                "primary prompt agent"
+                if agent_type == "prompt-agent"
+                else "supervisor"
+            ),
+            responsibility=responsibility,
+        ),
     ))
     files.append((
         ROOT / "data" / "samples" / f"{leaf}.json",
@@ -403,7 +460,11 @@ def _plan(scenario_id: str, *, no_retrieval: bool = False) -> list[tuple[pathlib
     return files
 
 
-def _golden_cases_stub(scenario_id: str) -> str:
+def _golden_cases_stub(
+    scenario_id: str,
+    *,
+    agent_id: str = "supervisor",
+) -> str:
     """One-line JSONL stub case exercising only the supervisor.
 
     `scaffold-agent.py` appends each new worker id to the case's ``exercises``
@@ -422,7 +483,7 @@ def _golden_cases_stub(scenario_id: str) -> str:
             "discovery brief."
         ),
         "expected": {"must_cite": False},
-        "exercises": ["supervisor"],
+        "exercises": [agent_id],
     }
     return json.dumps(case, separators=(",", ":")) + "\n"
 
@@ -462,6 +523,22 @@ def main() -> int:
                          "added, so `agent_has_golden_case` lint stays green "
                          "during scaffold. Use this flag if you've already "
                          "authored the file and want to preserve it.")
+    ap.add_argument(
+        "--agent-type",
+        choices=("prompt-agent", "hosted-agent"),
+        default="hosted-agent",
+        help="shape the primary package for the approved Foundry agent type",
+    )
+    ap.add_argument(
+        "--orchestration-pattern",
+        choices=("single-agent", "deterministic-workflow", "supervisor-routing"),
+        default="supervisor-routing",
+    )
+    ap.add_argument(
+        "--application-shell",
+        choices=("none", "existing-app", "workbench", "custom"),
+        default="workbench",
+    )
     args = ap.parse_args()
 
     sid = args.scenario_id.strip()
@@ -470,7 +547,11 @@ def main() -> int:
               f"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", file=sys.stderr)
         return 2
 
-    plan = _plan(sid, no_retrieval=args.no_retrieval)
+    plan = _plan(
+        sid,
+        no_retrieval=args.no_retrieval,
+        agent_type=args.agent_type,
+    )
     conflicts = [p for p, _ in plan if p.exists()]
     if conflicts:
         print("::error::targets already exist; refusing to overwrite:",
@@ -506,16 +587,23 @@ def main() -> int:
                 golden_cases_path.parent.mkdir(parents=True, exist_ok=True)
                 created.append(golden_cases_path)
             golden_cases_path.write_text(
-                _golden_cases_stub(sid), encoding="utf-8"
+                _golden_cases_stub(
+                    sid,
+                    agent_id=_agent_id(args.agent_type),
+                ),
+                encoding="utf-8",
             )
 
         leaf = _package_leaf(sid)
-        agent_name = _supervisor_foundry_name(sid)
+        agent_name = _foundry_name(sid, args.agent_type)
         snippet = (
             MANIFEST_SNIPPET_NO_RETRIEVAL if args.no_retrieval
             else MANIFEST_SNIPPET_FOUNDRYIQ
         )
-        print(f"scaffolded scenario: src/scenarios/{leaf}/")
+        print(
+            f"scaffolded scenario: src/scenarios/{leaf}/ "
+            f"({args.agent_type})"
+        )
         if args.no_retrieval:
             print("(no retrieval -- scenario operates on input only)")
         else:
@@ -528,7 +616,26 @@ def main() -> int:
         print("")
         print("Next step — paste this into accelerator.yaml:")
         print("")
-        print(snippet.format(sid=sid, leaf=leaf, agent_name=agent_name))
+        rendered_snippet = snippet.format(
+            sid=sid,
+            leaf=leaf,
+            agent_name=agent_name,
+            agent_type=args.agent_type,
+            orchestration_pattern=args.orchestration_pattern,
+            application_shell=args.application_shell,
+            experience_kind={
+                "none": "api",
+                "existing-app": "dashboard",
+                "workbench": "form-report",
+                "custom": "api",
+            }[args.application_shell],
+        )
+        if args.agent_type == "prompt-agent":
+            rendered_snippet = rendered_snippet.replace(
+                "id: supervisor",
+                "id: primary",
+            )
+        print(rendered_snippet)
         return 0
     except Exception as exc:
         print(f"::error::scaffold failed: {exc}", file=sys.stderr)

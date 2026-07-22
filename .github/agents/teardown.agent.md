@@ -20,7 +20,8 @@ and irreversible; this custom agent enforces the safety contract.
 
 ## Inputs to gather
 1. **Env name** — the `azd` environment being destroyed; must match an entry in `deploy/environments.yaml`.
-2. **Deployment target** — `selfhost` or `hosted-preview`, matching the manifest entry.
+2. **Deployment target** — `selfhost`, `foundry-prompt`, or `hosted-preview`,
+   matching the manifest entry.
 3. **Confirmation that the customer signed off on destruction** — this is the contract that gates the destructive step.
 4. **Where the partner has archived the engagement deliverables** (KPI exports, cost report, eval results, handover packet). The script's checklist asks about each.
 

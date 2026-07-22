@@ -17,6 +17,10 @@ agents provide conversational UX but do not own lifecycle logic.
 `scripts/sync-agent-skill.py` synchronizes the Claude adapter. CI checks that
 the committed copy matches the canonical skill.
 
+The MCP adapter exposes architecture recommendation and approval as separate
+tools. Clients must call the read-only recommendation first and obtain explicit
+approval before the write tool records the decision.
+
 ## MCP setup
 
 Install the optional adapter:

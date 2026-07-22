@@ -99,7 +99,13 @@ If any of the above is missing, **refuse handover** — day-2 ops without these 
 
 At handover, the customer owns the deployment target declared in
 `deploy/environments.yaml`. The engagement-specific packet records the exact
-resource group, endpoint, and target. The default `selfhost` target includes:
+resource group, endpoint, and target. The approved agent type, orchestration
+pattern, application shell, target,
+rationale, and approver are recorded under `accelerator.yaml -> architecture`.
+Treat a changed requirements fingerprint as a design-review trigger, not a
+routine runtime tweak.
+
+The default `selfhost` target includes:
 
 - **Foundry (AIServices) account + project** — hosts agent definitions
   and model deployment(s). Model deployment names come from
@@ -118,10 +124,10 @@ resource group, endpoint, and target. The default `selfhost` target includes:
   on Foundry, Search, and Key Vault.
 - **Application Insights + Log Analytics** — telemetry sink.
 
-The opt-in `hosted-preview` target uses the nested workspace and deliberately
-omits the self-host Container App, ACR, and Key Vault. It retains Foundry,
-Search, monitoring, connections, and RBAC. Use the packet—not assumptions from
-the self-host list—when operating that target.
+The `foundry-prompt` and `hosted-preview` targets use nested workspaces and
+omit the self-host Container App, ACR, and Key Vault. Both retain Foundry,
+Search, monitoring, connections, and RBAC; only Hosted preview deploys custom
+runtime code. Use the handover packet rather than self-host assumptions.
 
 **Self-host Tier 3 (`landing_zone.mode: alz-integrated`) additions:**
 
@@ -380,9 +386,9 @@ in Azure Cost Management views. Additional chargeback tags
 
 ## 5. Re-running evals against the deployed environment
 
-The full chain below targets `selfhost`. Hosted preview currently has only the
-fresh-session Responses smoke in the deployment workflow; follow the
-engagement packet for any additional hosted evaluation adapter.
+The full chain below targets `selfhost`. `foundry-prompt` runs shared
+provisioning/readback checks, while Hosted preview runs a fresh-session Responses smoke.
+Follow the engagement packet for additional target-specific evaluation.
 
 Preferred unified command:
 
@@ -663,10 +669,10 @@ accel deploy --env <env> --region <region> --execute
 accel deploy --env <env> --region <region> --execute --apply
 ```
 
-For `hosted-preview`, apply runs `azd provision` then `azd deploy` inside
-`deploy/hosted-preview`. Multi-field Responses requests must be supplied as a
-JSON object encoded as input text; free text is only valid for a schema with
-one required string field.
+For `foundry-prompt`, apply runs nested `azd provision` and shared prompt-agent
+provisioning. For `hosted-preview`, it runs `azd provision` then `azd deploy`.
+Multi-field Hosted Responses requests must be supplied as a JSON object encoded
+as input text; free text is only valid for one required string field.
 
 ### `azd down --purge`
 

@@ -1,24 +1,26 @@
-# 6. Scaffold from the brief
+# 6. Decide and scaffold
 
 *Step 6 of 10 · Deliver to a customer*
 
 !!! info "Step at a glance"
-    **🎯 Goal** — Translate the brief into code, infra, evals, telemetry.
+    **🎯 Goal** — Approve the right Foundry/application architecture, then
+    translate the brief into code, infrastructure, evals, and telemetry.
 
     **📋 Prerequisite** — [5. Discover with the customer](02-discover-with-the-customer.md) complete — `docs/discovery/solution-brief.md` has zero `TBD`.
 
     **💻 Where you'll work** — Terminal for deterministic commands; your
     coding-agent client and editor for specialist authoring and diff review.
 
-    **✅ Done when** — `accel design` passes; the scaffold preview was approved
-    and applied; specialist authoring is complete; `accel validate --full
-    --execute` passes.
+    **✅ Done when** — The Architecture Advisor decision is approved and
+    current; scaffold preview/apply is complete; required specialist authoring
+    is complete; validation passes.
 
-!!! tip "Specialists used after the CLI scaffold"
+!!! tip "Specialists used for hosted multi-agent decisions"
     [`/define-grounding`](../../../.github/agents/define-grounding.agent.md) →
     [`/implement-workers`](../../../.github/agents/implement-workers.agent.md)
 
-    `accel scaffold` lays down the structural shape. `/define-grounding` wires
+    `accel scaffold` lays down the selected primary or supervisor shape.
+    `/define-grounding` wires
     FoundryIQ + AI Search indexes + catalog-tool declarations. `/implement-workers`
     fills every worker's three-layer module and Foundry spec. The legacy
     `/scaffold-from-brief` prompt remains a compatibility entry point.
@@ -50,11 +52,16 @@ Start with deterministic design and scaffold commands:
 
 ```powershell
 accel design
+accel design --approved-by "<partner architect>" --apply
 accel scaffold --scenario-id <scenario-id> --dry-run
 accel scaffold --scenario-id <scenario-id> --apply
 ```
 
-The dry run lists every file and the exact `accelerator.yaml` change. Applying
+Review `accel design` before approval. It reports matched requirement signals,
+confidence, alternatives, official Foundry references, and a proposed
+`accelerator.yaml -> architecture` diff. Overrides require a reason.
+
+The scaffold dry run lists every file and the exact manifest change. Applying
 is transactional: a manifest-write failure rolls back newly generated files.
 The **Lands in** column below shows flagship paths.
 
@@ -66,7 +73,8 @@ scenario-agnostic.
 |---|---|
 | Problem + persona | `docs/agent-specs/<supervisor>.md` system instructions |
 | Request/response UX contract | Scenario `request_schema`, `response_schema`, and `experience` metadata in `accelerator.yaml` |
-| Solution shape | Keep flagship OR run `/switch-to-variant` for a walkthrough of re-authoring under `patterns/single-agent` or `patterns/chat-with-actioning` (manual re-authoring walkthroughs, not drop-ins) |
+| Foundry agent type + application architecture | `accelerator.yaml -> architecture` |
+| Solution shape | `scenario.implementation` and architecture-aware primary/supervisor scaffold |
 | Grounding sources | `scenario.agents[].retrieval` (`foundry_tool` or `none`) + scenario index schema + `scenario.retrieval.indexes[]` |
 | Side-effect tools | New files under `src/tools/` with HITL scaffolding |
 | HITL gates | Per-tool `HITL_POLICY` constant + `checkpoint(...)` calls; `accelerator.yaml -> solution.hitl` engagement-level summary |
@@ -75,26 +83,12 @@ scenario-agnostic.
 | RAI risks | `evals/redteam/` custom adversarial cases |
 | ROI KPIs | `src/accelerator_baseline/telemetry.py` events + `infra/dashboards/roi-kpis.json` (panels are scenario-agnostic; rename the dashboard per engagement) |
 
-```mermaid
-flowchart LR
-    classDef brief fill:#f3d9fa,stroke:#862e9c,stroke-width:2px,color:#000
-    classDef code fill:#b2f2bb,stroke:#2f9e44,stroke-width:2px,color:#000
-    classDef infra fill:#a5d8ff,stroke:#1864ab,stroke-width:2px,color:#000
-    classDef gate fill:#fff3bf,stroke:#e67700,stroke-width:2px,color:#000
-    classDef obs fill:#99e9f2,stroke:#0c8599,stroke-width:2px,color:#000
+<div class="architecture-diagram">
+  <img src="../../assets/diagrams/architecture-advisor-targets.svg" alt="Architecture Advisor target comparison">
+</div>
 
-    B["<b>solution-brief.md</b><br/>approved customer intent"]:::brief
-    B --> D["accel design<br/>readiness + reconciliation"]:::gate
-    D --> Y["accelerator.yaml<br/>executable contract"]:::gate
-    Y --> S["accel scaffold<br/>preview → approved apply"]:::code
-    S --> P["Agent specs &<br/>worker modules"]:::code
-    S --> R["Grounding &<br/>tools"]:::code
-    S --> I["Infra (Bicep)<br/>+ landing zone"]:::infra
-    S --> E["Eval cases<br/>(quality + redteam)"]:::obs
-    S --> TM["Telemetry events<br/>+ dashboard panels"]:::infra
-    Y --> A["Acceptance gate<br/>(CI must pass)"]:::gate
-    E --> A
-```
+See [Architecture Advisor](../../reference/architecture-advisor.md) for the
+decision matrix and target-specific diagrams.
 
 `accel scaffold` is initial materialization and refuses to overwrite an
 existing scenario. Later brief changes are reviewed implementation diffs;
@@ -103,9 +97,9 @@ telemetry without re-scaffolding.
 
 ## Wire grounding & implement workers
 
-`accel scaffold` materialises the **structural** shape — folders, stub
-three-layer files, and manifest update. Two specialist agents turn the stubs
-into a working scenario:
+For a hosted decision using deterministic-workflow or supervisor-routing,
+`accel scaffold` materialises the structural shape and two specialists turn the
+stubs into a working scenario:
 
 ```
 /define-grounding

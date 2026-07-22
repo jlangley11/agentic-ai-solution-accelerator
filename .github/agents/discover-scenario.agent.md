@@ -142,6 +142,11 @@ Push back on vague answers. Force specificity:
      Capture into a new **`## UX output sections`** section of the brief as a Markdown table with columns `Section | Content | Source agent`.
 
   Skip both follow-ups for the other three branches (chat, dashboard, API-only) — those stay single-question.
+- **Architecture Advisor signals** — ask whether the customer has existing
+  agent code/frameworks, custom dependencies, custom protocols, persistent
+  session/files, deterministic branching/retries/approvals, multiple
+  specialists, or customer-managed runtime constraints. Capture facts only;
+  do not choose prompt versus Hosted agent during discovery.
 - Grounding sources (SharePoint / SQL / API / blob / all of the above)
 - **Data and access contract** — for every grounding or uploaded-data source,
   capture owner, classification (`public|internal|confidential|restricted`),
@@ -182,8 +187,8 @@ Derived from section 3 and section 6. Produce concrete thresholds:
    - Section 4 KPI names → `kpis[].name` (leave baseline/target numbers blank for later fill)
 5. Summarize:
    > "I've filled `docs/discovery/solution-brief.md` and aligned the approved
-   > intent fields in `accelerator.yaml`. Next: run `accel design`, preview
-   > `accel scaffold`, and approve the apply step."
+   > intent fields in `accelerator.yaml`. Next: run `accel design`, review and
+   > approve the Architecture Advisor recommendation, then preview scaffold."
 
 ## Style
 - One question at a time in live mode.

@@ -22,8 +22,10 @@ authoring after the approved scaffold.
 
 ## Preflight
 1. Open `docs/discovery/solution-brief.md`. If any section is missing or contains `TBD`, STOP and reply: "Run `/discover-scenario` first to fill the brief." Then stop.
-2. Open `accelerator.yaml`. Check whether the existing `scenario:` block is the flagship (`id: sales-research`) or a prior partner-scaffolded scenario.
-3. Confirm a scenario id (lowercase-with-hyphens, e.g. `order-triage`, `claims-intake`).
+2. Run `accel design`. If it returns `approval_required`, present the
+   recommendation and stop until the partner approves or overrides it.
+3. Confirm `accelerator.yaml -> architecture.status: approved`.
+4. Confirm a scenario id (lowercase-with-hyphens, e.g. `order-triage`, `claims-intake`).
 
 ## Step 1 — Preview and apply the scaffold
 ```powershell
@@ -35,8 +37,8 @@ Present the dry-run file/manifest actions and obtain explicit approval. Only
 then run `accel scaffold --scenario-id <scenario-id> --apply`.
 This materializes:
 - `src/scenarios/<package>/{__init__,schema,workflow,retrieval}.py`
-- `src/scenarios/<package>/agents/supervisor/{__init__,prompt,transform,validate}.py`
-- `docs/agent-specs/accel-<scenario-id>-supervisor.md`
+- A `primary` prompt-agent package/spec or a hosted `supervisor` package/spec,
+  according to the approved decision
 - `data/samples/<package>.json`
 
 Package leaf is auto-derived (hyphens → underscores). The CLI fails fast if any target exists, and rolls back on partial failure.

@@ -20,7 +20,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "const": "1.1"
     },
     "operation_id": {
       "type": "string",
@@ -30,6 +30,7 @@
       "enum": [
         "qualify",
         "discover",
+        "design",
         "scaffold",
         "provision",
         "iterate",
@@ -145,6 +146,7 @@
           "enum": [
             "qualify",
             "discover",
+            "design",
             "scaffold",
             "provision",
             "iterate",

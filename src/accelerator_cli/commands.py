@@ -170,11 +170,18 @@ def _actions_for_stage(stage: Stage) -> tuple[ProposedAction, ...]:
                 "accel discover",
             ),
         ),
+        Stage.DESIGN: (
+            ProposedAction(
+                "review-architecture",
+                "Review the Foundry architecture recommendation",
+                "accel design",
+            ),
+        ),
         Stage.SCAFFOLD: (
             ProposedAction(
                 "preview-scaffold",
                 "Preview scenario scaffolding",
-                "accel scaffold --dry-run",
+                "accel scaffold --scenario-id <id> --dry-run",
             ),
         ),
         Stage.PROVISION: (

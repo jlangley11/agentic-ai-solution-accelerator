@@ -81,8 +81,8 @@ The full PRD-ingestion flow lives in [Reference → Discovery how-to → "If the
    /discover-scenario
    ```
 
-   The custom agent produces the brief and engagement-level manifest values.
-   Initial scenario structure is handled later by `accel scaffold`.
+   The specialist produces the brief and engagement-level manifest values.
+   `accel design` chooses the architecture later; `accel scaffold` materializes it.
 
    If you ran `/ingest-prd` first, `/discover-scenario` detects the draft banner and enters **gap-fill mode** — asks only about `TBD` fields, preserves every confirmed field byte-for-byte, strips the banner and evidence comments on exit.
 
@@ -93,6 +93,9 @@ The full PRD-ingestion flow lives in [Reference → Discovery how-to → "If the
 5. Walk the sponsor through the brief + ROI calculator together. Record
    requirement decisions/links, export traceability, and iterate before
    `accel design`.
+
+6. Run `accel design`, review its Foundry architecture recommendation, and
+   record partner approval or an override reason.
 
 ## What "good" looks like
 
@@ -115,4 +118,4 @@ The full PRD-ingestion flow lives in [Reference → Discovery how-to → "If the
 
 ---
 
-**Continue →** [6. Scaffold from the brief](03-scaffold-from-the-brief.md)
+**Continue →** [6. Decide and scaffold](03-scaffold-from-the-brief.md)

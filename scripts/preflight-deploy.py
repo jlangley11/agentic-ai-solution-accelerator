@@ -3,8 +3,9 @@
 Runs deterministic ``az`` checks against the partner's currently-logged-in
 Azure context to surface documented deployment failures before provisioning.
 The default ``selfhost`` target preserves the root ``azd up`` checks. The
-``hosted-preview`` target adds explicit preview, runtime, CLI, extension, and
-region gates for the nested Hosted Agents workspace.
+``foundry-prompt`` target checks the agent-only Foundry workspace. The
+``hosted-preview`` target additionally gates preview runtime, CLI, extension,
+and region requirements.
 
 Scope:
   - ``az account show`` parity (logged in, expected tenant if --tenant given)
@@ -23,6 +24,8 @@ Usage:
     python scripts/preflight-deploy.py --region eastus2
     python scripts/preflight-deploy.py --region westeurope --tenant <guid>
     python scripts/preflight-deploy.py --region eastus2 --subscription <guid>
+    python scripts/preflight-deploy.py --region eastus2 \
+      --deployment-target foundry-prompt
     python scripts/preflight-deploy.py --region westus3 \
       --deployment-target hosted-preview --acknowledge-preview
 
@@ -287,7 +290,7 @@ def check_az_login(expected_tenant: str | None, expected_subscription: str | Non
 def check_resource_providers(deployment_target: str = "selfhost") -> CheckResult:
     required_rps = (
         HOSTED_PREVIEW_REQUIRED_RPS
-        if deployment_target == "hosted-preview"
+        if deployment_target in {"foundry-prompt", "hosted-preview"}
         else SELFHOST_REQUIRED_RPS
     )
     not_registered: list[str] = []
@@ -648,11 +651,11 @@ def _print_report(
     fails = [r for r in results if r.status == "fail"]
     warns = [r for r in results if r.status == "warn"]
     print(bar)
-    target_command = (
-        "hosted preview provision/deploy"
-        if deployment_target == "hosted-preview"
-        else "selfhost `azd up`"
-    )
+    target_command = {
+        "hosted-preview": "hosted preview provision/deploy",
+        "foundry-prompt": "Foundry prompt-agent provision",
+        "selfhost": "selfhost `azd up`",
+    }[deployment_target]
     if fails:
         print(
             f" Result: [FAIL] {len(fails)} hard failure(s); "
@@ -690,7 +693,7 @@ def main() -> int:
                    help="Expected subscription GUID; preflight fails if mismatched.")
     p.add_argument(
         "--deployment-target",
-        choices=("selfhost", "hosted-preview"),
+        choices=("selfhost", "foundry-prompt", "hosted-preview"),
         default="selfhost",
         help="Deployment shape to validate (default: selfhost).",
     )
@@ -713,6 +716,13 @@ def main() -> int:
             check_python_version(),
             check_azd_version(),
             check_agents_extension_version(),
+            check_foundry_extension_version(),
+        ])
+        if any(result.status == "fail" for result in results):
+            return _print_report(results, args.deployment_target)
+    elif args.deployment_target == "foundry-prompt":
+        results.extend([
+            check_azd_version(),
             check_foundry_extension_version(),
         ])
         if any(result.status == "fail" for result in results):

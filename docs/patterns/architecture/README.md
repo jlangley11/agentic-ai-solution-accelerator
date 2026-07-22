@@ -4,6 +4,22 @@ What the accelerator ships today, and the shapes a partner can reasonably custom
 
 ---
 
+## Choose the architecture before scaffolding
+
+`accel design` evaluates approved requirements across four independent
+dimensions: prompt versus Hosted agent, orchestration pattern, application
+shell, and deployment target. Workflow is an orchestration pattern—not a third
+Foundry Agent Service type.
+
+<div class="architecture-diagram">
+  <img src="../../assets/diagrams/architecture-advisor-targets.svg" alt="Architecture Advisor target comparison">
+</div>
+
+See the [Architecture Advisor](../../reference/architecture-advisor.md) for the
+decision rules, approval/override flow, and prompt/Hosted target diagrams.
+
+---
+
 ## Flagship self-host topology
 
 **Pattern — supervisor routing, 4 specialists (grouped in 2 workstreams), retrieval-backed, HITL for side-effects.**

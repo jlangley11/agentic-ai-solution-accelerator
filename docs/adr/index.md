@@ -28,6 +28,7 @@ position changes we add a new ADR that supersedes the old one.
 | [0008](0008-unified-accelerator-cli.md) | Unified local accelerator CLI | Accepted |
 | [0009](0009-private-evidence-ledger.md) | Local private evidence ledger | Accepted |
 | [0010](0010-schema-driven-workbench.md) | Schema-driven customer workbench | Accepted |
+| [0011](0011-architecture-advisor-gate.md) | Architecture advice is an approved lifecycle gate | Accepted |
 
 ## When to add an ADR
 

@@ -50,6 +50,7 @@ Legend:
 | Decision | Posture | How |
 |---|---|---|
 | Single executable manifest | 🟢 | `accelerator.yaml` is the executable scenario/deployment contract; `scripts/accelerator-lint.py` validates it. |
+| Evidence-backed architecture selection | 🟢 | `accel design` records recommendation, alternatives, approval, and requirement fingerprint before scaffold/deploy. |
 | Eval-as-merge-gate | 🟢 | PR-time `.github/workflows/evals.yml` runs `evals/quality/` + `evals/redteam/` against a standing staging URL (`vars.EVALS_API_URL`) and must pass before merge. |
 | Post-deploy regression safety net | 🟢 | Self-host deploys re-run acceptance after a fresh API URL is emitted; Hosted preview currently runs a fresh-session protocol smoke. |
 | Application Insights wired by default | 🟢 | `infra/modules/monitor.bicep` + `azure-monitor-opentelemetry` in `pyproject.toml`. |

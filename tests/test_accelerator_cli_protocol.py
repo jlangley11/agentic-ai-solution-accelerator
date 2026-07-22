@@ -28,7 +28,7 @@ def test_command_result_serializes_stable_wire_values() -> None:
 
     payload = json.loads(result.to_json())
 
-    assert payload["schema_version"] == "1.0"
+    assert payload["schema_version"] == "1.1"
     assert payload["stage"] == "scaffold"
     assert payload["status"] == "approval_required"
     assert payload["proposed_actions"][0]["approval"] == "apply"

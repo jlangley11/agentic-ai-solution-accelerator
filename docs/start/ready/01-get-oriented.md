@@ -48,8 +48,14 @@ Each worker is stateless and declared in the `WORKERS` registry in
 `src/scenarios/<id>/workflow.py`. The flagship ships Account Planner, ICP/Fit
 Analyst, Competitive Context, and Outreach Personaliser workers.
 
-Two simpler shapes are also supported with the `switch-to-variant` specialist:
-**single-agent** (no supervisor) and **chat-with-actioning** (conversational front-end).
+After discovery, `accel design` decides two separate questions:
+
+- **Agent type:** Foundry prompt agent or Hosted agent
+- **Orchestration:** single agent, deterministic workflow, or supervisor routing
+
+It also selects the application shell and deployment target. The
+`switch-to-variant` specialist remains a compatibility aid for existing
+scenarios; it no longer owns the architecture decision.
 
 ## What the accelerator gives you vs. what you own
 
@@ -87,7 +93,7 @@ The walkthrough maps to **three responsibilities** — not three people. At a sm
 | 3. Rehearse in a sandbox | Once per partner engineer, before first customer |
 | 4. Clone for the customer | Per engagement |
 | 5. Discover with the customer | Per engagement |
-| 6. Scaffold from the brief | Per engagement |
+| 6. Decide and scaffold | Per engagement |
 | 7. Provision the customer's Azure | Per engagement |
 | 8. Iterate & evaluate | Per engagement (continuous) |
 | 9. UAT & handover | Per engagement |

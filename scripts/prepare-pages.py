@@ -130,19 +130,14 @@ MERMAID_TO_SVG: dict[str, tuple[str, str]] = {
     "index.md": (
         "assets/diagrams/10-step-flow.svg",
         "Partner walkthrough at a glance: 3 Get-ready steps feed 7 Deliver "
-        "steps; next engagement loops back to step 5 (Discover).",
+        "steps including architecture decision; next engagement loops back to "
+        "step 5 (Discover).",
     ),
     "start/ready/01-get-oriented.md": (
         "assets/diagrams/supervisor-workers.svg",
         "Supervisor + specialist workers shape: a supervisor agent routes a "
         "customer request to specialist workers; side-effect tools pass "
         "through a HITL gate; every span emits telemetry to App Insights.",
-    ),
-    "start/deliver/03-scaffold-from-the-brief.md": (
-        "assets/diagrams/brief-to-artifacts.svg",
-        "Approved solution intent is reconciled into accelerator.yaml, then "
-        "accel scaffold previews and applies agent, grounding, infrastructure, "
-        "evaluation, telemetry, and acceptance artifacts.",
     ),
     "start/deliver/04-provision-the-customers-azure.md": (
         "assets/diagrams/oidc-topology.svg",

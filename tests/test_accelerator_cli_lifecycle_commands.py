@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import pathlib
 
+import yaml
+
 import src.accelerator_cli.lifecycle_commands as lifecycle_commands
+from src.accelerator_cli.architecture_advisor import requirements_fingerprint
 from src.accelerator_cli.lifecycle_commands import (
     environment_list,
     handover_approve,
@@ -23,17 +26,60 @@ def _write(path: pathlib.Path, text: str) -> None:
 
 def _context(tmp_path: pathlib.Path) -> RepositoryContext:
     (tmp_path / ".git").mkdir()
+    brief = """# Brief
+
+## 5. Solution shape
+- **Pattern:** supervisor-routing
+
+## 5b. UX shape
+- **`ux_shape`:** Structured form + report
+
+## 5c. UX inputs
+Defined.
+
+## 5d. UX output sections
+Defined.
+
+## 6. Constraints & risks
+RAI risks are approved.
+
+## 7. Acceptance evals
+Approved.
+"""
+    _write(tmp_path / "docs/discovery/solution-brief.md", brief)
+    _write(
+        tmp_path / "docs/discovery/use-case-canvas.md",
+        "# Canvas\n**Process:** Approved\n",
+    )
+    fingerprint = requirements_fingerprint(brief)
     _write(
         tmp_path / "accelerator.yaml",
-        """
+        f"""
 scenario:
   id: sales-research
   package: src.scenarios.sales_research
+  implementation:
+    agent_type: hosted-agent
+    orchestration_pattern: supervisor-routing
+    application_shell: workbench
   agents:
     - id: supervisor
       foundry_name: accel-sales-research-supervisor
+architecture:
+  status: approved
+  requirements_fingerprint: {fingerprint}
+  recommendation: {{}}
+  decision:
+    agent_type: hosted-agent
+    orchestration_pattern: supervisor-routing
+    application_shell: workbench
+    deployment_target: selfhost
+    approved_by: Test
+    approved_at: "2026-07-22T00:00:00+00:00"
 acceptance:
   quality_threshold: 0.75
+landing_zone:
+  mode: standalone
 """.lstrip(),
     )
     _write(
@@ -47,6 +93,27 @@ environments:
 """.lstrip(),
     )
     return RepositoryContext(tmp_path)
+
+
+def _set_architecture_target(
+    context: RepositoryContext,
+    target: str,
+    *,
+    agent_type: str = "hosted-agent",
+    orchestration_pattern: str = "supervisor-routing",
+) -> None:
+    data = yaml.safe_load(context.manifest_path.read_text(encoding="utf-8"))
+    data["architecture"]["decision"].update(
+        {
+            "agent_type": agent_type,
+            "orchestration_pattern": orchestration_pattern,
+            "deployment_target": target,
+        }
+    )
+    context.manifest_path.write_text(
+        yaml.safe_dump(data, sort_keys=False),
+        encoding="utf-8",
+    )
 
 
 def test_environment_list_reads_manifest(tmp_path: pathlib.Path) -> None:
@@ -75,6 +142,47 @@ def test_scaffold_dry_run_does_not_write(tmp_path: pathlib.Path) -> None:
     assert result.status == ResultStatus.APPROVAL_REQUIRED
     assert not (tmp_path / "src/scenarios/order_triage").exists()
     assert "order-triage" not in context.manifest_path.read_text(encoding="utf-8")
+
+
+def test_prompt_agent_scaffold_uses_primary_agent_shape(
+    tmp_path: pathlib.Path,
+) -> None:
+    context = _context(tmp_path)
+    _set_architecture_target(
+        context,
+        "foundry-prompt",
+        agent_type="prompt-agent",
+        orchestration_pattern="single-agent",
+    )
+    script = tmp_path / "scripts/scaffold-scenario.py"
+    script.parent.mkdir(parents=True)
+    source = pathlib.Path(__file__).parents[1] / "scripts/scaffold-scenario.py"
+    script.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    result = scaffold(
+        context,
+        scenario_id="faq-helper",
+        no_retrieval=True,
+        preserve_evals=True,
+        apply=True,
+    )
+    manifest = yaml.safe_load(context.manifest_path.read_text(encoding="utf-8"))
+    workflow_text = (
+        tmp_path / "src/scenarios/faq_helper/workflow.py"
+    ).read_text(encoding="utf-8")
+
+    assert result.status == ResultStatus.COMPLETE
+    assert (tmp_path / "src/scenarios/faq_helper/agents/primary").is_dir()
+    assert not (tmp_path / "src/scenarios/faq_helper/agents/supervisor").exists()
+    assert "from src.workflow.supervisor import WorkerSpec" in workflow_text
+    assert "src.workflow.primary" not in workflow_text
+    compile(workflow_text, "workflow.py", "exec")
+    assert manifest["scenario"]["agents"][0]["id"] == "primary"
+    assert manifest["scenario"]["implementation"] == {
+        "agent_type": "prompt-agent",
+        "orchestration_pattern": "single-agent",
+        "application_shell": "workbench",
+    }
 
 
 def test_uat_signoff_and_handover_are_local_artifacts(tmp_path: pathlib.Path) -> None:
@@ -268,6 +376,7 @@ def test_hosted_apply_runs_provision_then_deploy(
     monkeypatch,
 ) -> None:
     context = _context(tmp_path)
+    _set_architecture_target(context, "hosted-preview")
     _write(
         context.root / "deploy/environments.yaml",
         "default_env: dev\n"
@@ -338,6 +447,52 @@ def test_handover_reads_values_from_declared_target_workspace(
     assert result.status == ResultStatus.APPROVAL_REQUIRED
     assert "https://correct.example" in result.details["preview"]
     assert "https://wrong.example" not in result.details["preview"]
+
+
+def test_prompt_agent_apply_runs_nested_provision_only(
+    tmp_path: pathlib.Path,
+    monkeypatch,
+) -> None:
+    context = _context(tmp_path)
+    _set_architecture_target(
+        context,
+        "foundry-prompt",
+        agent_type="prompt-agent",
+        orchestration_pattern="single-agent",
+    )
+    _write(
+        context.root / "deploy/environments.yaml",
+        "default_env: dev\n"
+        "environments:\n"
+        "  - name: prompt-agent\n"
+        "    github_environment: prompt-agent\n"
+        "    deployment_target: foundry-prompt\n",
+    )
+    calls: list[tuple[list[str], pathlib.Path]] = []
+
+    def fake_run(ctx, command, *, cwd=None, timeout=1800):
+        calls.append((list(command), cwd or ctx.root))
+        return ProcessResult(tuple(command), 0, "ok", "")
+
+    monkeypatch.setattr(lifecycle_commands, "run_process", fake_run)
+
+    result = lifecycle_commands.deploy(
+        context,
+        env="prompt-agent",
+        region="eastus2",
+        target=None,
+        acknowledge_preview=False,
+        execute=True,
+        apply=True,
+    )
+
+    assert result.status == ResultStatus.COMPLETE
+    assert [call[0][1] for call in calls] == [
+        str(context.root / "scripts/preflight-deploy.py"),
+        "provision",
+    ]
+    assert calls[1][1] == context.root / "deploy/foundry-prompt"
+    assert result.next_command == "accel next"
 
 
 def test_scaffold_cleanup_reports_concurrent_files(tmp_path: pathlib.Path) -> None:

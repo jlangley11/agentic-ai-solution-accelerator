@@ -9,7 +9,9 @@ tools: ['codebase', 'editFiles', 'search', 'terminal']
 > Compatibility adapter: run `accel design` before selecting a variant and
 > `accel validate` after re-authoring the scenario.
 
-Use this when the brief or customer feedback indicates the current pattern is over- or under-powered.
+Use this only after `accel design` indicates that the current orchestration or
+application shell is over- or under-powered. Agent type and deployment target
+are approved in `accelerator.yaml.architecture`, not selected independently here.
 
 ## Choices
 - **single-agent** — one agent + retrieval + 1–2 tools. Best for narrow Q&A-with-actioning.
@@ -20,11 +22,14 @@ Use this when the brief or customer feedback indicates the current pattern is ov
 
 ### → single-agent
 The `single-agent` variant is documented in `patterns/single-agent/README.md`. It is a manual re-authoring walkthrough, not a drop-in package. To switch:
-1. Author a new scenario package under `src/scenarios/<new-scenario>/` with a single agent (use `scripts/scaffold-scenario.py <id>` — it emits the three-layer supervisor shape; drop the remaining workers).
-2. Move flagship workers' domain knowledge into the single agent's `prompt.py` as composition.
+1. Approve `single-agent` orchestration through `accel design`, then run
+   `accel scaffold`; prompt-agent decisions generate a `primary` package.
+2. Consolidate system instructions in `docs/agent-specs/<foundry_name>.md`;
+   `prompt.py` remains the per-request envelope.
 3. Keep one or two most-used tools; drop the rest.
 4. Point `accelerator.yaml.scenario.id` at the new scenario; archive the flagship scenario under `src/scenarios/sales_research/` (git history preserves).
-5. Set `accelerator.yaml.solution.pattern: single-agent`.
+5. Keep `solution.pattern`, `scenario.implementation`, and
+   `architecture.decision` aligned.
 6. Update the flagship diagram in `docs/patterns/architecture/README.md` to match the new shape (or replace it with a single-agent diagram).
 
 ### → chat-with-actioning

@@ -15,7 +15,7 @@ returns the current stage, blockers, approval level, and next command.
 ## The motion, in one picture
 
 ```
-discover ──► scaffold ──► provision ──► iterate ──► UAT ──► handover ──► measure
+discover ──► design + scaffold ──► provision ──► iterate ──► UAT ──► handover ──► measure
    (1)         (2)          (3)          (4)        (5)        (6)          (7)
    │           │            │            │          │          │            │
    │           │            │            │          │          │            └─ monthly KPI review
@@ -23,7 +23,7 @@ discover ──► scaffold ──► provision ──► iterate ──► UAT 
    │           │            │            │          └─ acceptance thresholds in accelerator.yaml
    │           │            │            └─ PR-gated: lint + quality evals + redteam
    │           │            └─ accel deploy resolves the target from deploy/environments.yaml
-   │           └─ accel scaffold changes structure; specialist agents author behavior
+   │           └─ accel design recommends/records architecture; scaffold applies it
    └─ accel intake/discover + specialist interview produce approved intent and requirements
 ```
 
@@ -42,6 +42,7 @@ This matters for scoping the SOW honestly.
 | Concern                      | In the accelerator                                                                 | Partner owns                                        |
 |------------------------------|-------------------------------------------------------------------------------------|-----------------------------------------------------|
 | Discovery structure          | `accel intake/discover`, private evidence ledger, `/discover-scenario`, brief template | Workshop facilitation, disclosure decisions, stakeholder map |
+| Architecture selection       | Deterministic `accel design` recommendation, comparison, fingerprint, and approval record | Review assumptions, approve or document override rationale |
 | Scenario scaffold            | `accel design/scaffold` + specialist worker/tool agents | Scenario-specific prompts, tools, grounding sources |
 | Infra                        | `infra/` (AVM-based) + `azure.yaml` + `deploy/environments.yaml`                     | Customer network / private-link overlay if required |
 | CI / CD                      | `.github/workflows/{deploy,evals,lint}.yml` + `scripts/accelerator-lint.py`         | Branch protection, required reviewers               |
@@ -110,23 +111,29 @@ hypothesis, solution shape, constraints/risks, acceptance evals.
 
 ---
 
-## Stage 2 — Scaffold
+## Stage 2 — Design + scaffold
 
-**Where:** VS Code throughout — Copilot Chat sidebar (open via `Ctrl+Alt+I`; pick a custom agent from the **agents dropdown** at the top of the panel), editor for diff review, integrated terminal for the lint/test/preflight commands.
+**Where:** local terminal plus the partner's preferred coding-agent client and
+editor.
 
-**Goal:** adapt the repo to the customer's scenario — a clean diff reviewers
-can follow.
+**Goal:** approve the correct Foundry/application architecture, then adapt the
+repo with a clean, explainable diff.
 
 **How:** use the CLI for readiness and structural changes, then specialist
 agents for customer-specific authoring:
 
 ```
 accel design
+accel design --approved-by "<partner architect>" --apply
 accel scaffold --scenario-id <id> --dry-run
 accel scaffold --scenario-id <id> --apply
 /define-grounding       →  per-worker FoundryIQ vs none + Search indexes + read-only catalog intent
 /implement-workers      →  fills every stub prompt.py / transform.py / validate.py + Foundry agent spec
 ```
+
+The Architecture Advisor compares prompt and Hosted agents, separately selects
+the workflow/supervisor pattern and application shell, and proposes the
+deployment target. Requirements changes invalidate the approval automatically.
 
 `accel scaffold` wraps `scripts/scaffold-scenario.py` transactionally; that
 script and `scaffold-agent.py` auto-seed
@@ -136,22 +143,21 @@ without manual eval-file edits.
 **What `accel scaffold` materializes:**
 
 - `src/scenarios/<package>/{__init__,schema,workflow,retrieval}.py`
-- `src/scenarios/<package>/agents/supervisor/{__init__,prompt,transform,validate}.py`
-- `docs/agent-specs/accel-<scenario-id>-supervisor.md`
+- A `primary` package/spec for prompt-agent decisions, or `supervisor` package/spec
+  for hosted orchestration
 - `data/samples/<package>.json`
 - A transactionally updated `accelerator.yaml` scenario block
 - A stub `q-001` in `evals/quality/golden_cases.jsonl` (refine the
   `query` and `expected` fields to encode real customer success criteria)
 
-**What `/define-grounding` writes:** per-worker `retrieval:` blocks
+For hosted multi-agent decisions, **`/define-grounding` writes:** per-worker `retrieval:` blocks
 (mode = `foundry_tool` or `none`) and read-only `catalog_tools:` lists in
 `accelerator.yaml -> scenario.agents[]`, plus matching entries in
 `scenario.retrieval.indexes[]`. FoundryIQ is the consolidated enterprise
 knowledge layer; AI Search lives underneath it. **Always start with
 `foundry_tool` unless the worker is purely transformational** (router,
-formatter, aggregator). The startup bootstrap (`src/bootstrap.py`)
-provisions FoundryIQ Knowledge Sources + Knowledge Bases + agent
-attachments on the next `azd deploy`.
+formatter, aggregator). Shared provisioning creates the Knowledge Sources, KBs,
+and managed attachments on deployment.
 
 **What `/implement-workers` writes:** real `prompt.py`, `transform.py`,
 `validate.py`, and `docs/agent-specs/<foundry_name>.md` for every
@@ -233,6 +239,7 @@ named environment.
 2. `/deploy-to-env <env-name>` to register a new GitHub Environment entry in
    `deploy/environments.yaml` and scaffold the required secrets / variables
    per the "Required GitHub secrets and variables" section of `docs/getting-started/setup-and-prereqs.md`.
+   Its `deployment_target` must match the approved Architecture Advisor decision.
 3. From the customer's deployment-owner machine, run `accel environment list`,
    then preview/preflight/apply with `accel deploy`. First deploy takes ~15 min on a clean subscription. The
    `accel deploy` resolves the environment target and invokes the corresponding
@@ -439,7 +446,8 @@ no spreadsheets, no screenshots of runs.
 | Register and govern source documents           | `accel intake …`                                                    |
 | Run structured discovery                       | `accel discover` + `/discover-scenario`                             |
 | Pre-draft from approved evidence               | `/ingest-prd`                                                       |
-| Preview/apply the initial scenario              | `accel design` + `accel scaffold --dry-run/--apply`                 |
+| Recommend and approve architecture              | `accel design` → reviewed `--approved-by … --apply`                 |
+| Preview/apply the initial scenario              | `accel scaffold --scenario-id <id> --dry-run/--apply`               |
 | Wire FoundryIQ + Search + read-only catalog intent    | `/define-grounding`                                                  |
 | Fill every scaffolded worker (3-layer + Foundry spec) | `/implement-workers` (or `/implement-worker <id>` for a single worker) |
 | Add a worker agent post-scaffold             | `/add-worker-agent`                                                  |

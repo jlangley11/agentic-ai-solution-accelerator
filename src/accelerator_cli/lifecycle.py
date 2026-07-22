@@ -6,6 +6,14 @@ import pathlib
 from dataclasses import dataclass
 from typing import Any
 
+from .architecture_advisor import (
+    architecture_is_current,
+    committed_requirement_context,
+    has_unresolved_markers,
+    recommend_architecture,
+    validate_selection,
+)
+from .intake.ledger import EvidenceLedger
 from .protocol import STAGE_ORDER, Issue, ResultStatus, Stage, StageSummary
 from .repository import RepositoryContext
 
@@ -19,6 +27,7 @@ _UNRESOLVED_MARKERS = (
     "TBD",
     "TODO:",
 )
+_DEPLOYMENT_TARGETS = {"selfhost", "foundry-prompt", "hosted-preview"}
 
 
 @dataclass(frozen=True)
@@ -36,6 +45,7 @@ def detect_lifecycle(context: RepositoryContext) -> LifecycleState:
     stage_checks = {
         Stage.QUALIFY: _detect_qualify(context, brief),
         Stage.DISCOVER: _detect_discover(context, brief),
+        Stage.DESIGN: _detect_design(context, manifest, brief),
         Stage.SCAFFOLD: _detect_scaffold(context, manifest),
         Stage.PROVISION: _detect_provision(context),
         Stage.ITERATE: _detect_iterate(context, manifest),
@@ -192,6 +202,115 @@ def _detect_scaffold(
     )
 
 
+def _detect_design(
+    context: RepositoryContext,
+    manifest: dict[str, Any],
+    brief: str,
+) -> StageSummary:
+    if not brief or has_unresolved_markers(brief):
+        return StageSummary(
+            Stage.DESIGN,
+            ResultStatus.BLOCKED,
+            "Architecture advice waits for approved discovery intent.",
+            issues=(
+                Issue(
+                    "architecture-discovery",
+                    "The solution brief is incomplete.",
+                    "Complete discovery before selecting an agent architecture.",
+                    "docs/discovery/solution-brief.md",
+                ),
+            ),
+        )
+    local_requirements = _local_approved_requirement_statements(context)
+    traceability = (
+        context.root / "docs" / "discovery" / "requirements-traceability.md"
+    )
+    if local_requirements and not traceability.exists():
+        return StageSummary(
+            Stage.DESIGN,
+            ResultStatus.BLOCKED,
+            "Approved requirements must be exported before architecture review.",
+            issues=(
+                Issue(
+                    "architecture-traceability",
+                    "The local evidence ledger has approved requirements but the "
+                    "sanitized traceability export is missing.",
+                    "Run `accel intake requirement export --apply`.",
+                    "docs/discovery/requirements-traceability.md",
+                ),
+            ),
+        )
+    recommendation = recommend_architecture(
+        brief,
+        committed_requirement_context(context.root, local_requirements),
+    )
+    architecture = manifest.get("architecture")
+    if not isinstance(architecture, dict):
+        return StageSummary(
+            Stage.DESIGN,
+            ResultStatus.READY,
+            "The architecture advisor is ready to recommend a solution shape.",
+            issues=(
+                Issue(
+                    "architecture-decision",
+                    "No approved architecture decision is recorded.",
+                    "Run `accel design`, review the rationale, then approve a decision.",
+                    "accelerator.yaml",
+                ),
+            ),
+        )
+    if not architecture_is_current(
+        architecture,
+        recommendation.requirements_fingerprint,
+    ):
+        return StageSummary(
+            Stage.DESIGN,
+            ResultStatus.APPROVAL_REQUIRED,
+            "The architecture decision is missing, unapproved, or stale.",
+            issues=(
+                Issue(
+                    "architecture-decision-stale",
+                    "Approved requirements changed after the recorded architecture decision.",
+                    "Run `accel design` and approve the updated recommendation.",
+                    "accelerator.yaml",
+                ),
+            ),
+        )
+    decision = architecture.get("decision") or {}
+    selection_issues = validate_selection(
+        agent_type=str(decision.get("agent_type") or ""),
+        orchestration_pattern=str(decision.get("orchestration_pattern") or ""),
+        application_shell=str(decision.get("application_shell") or ""),
+        deployment_target=str(decision.get("deployment_target") or ""),
+    )
+    if selection_issues:
+        return StageSummary(
+            Stage.DESIGN,
+            ResultStatus.BLOCKED,
+            "The approved architecture decision is invalid.",
+            issues=tuple(
+                Issue(
+                    f"architecture-selection-{index}",
+                    message,
+                    "Run `accel design` and approve a supported combination.",
+                    "accelerator.yaml",
+                )
+                for index, message in enumerate(selection_issues, start=1)
+            ),
+        )
+    return StageSummary(
+        Stage.DESIGN,
+        ResultStatus.COMPLETE,
+        "The Foundry architecture decision is approved and current.",
+        (
+            f"Agent type: {decision.get('agent_type')}",
+            f"Orchestration: {decision.get('orchestration_pattern')}",
+            f"Application shell: {decision.get('application_shell')}",
+            f"Recommended target: {decision.get('deployment_target')}",
+        ),
+    )
+
+
 def _detect_provision(context: RepositoryContext) -> StageSummary:
     manifest = context.load_yaml("deploy/environments.yaml")
     invalid_targets = [
@@ -199,7 +318,7 @@ def _detect_provision(context: RepositoryContext) -> StageSummary:
         for entry in manifest.get("environments") or []
         if isinstance(entry, dict)
         and str(entry.get("deployment_target") or "selfhost")
-        not in {"selfhost", "hosted-preview"}
+        not in _DEPLOYMENT_TARGETS
     ]
     if invalid_targets:
         return StageSummary(
@@ -210,7 +329,7 @@ def _detect_provision(context: RepositoryContext) -> StageSummary:
                 Issue(
                     f"deployment-target-{index}",
                     f"Environment {name!r} declares target {target!r}.",
-                    "Use selfhost or hosted-preview.",
+                    "Use selfhost, foundry-prompt, or hosted-preview.",
                     "deploy/environments.yaml",
                 )
                 for index, (name, target) in enumerate(
@@ -423,6 +542,16 @@ def _detect_operate(context: RepositoryContext) -> StageSummary:
     )
 
 
+def _local_approved_requirement_statements(
+    context: RepositoryContext,
+) -> tuple[str, ...]:
+    return tuple(
+        requirement.statement
+        for requirement in EvidenceLedger(context).list_requirements()
+        if requirement.status == "approved"
+    )
+
+
 def _declared_azd_environments(
     context: RepositoryContext,
 ) -> dict[str, tuple[str, set[str]]]:
@@ -433,11 +562,12 @@ def _declared_azd_environments(
             continue
         name = entry["name"]
         target = str(entry.get("deployment_target") or "selfhost")
-        workspace = (
-            context.root / "deploy" / "hosted-preview"
-            if target == "hosted-preview"
-            else context.root
-        )
+        if target == "hosted-preview":
+            workspace = context.root / "deploy" / "hosted-preview"
+        elif target == "foundry-prompt":
+            workspace = context.root / "deploy" / "foundry-prompt"
+        else:
+            workspace = context.root
         env_file = workspace / ".azure" / name / ".env"
         if not env_file.exists():
             continue

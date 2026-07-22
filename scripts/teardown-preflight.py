@@ -18,6 +18,8 @@ Usage:
     python scripts/teardown-preflight.py --env <env-name>
     python scripts/teardown-preflight.py --env <env-name> \
       --deployment-target hosted-preview
+    python scripts/teardown-preflight.py --env <env-name> \
+      --deployment-target foundry-prompt
 
     # After `azd down --purge`: detect lingering soft-deleted resources
     python scripts/teardown-preflight.py --env <env-name> --post-teardown
@@ -91,9 +93,9 @@ def _confirm(prompt: str) -> bool:
 
 
 def teardown_commands(env: str, deployment_target: str = "selfhost") -> list[str]:
-    if deployment_target == "hosted-preview":
+    if deployment_target in {"foundry-prompt", "hosted-preview"}:
         return [
-            "cd deploy/hosted-preview",
+            f"cd deploy/{deployment_target}",
             f"azd down -e {env} --purge --force",
         ]
     return [f"azd down -e {env} --purge --force"]
@@ -106,8 +108,8 @@ def azd_environment_file(
     root: pathlib.Path = ROOT,
 ) -> pathlib.Path:
     workspace = (
-        root / "deploy" / "hosted-preview"
-        if deployment_target == "hosted-preview"
+        root / "deploy" / deployment_target
+        if deployment_target in {"foundry-prompt", "hosted-preview"}
         else root
     )
     return workspace / ".azure" / env / ".env"
@@ -177,8 +179,8 @@ def run_pre_teardown(env: str, deployment_target: str = "selfhost") -> int:
     print(" Then re-run this script with --post-teardown to sweep for")
     print(" soft-deleted resources that survive `azd down`:")
     target_arg = (
-        " --deployment-target hosted-preview"
-        if deployment_target == "hosted-preview"
+        f" --deployment-target {deployment_target}"
+        if deployment_target != "selfhost"
         else ""
     )
     print(
@@ -230,8 +232,8 @@ def run_post_teardown(
     print(f" Soft-delete sweep for env={env} target={deployment_target}")
     print("-" * 72)
     print(" `azd down --purge` does NOT hard-delete every resource type.")
-    if deployment_target == "hosted-preview":
-        print(" Hosted preview can leave Cognitive Services accounts soft-deleted.")
+    if deployment_target in {"foundry-prompt", "hosted-preview"}:
+        print(" Foundry-managed targets can leave Cognitive Services accounts soft-deleted.")
         print(" It does not provision a Key Vault; the Key Vault query remains as")
         print(" a defensive sweep for same-named resources created outside the workspace.")
     else:
@@ -247,7 +249,7 @@ def run_post_teardown(
         root=root,
     )
     env_file = azd_environment_file(env, deployment_target, root=root)
-    if deployment_target == "hosted-preview" and not expected_account:
+    if deployment_target in {"foundry-prompt", "hosted-preview"} and not expected_account:
         print(" [FAIL] Cannot resolve the hosted Cognitive Services account name.")
         print(f"    Checked: {env_file}")
         print(
@@ -341,7 +343,7 @@ def main() -> int:
                    help="Run the soft-delete sweep instead of the pre-teardown checklist.")
     p.add_argument(
         "--deployment-target",
-        choices=("selfhost", "hosted-preview"),
+        choices=("selfhost", "foundry-prompt", "hosted-preview"),
         default="selfhost",
         help="Deployment workspace being torn down (default: selfhost).",
     )

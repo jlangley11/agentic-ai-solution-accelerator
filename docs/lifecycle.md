@@ -19,6 +19,7 @@ between GitHub Copilot CLI, Codex, Claude Code, or direct terminal use.
 |---|---|
 | Qualify | Sponsor, wedge process, measurable baseline, and workshop readiness |
 | Discover | Governed evidence, approved requirements/traceability, and solution brief with no unresolved markers |
+| Design | Architecture Advisor recommendation reviewed; agent type, orchestration, application shell, and target explicitly approved |
 | Scaffold | Scenario package, request/response schemas, experience metadata, agents, grounding, and eval datasets |
 | Provision | Declared environment, green preflight, and deployed endpoint metadata |
 | Iterate | Quality and red-team datasets plus repository validation |
@@ -42,8 +43,12 @@ accel validate
 accel help
 ```
 
-The CLI selects advanced commands such as `intake`, `scaffold`, `deploy`,
+The CLI selects advanced commands such as `intake`, `design`, `scaffold`, `deploy`,
 `evaluate`, `uat`, and `handover` when they become relevant.
+
+`accel design` is the architecture gate. It compares Foundry prompt and Hosted
+agents, treats workflow as a separate orchestration dimension, and blocks
+scaffold/deploy until a partner approves or explains an override.
 
 Use `accel evaluate --api-url <url> --foundry --execute` to supplement deterministic
 business assertions with Foundry-native relevance and groundedness evaluators.
@@ -98,6 +103,7 @@ own approval policy.
 ## Related
 
 - [CLI reference](reference/accelerator-cli.md)
+- [Architecture Advisor](reference/architecture-advisor.md)
 - [Artifact authority](reference/artifact-model.md)
 - [Coding-agent portability](reference/agent-portability.md)
 - [Partner playbook](partner-playbook.md)
