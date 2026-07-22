@@ -127,8 +127,8 @@ What `/ingest-prd` does **not** do:
    approve it through `accel intake` first. The specialist produces the brief at
    `docs/discovery/solution-brief.md` **and** updates
    `accelerator.yaml` fields (`solution.*`, `acceptance.*`, `kpis[]`).
-   It does **not** touch `scenario:` — that comes from
-   `accel scaffold` in the scaffold stage.
+   It does **not** choose the Foundry architecture or touch `scenario:` —
+   those come from `accel design` and `accel scaffold`.
    - **Where:** any supported coding-agent client.
 
 4. **ROI calculator** — open `roi-calculator.xlsx`, fill blue cells on
@@ -144,7 +144,11 @@ What `/ingest-prd` does **not** do:
 
 5. Walk the sponsor through the brief + ROI calculator together. If
    either has TBD fields or the ROI doesn't clear the customer's
-   hurdle rate, iterate before applying `accel scaffold`. A
+   hurdle rate, iterate before design/scaffold.
+
+6. Run `accel design`. Review the prompt-versus-Hosted recommendation,
+   orchestration pattern, application shell, deployment target, evidence, and
+   alternatives. Record approval—or an override reason—before scaffolding. A
    scaffold is expensive to redo; a discovery redo is cheap.
 
 ## What ships in the repo vs what's engagement-specific
@@ -198,7 +202,7 @@ What `/ingest-prd` does **not** do:
 ## Next step
 
 You now have a discovery brief (and, if you ran the ROI calculator, a
-quantified hypothesis). **Continue to** [*3. Scaffold from the brief*](../start/deliver/03-scaffold-from-the-brief.md)
+quantified hypothesis). **Continue to** [*3. Decide and scaffold*](../start/deliver/03-scaffold-from-the-brief.md)
 in the partner walkthrough to turn the brief into code, infra, evals,
 and telemetry. The brief is the input to `/scaffold-from-brief`;
 everything downstream (lint, evals, dashboards) keys off its fields.

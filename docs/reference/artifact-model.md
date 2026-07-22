@@ -7,7 +7,8 @@ files should claim authority over the same concern.
 |---|---|
 | `.accelerator/private/evidence.db` | Local source excerpts, hashes, citations, conflicts, and disclosure decisions |
 | `docs/discovery/solution-brief.md` | Customer-approved business, UX, risk, and acceptance intent |
-| `accelerator.yaml` | Executable deployment, scenario, model, control, and KPI contract |
+| `accelerator.yaml -> architecture` | Approved agent type, orchestration, application shell, deployment target, rationale, and requirements fingerprint |
+| Remaining `accelerator.yaml` | Executable deployment, scenario, model, control, and KPI contract |
 | `src/scenarios/` and `docs/agent-specs/` | Runtime implementation and Foundry instructions |
 | `evals/` | Machine-verifiable acceptance and safety contract |
 | `.accelerator/artifacts/` | Local acceptance, UAT, migration, and handover records |

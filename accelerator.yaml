@@ -121,6 +121,10 @@ scenario:
       - { key: competitive_play, label: Competitive Play, layout: record }
       - { key: recommended_outreach, label: Recommended Outreach, layout: email }
       - { key: next_steps, label: Next Steps, layout: numbered-list }
+  implementation:
+    agent_type: hosted-agent
+    orchestration_pattern: supervisor-routing
+    application_shell: workbench
   agents:
     - { id: supervisor,            foundry_name: accel-sales-research-supervisor }
     - id: account_planner
@@ -159,8 +163,8 @@ scenario:
 # -----------------------------------------------------------------------------
 solution:
   name: "sales-research-outreach"          # flagship default; rename per engagement
-  brief: docs/discovery/solution-brief.md  # canonical engagement doc
-  pattern: supervisor-routing              # supervisor-routing (flagship) | single-agent | chat-with-actioning
+  brief: docs/discovery/solution-brief.md  # customer-approved intent
+  pattern: supervisor-routing              # legacy summary; architecture.decision is authoritative
   hitl: required                           # required | optional | none
   data_residency: unset                    # unset | us | eu | apac | custom
   identity: entra-id                       # entra-id | external-id | custom
@@ -176,6 +180,50 @@ solution:
       classification: public
       contains_pii: false
       identity_enforcement: none
+
+# -----------------------------------------------------------------------------
+# architecture:  APPROVED FOUNDRY + APPLICATION SHAPE
+# `accel design` recomputes this decision whenever approved requirements change.
+# -----------------------------------------------------------------------------
+architecture:
+  status: approved
+  requirements_fingerprint: template-default
+  recommendation:
+    agent_type: hosted-agent
+    orchestration_pattern: supervisor-routing
+    application_shell: workbench
+    deployment_target: hosted-preview
+    confidence: high
+    rationale:
+      - The flagship uses custom supervisor and worker orchestration code.
+      - The schema-driven workbench is the reference application shell.
+      - Foundry hosting is the best platform fit for the custom runtime.
+    signals:
+      - Multiple specialists or agent delegation
+      - Side effects require accelerator-controlled HITL
+      - Custom business logic or integration code
+    alternatives:
+      - { dimension: agent_type, option: prompt-agent, reason: Custom orchestration code is required. }
+      - { dimension: deployment_target, option: selfhost, reason: Supported production-safe fallback. }
+    score: { prompt-agent: 0, hosted-agent: 16 }
+  decision:
+    agent_type: hosted-agent
+    orchestration_pattern: supervisor-routing
+    application_shell: workbench
+    deployment_target: selfhost
+    approved_by: accelerator-template
+    approved_at: "2026-07-22T00:00:00+00:00"
+    override_reason: The default remains selfhost while the Hosted Agents toolchain is preview-gated.
+  platform_context:
+    agent_service_types: [prompt-agent, hosted-agent]
+    workflow_note: Workflow is an orchestration pattern, not a third Foundry Agent Service runtime type.
+    references:
+      - https://learn.microsoft.com/azure/foundry/agents/overview
+      - https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents
+  accelerator_support:
+    foundry-prompt: supported
+    hosted-preview: preview-toolchain
+    selfhost: supported
 
 # -----------------------------------------------------------------------------
 # acceptance:  MEASURABLE GATES — lint verifies each has a matching eval

@@ -26,14 +26,27 @@ your delivery workspace. Do not archive them here.
 One row per environment the partner provisioned. Dev/test environments
 are listed so the customer's ops team can reproduce incidents.
 
-| Env | Subscription ID | Resource group | Region | `azd` env name | Endpoint URL | Foundry project | Search service | Key Vault |
-|---|---|---|---|---|---|---|---|---|
-| prod | `[PARTNER-FILL REQUIRED: sub id]` | `[PARTNER-FILL REQUIRED: rg]` | `[PARTNER-FILL REQUIRED: region]` | `[PARTNER-FILL REQUIRED: azd env]` | `[PARTNER-FILL REQUIRED: URL]` | `[PARTNER-FILL REQUIRED]` | `[PARTNER-FILL REQUIRED]` | `[PARTNER-FILL REQUIRED]` |
-| staging | | | | | | | | |
-| dev | | | | | | | | |
+| Env | Target | Subscription ID | Resource group | Region | `azd` env name | Endpoint URL | Foundry project | Search service | Key Vault |
+|---|---|---|---|---|---|---|---|---|---|
+| prod | selfhost / foundry-prompt / hosted-preview | `[PARTNER-FILL REQUIRED: sub id]` | `[PARTNER-FILL REQUIRED: rg]` | `[PARTNER-FILL REQUIRED: region]` | `[PARTNER-FILL REQUIRED: azd env]` | `[PARTNER-FILL REQUIRED: URL or agent endpoint]` | `[PARTNER-FILL REQUIRED]` | `[PARTNER-FILL REQUIRED]` | `[PARTNER-FILL REQUIRED or N/A]` |
+| staging | | | | | | | | | |
+| dev | | | | | | | | | |
 
 Notes: `[PARTNER-FILL REQUIRED: any env-specific gotchas — paired
 tenants, VNet peering, private endpoints, data residency]`
+
+### Approved architecture decision
+
+- Agent type:
+- Orchestration pattern:
+- Application shell:
+- Deployment target:
+- Advisor recommendation/confidence:
+- Override reason (if any):
+- Approved by/date:
+- Requirements fingerprint:
+
+Source: `accelerator.yaml -> architecture`.
 
 ---
 

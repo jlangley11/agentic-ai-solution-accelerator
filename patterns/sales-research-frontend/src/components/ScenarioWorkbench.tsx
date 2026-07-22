@@ -183,6 +183,13 @@ export function ScenarioWorkbench({ metadata }: Props) {
         <header className="app-header">
           <h1>{metadata.title}</h1>
           <p className="muted">{metadata.description}</p>
+          {metadata.implementation && (
+            <div className="implementation-tags" aria-label="Scenario architecture">
+              <span>{metadata.implementation.agent_type}</span>
+              <span>{metadata.implementation.orchestration_pattern}</span>
+              <span>{metadata.implementation.application_shell}</span>
+            </div>
+          )}
         </header>
         <DynamicSchemaForm
           key={JSON.stringify(request)}

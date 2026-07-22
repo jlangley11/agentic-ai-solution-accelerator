@@ -6,6 +6,11 @@
 > authoritative status, regions, and pricing live on Microsoft Learn
 > and drift faster than this repo's commit cadence.
 
+Run `accel design` before selecting tools. Prompt agents and Hosted agents are
+the Agent Service types; workflow/supervisor are orchestration patterns. Tool
+and runtime requirements are Architecture Advisor inputs, not after-the-fact
+deployment choices.
+
 **Authoritative references (check these before a proposal):**
 
 - Foundry Agent Service — tool catalog: <https://learn.microsoft.com/azure/foundry/agents/concepts/tool-catalog>

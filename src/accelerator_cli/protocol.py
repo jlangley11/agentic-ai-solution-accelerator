@@ -8,12 +8,13 @@ import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 
 class Stage(str, enum.Enum):
     QUALIFY = "qualify"
     DISCOVER = "discover"
+    DESIGN = "design"
     SCAFFOLD = "scaffold"
     PROVISION = "provision"
     ITERATE = "iterate"

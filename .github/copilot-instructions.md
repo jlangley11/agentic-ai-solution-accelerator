@@ -84,19 +84,26 @@ npm audit
 - **Authority is split deliberately.** The solution brief is the approved
   customer intent; `accelerator.yaml` is the executable contract; the
   gitignored evidence ledger stores local provenance.
+- **Architecture is an approval gate.** `accel design` records agent type,
+  orchestration, application shell, target, rationale, alternatives, approver,
+  and requirements fingerprint. Never scaffold/deploy a stale decision.
+  Foundry agent types are prompt and Hosted; workflow is orchestration.
 - **Scenario loading is manifest-driven.** The registry resolves request and
   response schemas, experience metadata, workflow, endpoint, agents, retrieval,
   and eval paths into a `ScenarioBundle`.
 - **The reference workbench is schema-driven.** `/scenario/metadata` drives
   generic inputs/results. Never render or retain raw `chunk` content; render
   only final output and explicitly validated partials.
-- **There are two serving targets.**
+- **There are three serving targets.**
   - Root `azure.yaml` + `src/main.py` is the default self-hosted FastAPI/Container Apps path. It exposes the scenario SSE endpoint and runs `src.bootstrap.bootstrap()` in the lifespan.
+  - `deploy/foundry-prompt/` provisions prompt agents without application runtime code.
   - `deploy/hosted-preview/` + `src/agent_host.py` is the opt-in hosted-code
     path. The policy label remains because pinned hosting packages/extensions
     are prerelease. It exposes Responses and Invocations; `dev` remains
     self-hosted.
-- **Infrastructure follows the serving target.** Root `infra/main.bicep` provisions the full self-host stack (Foundry, Search, Key Vault, ACR, managed identity, Container Apps, monitoring). `deploy/hosted-preview/infra/` is deliberately slim (Foundry, Search, monitoring, connections/RBAC) and its postprovision hook normalizes custom provider output casing before Linux deployment.
+- **Infrastructure follows the serving target.** Root provisions the full app
+  stack. Prompt-agent and Hosted targets share slim Foundry/Search/monitoring
+  infrastructure; only Hosted stages runtime code.
 - **Serving shares one SSE contract.** `src/serving/sse.py` validates before streaming, adds monotonic `seq`, converts heartbeats to `: ka`, emits in-band `error`, and always terminates with `done`. Keep the reference frontend types aligned with this event vocabulary.
 - **Provisioning is shared and ordered.** `src/provisioning.py::provision()` creates Search schemas/seeds, then FoundryIQ knowledge sources/KB, then prompt-agent versions and Search RBAC, then the optional canary. `src/bootstrap.py` is only the self-host compatibility shim and no-ops in hosted mode.
 - **The hosted workspace stages source; it is not a second codebase.** Edit root `src/`, `accelerator.yaml`, and `pyproject.toml`, then let `deploy/hosted-preview/hooks/prepare.py` regenerate ignored `app/src` and metadata. Do not edit generated files under `deploy/hosted-preview/app/`.
@@ -104,7 +111,9 @@ npm audit
 - **New manifests use `foundry_tool` or `none`.** `python_injected` is a legacy
   runtime compatibility path. URL provenance propagates to dependent factual
   workers and is validated against live tool annotations.
-- **CI is target-gated.** `deploy/environments.yaml` selects `selfhost` or `hosted-preview`. Self-host deploys run the post-deploy quality/red-team acceptance chain; hosted preview currently runs a fresh-session smoke, with full hosted eval adaptation deferred.
+- **CI is target-gated.** `deploy/environments.yaml` selects `selfhost`,
+  `foundry-prompt`, or `hosted-preview`. Self-host runs full acceptance,
+  prompt-agent runs provisioning/readback checks, and Hosted runs a protocol smoke.
 
 ## Glossary — three things called "agent"
 
@@ -207,7 +216,8 @@ golden-case `exercises` arrays. Paste its printed agent snippet into
    the unified CLI.
 
 ### Adding a specialist worker agent
-1. Run `/add-worker-agent`.
+1. Confirm the approved architecture uses a Hosted workflow/supervisor, then
+   run `/add-worker-agent`.
 2. Create `src/scenarios/<scenario>/agents/<agent_name>/{prompt.py, transform.py, validate.py}`.
 3. Register the agent in `accelerator.yaml` under `scenario.agents[]` and wire it into `src/scenarios/<scenario>/workflow.py`.
 4. Update `src/scenarios/<scenario>/agents/supervisor/prompt.py` with the new worker's capability and routing cue.
@@ -218,13 +228,15 @@ golden-case `exercises` arrays. Paste its printed agent snippet into
 ### Starting a new customer
 - Run `accel next`, register source evidence, and use `/discover-scenario` for
   the interview.
-- Run `accel design`, preview `accel scaffold`, then apply after approval.
+- Run `accel design`, approve its recommendation (or record an override
+  reason), then preview/apply `accel scaffold`.
 
 ### Deploying to a new Azure environment (partner dev / staging / customer subscription)
 - Run `/deploy-to-env`. It adds an entry to `deploy/environments.yaml` (the source of truth for BYO-Azure deploy targets), creates the matching GitHub Environment, wires the OIDC federated credential, and dispatches a first deploy.
 - Never hand-edit `deploy.yml` to add envs. The `resolve-env` job + the manifest are the contract; the `deploy_matrix_matches_azure_envs` lint rule enforces it.
 - The azd environment name is **always** derived from `deploy/environments.yaml`. Never set `vars.AZURE_ENV_NAME` — that's drift.
-- `deployment_target` is `selfhost` or `hosted-preview`; omitted legacy values mean `selfhost`. `default_env` MUST resolve to `selfhost`.
+- `deployment_target` is `selfhost`, `foundry-prompt`, or `hosted-preview`;
+  omitted legacy values mean `selfhost`. `default_env` MUST remain selfhost.
 - The `hosted-preview` target requires explicit acknowledgement, Python 3.14
   in the deployed runtime (Python 3.13+ is sufficient locally), pinned
   extensions, and operator RBAC values. `accel deploy` selects the nested

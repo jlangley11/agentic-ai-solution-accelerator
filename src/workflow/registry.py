@@ -68,6 +68,13 @@ class ScenarioExperience:
 
 
 @dataclass(frozen=True)
+class ScenarioImplementation:
+    agent_type: str
+    orchestration_pattern: str
+    application_shell: str
+
+
+@dataclass(frozen=True)
 class ScenarioIndex:
     name: str
     seed: str
@@ -93,6 +100,7 @@ class ScenarioContext:
     evals_redteam: str
     response_schema: type[BaseModel] | None = None
     experience: ScenarioExperience | None = None
+    implementation: ScenarioImplementation | None = None
 
 
 @dataclass(frozen=True)
@@ -110,6 +118,7 @@ class ScenarioBundle:
     evals_redteam: str
     response_schema: type[BaseModel] | None = None
     experience: ScenarioExperience | None = None
+    implementation: ScenarioImplementation | None = None
 
 
 def _load_yaml(path: pathlib.Path) -> dict:
@@ -315,6 +324,21 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
             ),
         )
 
+    implementation_raw = scenario.get("implementation")
+    implementation: ScenarioImplementation | None = None
+    if implementation_raw is not None:
+        if not isinstance(implementation_raw, dict):
+            raise ValueError("scenario.implementation must be a mapping")
+        implementation = ScenarioImplementation(
+            agent_type=str(implementation_raw.get("agent_type") or ""),
+            orchestration_pattern=str(
+                implementation_raw.get("orchestration_pattern") or ""
+            ),
+            application_shell=str(
+                implementation_raw.get("application_shell") or ""
+            ),
+        )
+
     ctx = ScenarioContext(
         id=scenario["id"],
         package=package,
@@ -326,6 +350,7 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
         evals_redteam=redteam_dataset,
         response_schema=response_schema_cls,
         experience=experience,
+        implementation=implementation,
     )
 
     workflow = factory(ctx)
@@ -348,6 +373,7 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
         evals_redteam=ctx.evals_redteam,
         response_schema=ctx.response_schema,
         experience=ctx.experience,
+        implementation=ctx.implementation,
     )
 
 

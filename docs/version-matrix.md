@@ -35,27 +35,30 @@ Stable packages are pinned in `pyproject.toml`; `ga-versions.yaml` is the manife
 | Node.js | `20.19+` or `22.12+` | Vite 8 reference workbench |
 | Vite | `^8.1.4` | Frontend build/dev server |
 | Vitest | `^4.1.10` | Frontend behavior and protocol tests |
+| Azure Architecture Diagram Builder MCP | `1.0.0` *(design-time external tool)* | Generates committed Azure-branded architecture SVGs |
 
-## Hosted-agent prerelease exceptions
+## Hosted-agent toolchain prerelease exceptions
 
-Foundry Hosted Agents and the Python serving libraries remain preview as of 2026-07-20. These packages are not part of the GA freshness loop and must not be added to the default runtime until the deployment target has an explicit preview policy.
+Foundry documentation lists Hosted agents as a main Agent Service type. The
+accelerator nevertheless keeps `hosted-preview` explicitly gated because its
+pinned azd extensions and Python protocol-serving packages remain prerelease.
+These packages are outside the GA freshness loop.
 
 Install the preview serving entrypoint explicitly with
 `pip install -e ".[hosted-preview]"` (or `".[dev,hosted-preview]"` for
 development). The self-hosted FastAPI application remains the default; importing
 or running `src.agent_host` is an explicit preview opt-in.
 
-Phase 1 keeps provisioning explicit for the hosted preview. Provision the
-selected azd environment before starting the hosted entrypoint:
+Provision the selected environment before starting the hosted entrypoint:
 
 ```powershell
 python scripts/foundry-provision.py --env <env>
 python -m src.agent_host
 ```
 
-The hosted process must receive the same environment values. Automatic azd hook
-wiring is intentionally deferred until a hosted-preview deployment target is
-selected in Phase 2; no global hook changes the current self-hosted default.
+The nested workspace now wires predeploy staging, provision/deploy, shared
+postdeploy provisioning, and the protocol smoke. Root selfhost remains the
+default.
 
 | Package | Verified version | Status | Revisit |
 |---|---|---|---|
@@ -75,7 +78,8 @@ See [Phase 0 hosted-agent spike report](plans/phase0-spike-report.md) for the li
   Python 3.12.
 - Azure Developer CLI: **1.28.0** verified.
 - Foundry extensions: `microsoft.foundry` **1.0.0-beta.1** and `azure.ai.agents` **1.0.0-beta.6** verified.
-- Hosted Agents status: **preview**. Foundry Agent Service GA does not make Hosted Agents GA.
+- Accelerator Hosted target: **preview-gated toolchain** despite Hosted agents
+  being documented as a main Foundry Agent Service type.
 - Foundry model deployments: default `gpt-5-mini` (flagship; parameterized via `modelName` / `modelDeploymentName` in `infra/main.bicep`). Partners override per engagement; the weekly freshness script validates canonical GA SDKs against PyPI regardless of model choice.
 - Azure regions: the current hosted-agent list contains 29 regions; model and AI Search capacity remain separate constraints.
 

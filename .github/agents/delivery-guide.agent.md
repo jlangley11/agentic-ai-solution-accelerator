@@ -25,10 +25,12 @@ and `next_command` as authoritative.
 - Deliverable: approved intent in `docs/discovery/solution-brief.md`, reviewed
   requirements/provenance, and an aligned executable `accelerator.yaml`.
 
-### 2. Scaffold
-- Run `accel design`; preview and approve `accel scaffold`.
-- Use `/define-grounding` and `/implement-workers` for customer-specific
-  authoring.
+### 2. Design + scaffold
+- Run `accel design`; present the prompt/Hosted recommendation, orchestration,
+  application shell, target, evidence, and alternatives.
+- Obtain approval (or an override reason) before previewing `accel scaffold`.
+- Use `/define-grounding` and `/implement-workers` only when the approved
+  hosted architecture includes workers.
 - Deliverable: reviewed scenario package, manifest, evals, telemetry, and UX
   contract.
 
@@ -37,7 +39,8 @@ and `next_command` as authoritative.
 - Run `/deploy-to-env <env-name>` (e.g., `<customer-short-name>-dev`) to register the GitHub Environment, wire OIDC for CI deploys, and scope environment-level secrets/variables. Skipping this is the most common first-deploy failure.
 - Run `accel environment list`, preview `accel deploy --dry-run`, execute
   preflight, then apply after separate approval.
-- Confirm: Foundry, AI Search, Key Vault, Container App, App Insights, Managed Identity.
+- Confirm the resources promised by the selected target: prompt-agent-only,
+  Hosted agent, or self-hosted application.
 - Smoke-test the deployed endpoint.
 - **Establish the acceptance baseline.** Run
   `accel evaluate --api-url <api-url> --execute` and retain its acceptance

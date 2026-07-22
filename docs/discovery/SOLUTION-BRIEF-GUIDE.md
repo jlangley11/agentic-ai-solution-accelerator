@@ -58,7 +58,11 @@ Turn every success metric into a golden-case assertion. Turn every RAI risk into
 
 ## After the workshop
 1. `/discover-scenario` will have produced the brief. Review it with the sponsor.
-2. Run `accel design`; preview and approve `accel scaffold`.
-3. Use the grounding/worker specialists, then apply `accel deploy` to dev and
+2. Run `accel design`; review prompt versus Hosted fit, orchestration,
+   application shell, deployment target, evidence, and alternatives. Approve or
+   document an override.
+3. Preview and approve `accel scaffold`.
+4. Use the grounding/worker specialists when the approved architecture needs
+   workers, then apply `accel deploy` to dev and
    run a smoke evaluation.
-4. First CI-gated PR iterates on the flagship prompt.
+5. First CI-gated PR iterates on the selected primary/supervisor behavior.

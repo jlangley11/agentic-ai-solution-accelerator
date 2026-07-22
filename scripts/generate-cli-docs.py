@@ -77,9 +77,21 @@ def render() -> str:
         "Link types: `implementation`, `quality_eval`, `redteam`, `telemetry`, "
         "`ux`, and `decision`. Exported Markdown contains IDs and sanitized "
         "statements, never private source excerpts.\n\n"
-        "## Scaffold and deployment\n\n"
+        "## Architecture Advisor\n\n"
         "```powershell\n"
         "accel design\n"
+        "accel design --approved-by <name> --apply\n"
+        "accel design --agent-type hosted-agent `\n"
+        "  --orchestration-pattern supervisor-routing `\n"
+        "  --application-shell workbench `\n"
+        "  --deployment-target selfhost `\n"
+        "  --override-reason <reason> --approved-by <name> --apply\n"
+        "```\n\n"
+        "Foundry Agent Service types are `prompt-agent` and `hosted-agent`; "
+        "workflow is an orchestration pattern. Requirement changes invalidate "
+        "the decision fingerprint and return `accel next` to design.\n\n"
+        "## Scaffold and deployment\n\n"
+        "```powershell\n"
         "accel scaffold --scenario-id <id> --dry-run\n"
         "accel scaffold --scenario-id <id> --apply\n"
         "accel environment list\n"
@@ -88,8 +100,9 @@ def render() -> str:
         "accel deploy --env <env> --region <region> --execute --apply\n"
         "```\n\n"
         "The target comes from `deploy/environments.yaml`; conflicting or "
-        "unsupported overrides are rejected. Hosted apply runs both "
-        "`azd provision` and `azd deploy` in the nested workspace.\n\n"
+        "unsupported overrides are rejected. `foundry-prompt` provisions "
+        "agent-only resources; Hosted apply runs both `azd provision` and "
+        "`azd deploy`; selfhost runs root `azd up`.\n\n"
         "## Evaluation, UAT, and handover\n\n"
         "```powershell\n"
         "accel evaluate --api-url <url>\n"
@@ -107,8 +120,9 @@ def render() -> str:
         "until customer operations approval is recorded.\n\n"
         "## MCP adapter\n\n"
         "Install `.[mcp]` and configure an MCP stdio server whose command is "
-        "`accel-mcp`. Read/preview tools are separate from apply and Azure "
-        "execution tools so client permission policies remain effective.\n"
+        "`accel-mcp`. Architecture recommendation/approval, read/preview tools, "
+        "and apply/Azure execution tools are separate so client permission "
+        "policies remain effective.\n"
     )
 
 
@@ -128,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         print("CLI reference is current.")
         return 0
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(expected, encoding="utf-8")
+    OUTPUT.write_text(expected, encoding="utf-8", newline="\n")
     print(f"generated {OUTPUT.relative_to(ROOT)}")
     return 0
 

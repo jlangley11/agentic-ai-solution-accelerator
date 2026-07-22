@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import pathlib
 
+import yaml
+
+from src.accelerator_cli.architecture_advisor import requirements_fingerprint
 from src.accelerator_cli.lifecycle import detect_lifecycle
 from src.accelerator_cli.protocol import ResultStatus, Stage
 from src.accelerator_cli.repository import RepositoryContext
@@ -39,6 +42,32 @@ scenario:
     return RepositoryContext(tmp_path)
 
 
+def _approve_architecture(
+    context: RepositoryContext,
+    brief: str,
+    *,
+    target: str = "selfhost",
+) -> None:
+    data = yaml.safe_load(context.manifest_path.read_text(encoding="utf-8"))
+    data["architecture"] = {
+        "status": "approved",
+        "requirements_fingerprint": requirements_fingerprint(brief),
+        "recommendation": {},
+        "decision": {
+            "agent_type": "hosted-agent",
+            "orchestration_pattern": "supervisor-routing",
+            "application_shell": "workbench",
+            "deployment_target": target,
+            "approved_by": "Test",
+            "approved_at": "2026-07-22T00:00:00+00:00",
+        },
+    }
+    context.manifest_path.write_text(
+        yaml.safe_dump(data, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
 def test_template_repository_starts_at_qualification(tmp_path: pathlib.Path) -> None:
     state = detect_lifecycle(_repo(tmp_path))
 
@@ -61,12 +90,14 @@ def test_complete_brief_advances_to_missing_scaffold(tmp_path: pathlib.Path) -> 
 
     assert state.for_stage(Stage.QUALIFY).status == ResultStatus.COMPLETE
     assert state.for_stage(Stage.DISCOVER).status == ResultStatus.COMPLETE
-    assert state.current == Stage.SCAFFOLD
+    assert state.current == Stage.DESIGN
 
 
 def test_materialized_scenario_advances_to_provision(tmp_path: pathlib.Path) -> None:
     context = _repo(tmp_path)
-    _write(context.brief_path, "# Solution Brief — Contoso\n\nApproved.\n")
+    brief = "# Solution Brief — Contoso\n\nApproved.\n"
+    _write(context.brief_path, brief)
+    _approve_architecture(context, brief)
     _write(
         context.root / "docs/discovery/use-case-canvas.md",
         "# Canvas — Contoso\n\n**Process:** Review supplier risk.\n",
@@ -98,7 +129,9 @@ def test_undeclared_hosted_state_does_not_complete_selfhost_provision(
     tmp_path: pathlib.Path,
 ) -> None:
     context = _repo(tmp_path)
-    _write(context.brief_path, "# Solution Brief — Contoso\n\nApproved.\n")
+    brief = "# Solution Brief — Contoso\n\nApproved.\n"
+    _write(context.brief_path, brief)
+    _approve_architecture(context, brief)
     _write(
         context.root / "docs/discovery/use-case-canvas.md",
         "# Canvas — Contoso\n\n**Process:** Review supplier risk.\n",

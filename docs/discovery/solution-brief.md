@@ -68,6 +68,26 @@
 
 - **Out-of-scope tools (explicit):**
 
+## 5a. Foundry architecture decision
+
+`accel design` produces the recommendation after requirements are approved.
+Record the reviewed decision rather than treating orchestration and hosting as
+the same choice.
+
+- **Foundry agent type:** prompt-agent / hosted-agent
+- **Orchestration pattern:** single-agent / deterministic-workflow / supervisor-routing
+- **Application shell:** none / existing-app / workbench / custom
+- **Deployment target:** foundry-prompt / hosted-preview / selfhost
+- **Advisor confidence:**
+- **Recommendation rationale:**
+- **Alternatives considered:**
+- **Partner decision:** Accept / Override
+- **Override reason (required when overridden):**
+- **Approved by / date:**
+
+> Workflow is an orchestration pattern, not a third Foundry Agent Service
+> runtime type. Prompt agents and Hosted agents are the Agent Service types.
+
 ## 5b. UX shape
 - **`ux_shape`:** TBD — pick one of:
   - **Structured form + report** — user fills a form, agent produces a structured briefing/analysis. *Next step: fork `patterns/sales-research-frontend/` as your starter and adapt the form to your scenario's request schema.*

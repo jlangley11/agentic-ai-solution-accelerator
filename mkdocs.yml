@@ -93,6 +93,7 @@ nav:
   - Home: index.md
   - Lifecycle:
       - Unified workflow: lifecycle.md
+      - Architecture Advisor: reference/architecture-advisor.md
       - CLI reference: reference/accelerator-cli.md
       - Artifact authority: reference/artifact-model.md
       - Coding-agent portability: reference/agent-portability.md
@@ -132,6 +133,7 @@ nav:
               - "0008 · Unified accelerator CLI": adr/0008-unified-accelerator-cli.md
               - "0009 · Private evidence ledger": adr/0009-private-evidence-ledger.md
               - "0010 · Schema-driven workbench": adr/0010-schema-driven-workbench.md
+              - "0011 · Architecture Advisor gate": adr/0011-architecture-advisor-gate.md
           - Version matrix: version-matrix.md
       - Frontend starter: patterns/sales-research-frontend/README.md
       - Reference scenarios:

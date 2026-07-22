@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import pathlib
 
+import yaml
+
+from src.accelerator_cli.architecture_advisor import requirements_fingerprint
 from src.accelerator_cli.repository import RepositoryContext
 from src.accelerator_mcp.api import AcceleratorApi
 
@@ -27,7 +30,7 @@ def _context(tmp_path: pathlib.Path) -> RepositoryContext:
 def test_mcp_api_reuses_versioned_cli_contract(tmp_path: pathlib.Path) -> None:
     payload = AcceleratorApi(_context(tmp_path)).next()
 
-    assert payload["schema_version"] == "1.0"
+    assert payload["schema_version"] == "1.1"
     assert payload["stage"] == "qualify"
     assert payload["status"] == "needs_input"
 
@@ -37,6 +40,41 @@ def test_mcp_deploy_defaults_to_non_executing_plan(
     monkeypatch,
 ) -> None:
     context = _context(tmp_path)
+    brief = """# Brief
+## 5. Solution shape
+## 5b. UX shape
+ux_shape
+## 5c. UX inputs
+## 5d. UX output sections
+## 6. Constraints & risks
+RAI risks
+## 7. Acceptance evals
+"""
+    context.brief_path.write_text(brief, encoding="utf-8")
+    manifest = yaml.safe_load(context.manifest_path.read_text(encoding="utf-8"))
+    manifest.update(
+        {
+            "acceptance": {"quality_threshold": 0.8},
+            "landing_zone": {"mode": "standalone"},
+            "architecture": {
+                "status": "approved",
+                "requirements_fingerprint": requirements_fingerprint(brief),
+                "recommendation": {},
+                "decision": {
+                    "agent_type": "hosted-agent",
+                    "orchestration_pattern": "supervisor-routing",
+                    "application_shell": "workbench",
+                    "deployment_target": "selfhost",
+                    "approved_by": "Test",
+                    "approved_at": "2026-07-22T00:00:00+00:00",
+                },
+            },
+        }
+    )
+    context.manifest_path.write_text(
+        yaml.safe_dump(manifest, sort_keys=False),
+        encoding="utf-8",
+    )
     (tmp_path / "deploy").mkdir()
     (tmp_path / "deploy/environments.yaml").write_text(
         "default_env: dev\n"

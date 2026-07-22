@@ -29,6 +29,9 @@ you've found the fix. Stale entries are worse than no entries.
 | Deployment fails before provisioning starts | Azure login, manifest target, region, or preflight is invalid. | Run `accel deploy --env <env> --region <region> --dry-run`, then `--execute` for the real preflight. |
 | Slash-command autocomplete doesn't suggest `/teardown` or `/configure-landing-zone` | New custom-agent files require a Copilot Chat reload. | Reload Copilot Chat (`Developer: Reload Window`) and retry. |
 | `accel intake review --include-text` is blocked | The source remains `local_only` or was rejected. | Review metadata, then explicitly run `accel intake disclose <source-id> approved_for_model --apply`. |
+| `accel next` returns to `design` after requirements changed | The approved architecture fingerprint no longer matches the brief/traceability export. | Run `accel design`, review the new recommendation, and approve or document an override. |
+| `accel design` asks for traceability export | Approved requirements exist only in the private evidence ledger. | Run `accel intake requirement export --apply` so CI and other engineers can reproduce the fingerprint without source excerpts. |
+| `accel deploy` reports architecture/environment target conflict | The selected GitHub Environment does not match `architecture.decision.deployment_target`. | Approve the intended target with `accel design` or choose a matching environment. |
 | CLI reports that the Claude skill is stale | Canonical `.agents/skills/accelerator` changed without regenerating the Claude adapter. | Run `python scripts/sync-agent-skill.py`. |
 
 ## Deploy time (`azd up`)

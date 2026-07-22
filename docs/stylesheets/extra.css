@@ -42,6 +42,24 @@
   height: auto !important;
 }
 
+/* Azure Architecture Diagram Builder MCP exports wide, text-rich SVGs.
+   Preserve their authored size and let readers pan instead of shrinking labels. */
+.md-typeset .architecture-diagram {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 1rem 0 1.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  background: #fff;
+}
+.md-typeset .architecture-diagram img {
+  display: block;
+  width: auto;
+  max-width: none;
+  height: auto;
+}
+
 /* Home page "Pick your lane" role cards. Three lanes (Lead / Engineer /
    Ops) replace the embedded swim-lane diagram on /. */
 .role-cards {

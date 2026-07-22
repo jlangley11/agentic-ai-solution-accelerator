@@ -79,6 +79,33 @@ class AcceleratorApi:
             journal=apply,
         )
 
+    def design(
+        self,
+        *,
+        agent_type: str | None = None,
+        orchestration_pattern: str | None = None,
+        application_shell: str | None = None,
+        deployment_target: str | None = None,
+        approved_by: str | None = None,
+        override_reason: str | None = None,
+        apply: bool = False,
+    ) -> dict[str, Any]:
+        result = lifecycle_commands.design(
+            self.context,
+            agent_type=agent_type,
+            orchestration_pattern=orchestration_pattern,
+            application_shell=application_shell,
+            deployment_target=deployment_target,
+            approved_by=approved_by,
+            override_reason=override_reason,
+            apply=apply,
+        )
+        return self._finish(
+            "mcp.design",
+            result,
+            journal=apply,
+        )
+
     def scaffold(
         self,
         scenario_id: str,

@@ -104,7 +104,7 @@ to deploy to:
 | Name | Purpose | Example |
 |------|---------|---------|
 | `AZURE_LOCATION` | Azure region for this environment | `eastus2` |
-| `AZURE_PRINCIPAL_ID` | Entra object id of the GitHub OIDC service principal; required by the hosted-preview workspace to create Foundry/Search role assignments | `az ad sp show --id <AZURE_CLIENT_ID> --query id -o tsv` |
+| `AZURE_PRINCIPAL_ID` | Entra object id of the GitHub OIDC service principal; required by the `foundry-prompt` and `hosted-preview` workspaces for Foundry/Search RBAC | `az ad sp show --id <AZURE_CLIENT_ID> --query id -o tsv` |
 
 Do **not** set `AZURE_ENV_NAME` anywhere. The azd environment name is derived from
 `deploy/environments.yaml` (the `name:` field of the resolved entry). Setting it as
@@ -139,7 +139,7 @@ full deploy chain.
 
 ## Sandbox smoke-test (no customer involvement)
 
-> **This path intentionally bypasses the discovery workshop** so a partner engineer can validate prereqs + infra shape end-to-end in their own subscription. For the full partner motion (discover → scaffold → provision → iterate → UAT → handover → measure) see [`docs/partner-playbook.md`](../partner-playbook.md). For a guided walkthrough of this same smoke-test with check-your-work gates, use [`docs/enablement/hands-on-lab.md`](../enablement/hands-on-lab.md) Lab 1.
+> **This path intentionally bypasses the discovery workshop** so a partner engineer can validate prereqs + infra shape end-to-end in their own subscription. For the full partner motion (discover → design + scaffold → provision → iterate → UAT → handover → measure) see [`docs/partner-playbook.md`](../partner-playbook.md). For a guided walkthrough of this same smoke-test with check-your-work gates, use [`docs/enablement/hands-on-lab.md`](../enablement/hands-on-lab.md) Lab 1.
 
 ```bash
 # 1. Clone the template into your sandbox repo
@@ -215,6 +215,7 @@ Full mechanics, YAML example, and lint behavior live in [`docs/patterns/architec
 `deploy/environments.yaml`, gates both deployment targets on policy lint, and:
 
 - runs `azd up` plus acceptance for `selfhost`;
+- runs nested Foundry provisioning/readback checks for `foundry-prompt`;
 - runs nested `azd provision` + `azd deploy` plus a fresh-session protocol
   smoke for `hosted-preview`.
 

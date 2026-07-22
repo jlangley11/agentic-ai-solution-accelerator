@@ -11,7 +11,9 @@ CRM-ready outreach draft. HITL gates every CRM write and email send.
 
 **Stack:** Microsoft Agent Framework · Microsoft Foundry · Azure AI Search · Managed Identity · Key Vault · Container Apps · Application Insights · `azd` for infra.
 
-**Adoption model:** `gh repo create --template` → `accel next` → coding-agent-assisted discovery and implementation → reviewed Azure execution → CI-gated iteration.
+**Adoption model:** `gh repo create --template` → `accel next` → governed
+discovery → Architecture Advisor decision → architecture-aware scaffold and
+deployment → CI-gated iteration.
 
 ---
 
@@ -30,7 +32,7 @@ This detects the engagement stage and returns the next valid action. It works
 from GitHub Copilot CLI, Codex, Claude Code, or a normal terminal. See the
 [unified lifecycle](docs/lifecycle.md).
 
-**👉 Scan the full workflow first:** [`docs/partner-workflow.md`](docs/partner-workflow.md) — one-page visual of all 7 stages (discover → scaffold → provision → iterate → UAT → handover → measure) across the three responsibilities. Use it to orient yourself, then come back here and open your lane below.
+**👉 Scan the full workflow first:** [`docs/partner-workflow.md`](docs/partner-workflow.md) — one-page visual of all 7 stages (discover → design + scaffold → provision → iterate → UAT → handover → measure) across the three responsibilities.
 
 > **Authority:** executable schemas and `accel` determine lifecycle state and
 > permitted actions. `AGENTS.md` defines non-negotiable engineering rules; the
@@ -49,7 +51,10 @@ from GitHub Copilot CLI, Codex, Claude Code, or a normal terminal. See the
 
 ### 🛠️ Partner Engineer — scaffold, deploy, iterate, UAT support
 - **Start with:** `accel next`; use [`QUICKSTART.md`](QUICKSTART.md) as the printable command reference
-- **Build:** `accel design` → `accel scaffold --scenario-id <id> --dry-run` →
+- **Decide:** `accel design` compares prompt versus Hosted agents, workflow
+  patterns, application shells, and deployment targets; review/approve its
+  evidence before scaffolding
+- **Build:** approved design → `accel scaffold --scenario-id <id> --dry-run` →
   approved apply; specialists fill prompts, grounding, tools, and workers
 - **Also use:** [`docs/getting-started/setup-and-prereqs.md`](docs/getting-started/setup-and-prereqs.md) (authoritative setup, prerequisites, deployment troubleshooting) · [`docs/enablement/hands-on-lab.md`](docs/enablement/hands-on-lab.md) (8-lab sandbox rehearsal — **strongly recommended before your first customer-facing deployment**)
 - **✅ Done when:** acceptance evals (quality + redteam) pass in the customer's environment and the handover artifacts — repo access, runbook, approver rota, killswitch drill notes — are delivered to customer ops.
@@ -86,7 +91,7 @@ customer runbook.
 [customer-service-actioning](docs/references/customer-service-actioning/README.md) · [rfp-response](docs/references/rfp-response/README.md)
 
 ### 🔧 Engineer deep-dives
-[Foundry tool catalog](docs/foundry-tool-catalog.md) · [Agent specs](docs/agent-specs/) · [SDK version matrix](docs/version-matrix.md)
+[Architecture Advisor](docs/reference/architecture-advisor.md) · [Foundry tool catalog](docs/foundry-tool-catalog.md) · [Agent specs](docs/agent-specs/) · [SDK version matrix](docs/version-matrix.md)
 
 ### ⚙️ Under the hood
 
@@ -95,10 +100,10 @@ customer runbook.
 
 ```
 agentic-ai-solution-accelerator/
-├── accelerator.yaml              engagement manifest — scenario contract + acceptance + controls + KPIs
+├── accelerator.yaml              approved architecture + scenario/deploy/eval contract
 ├── src/
 │   ├── main.py                   scenario-agnostic FastAPI; mounts the scenario endpoint from manifest
-│   ├── accelerator_cli/          vendor-neutral lifecycle, intake, deploy, UAT, and handover commands
+│   ├── accelerator_cli/          lifecycle + Architecture Advisor + intake/deploy/UAT
 │   ├── accelerator_mcp/          optional MCP adapter over the same command contract
 │   ├── workflow/                 framework: BaseWorkflow Protocol + scenario registry (load_scenario)
 │   ├── retrieval/                generic SearchRetriever(index_name) against Azure AI Search
@@ -108,6 +113,9 @@ agentic-ai-solution-accelerator/
 │       └── sales_research/       flagship: schema, workflow factory, retrieval schema
 │           └── agents/           supervisor + 4 workers (three-layer: prompt, transform, validate)
 ├── infra/                        Bicep + azd (Foundry GA + content filter, Search, KV, ACA, App Insights)
+├── deploy/
+│   ├── foundry-prompt/           prompt-agent-only Foundry target
+│   └── hosted-preview/           custom-code Hosted agent target
 ├── evals/
 │   ├── quality/                  golden cases + CI gates from accelerator.yaml.acceptance
 │   ├── redteam/                  XPIA + jailbreak + brief-specific RAI cases

@@ -35,7 +35,7 @@ def test_status_json_uses_versioned_contract(
     payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 10
-    assert payload["schema_version"] == "1.0"
+    assert payload["schema_version"] == "1.1"
     assert payload["stage"] == "qualify"
 
 

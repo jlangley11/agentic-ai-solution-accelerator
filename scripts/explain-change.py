@@ -111,9 +111,10 @@ CATEGORIES: list[Category] = [
     ),
     Category(
         id="scenario-manifest",
-        title="accelerator.yaml (scenario manifest)",
+        title="accelerator.yaml (architecture + scenario manifest)",
         impact=[
-            "lint: manifest_present, scenario_manifest_valid, agent_has_golden_case, acceptance_wired_to_evals, agent_specs_no_hardcoded_model, models_block_shape, agent_model_refs_exist",
+            "lint: architecture_decision_shape, scenario_manifest_valid, agent_has_golden_case, acceptance_wired_to_evals, models_block_shape, agent_model_refs_exist",
+            "architecture: approved requirements changes invalidate the stored design fingerprint; rerun `accel design` before scaffold/deploy",
             "evals: acceptance thresholds come from accelerator.yaml -> acceptance; changes here move the quality gate",
             "runtime: src/main.py reads this file at startup to mount /<scenario.endpoint.path>; path changes are breaking",
             "models: changes to the `models:` block are parsed at compile time by `infra/main.bicep` via `loadYamlContent` and re-shape foundry.bicep deployments (slug->deployment_name map). Removing the block converges back to template defaults (gpt-5-mini / 2025-08-07 / cap 30); raw env-var overrides of the default are NOT supported.",
@@ -178,7 +179,7 @@ CATEGORIES: list[Category] = [
         title="Deploy workflow (.github/workflows/deploy.yml)",
         impact=[
             "lint: deploy_gated_on_lint_and_evals, deploy_matrix_matches_azure_envs, workflow_secrets_documented",
-            "runtime: next push to main (or workflow_dispatch) exercises the chain accelerator-lint -> resolve-env -> azd-up -> evals",
+            "runtime: resolve-env selects selfhost (full acceptance), foundry-prompt (provisioning canary), or hosted-preview (protocol smoke)",
             "never add Azure envs by editing this file; add a row to deploy/environments.yaml via /deploy-to-env instead",
         ],
         patterns=[
@@ -216,6 +217,18 @@ CATEGORIES: list[Category] = [
         ],
         patterns=[
             "deploy/environments.yaml",
+        ],
+    ),
+    Category(
+        id="foundry-deploy-targets",
+        title="Foundry-managed deployment workspaces",
+        impact=[
+            "lint: foundry_prompt_workspace, hosted_preview_workspace, deploy_matrix_matches_azure_envs",
+            "runtime: foundry-prompt provisions agent-only resources; hosted-preview additionally stages and deploys custom runtime code",
+        ],
+        patterns=[
+            "deploy/foundry-prompt/**",
+            "deploy/hosted-preview/**",
         ],
     ),
     Category(
@@ -508,7 +521,7 @@ def _recommended_commands(buckets: dict[str, list]) -> list[str]:
         cmds.append("python scripts/scaffold-agent.py probe_agent --scenario sales-research --capability \"probe\" --depends-on account_planner  # then revert")
     if "golden-cases" in present or "scenario-manifest" in present:
         cmds.append("python -c \"import json; [json.loads(l) for l in open('evals/quality/golden_cases.jsonl', encoding='utf-8') if l.strip()]; print('golden_cases OK')\"")
-    if "deploy-workflow" in present or "deploy-environments" in present:
+    if present & {"deploy-workflow", "deploy-environments", "foundry-deploy-targets"}:
         cmds.append("python -c \"import yaml; yaml.safe_load(open('.github/workflows/deploy.yml', encoding='utf-8')); yaml.safe_load(open('deploy/environments.yaml', encoding='utf-8')); print('deploy YAML OK')\"")
     if "infra-bicep" in present:
         cmds.append("# manual: review infra/**.bicep diff — next `azd up` will re-provision")

@@ -25,6 +25,9 @@ manifest change and are preserved by provisioning.
 
 ## Preconditions
 - `docs/discovery/solution-brief.md` is complete (section 5 names the grounding sources and any external systems the workers must call).
+- `accelerator.yaml.architecture` is approved. Prompt-agent decisions configure
+  only the primary agent; hosted supervisor/workflow decisions may configure
+  each worker.
 - `accelerator.yaml -> scenario.agents[]` lists every worker (each entry has at minimum `id` and `foundry_name`).
 - The Bicep-provisioned AI Search account exists (it underpins FoundryIQ and is
   created by the approved target-aware deployment).

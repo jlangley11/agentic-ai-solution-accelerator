@@ -21,6 +21,7 @@ PREFLIGHT = ROOT / "scripts" / "preflight-deploy.py"
 TEARDOWN = ROOT / "scripts" / "teardown-preflight.py"
 ACCELERATOR_LINT = ROOT / "scripts" / "accelerator-lint.py"
 SESSION_FIXTURE = ROOT / "tests" / "fixtures" / "azd-agent-session-create.json"
+PROMPT_AZURE = ROOT / "deploy" / "foundry-prompt" / "azure.yaml"
 
 
 def _load_script(name: str, path: pathlib.Path) -> Any:
@@ -56,23 +57,41 @@ def test_environment_manifest_has_additive_targets_and_selfhost_default() -> Non
             "never the default."
         ),
     }
+    assert entries["prompt-agent"]["deployment_target"] == "foundry-prompt"
+
+
+def test_foundry_prompt_workspace_is_agent_only() -> None:
+    data = yaml.safe_load(PROMPT_AZURE.read_text(encoding="utf-8"))
+
+    assert set(data["services"]) == {"ai-project"}
+    assert data["infra"]["path"] == "../hosted-preview/infra"
+    assert "hosted-supervisor" not in data["services"]
+    postprovision = data["hooks"]["postprovision"]
+    assert [step["run"] for step in postprovision] == [
+        "python ../hosted-preview/hooks/normalize_env.py",
+        "python ../../scripts/foundry-provision.py",
+    ]
 
 
 def test_workflow_target_gates_dependencies_and_nested_working_directory() -> None:
     jobs = _workflow()["jobs"]
     selfhost = jobs["azd-up"]
+    prompt = jobs["foundry-prompt"]
     hosted = jobs["hosted-preview"]
     evals = jobs["evals"]
 
     assert {"accelerator-lint", "resolve-env"} <= _needs(selfhost)
+    assert {"accelerator-lint", "resolve-env"} <= _needs(prompt)
     assert {"accelerator-lint", "resolve-env"} <= _needs(hosted)
     assert {"azd-up", "resolve-env"} <= _needs(evals)
     assert "deployment_target == 'selfhost'" in selfhost["if"]
+    assert "deployment_target == 'foundry-prompt'" in prompt["if"]
     assert "deployment_target == 'hosted-preview'" in hosted["if"]
     assert "always()" in evals["if"]
     assert "deployment_target == 'selfhost'" in evals["if"]
     assert "needs.azd-up.result == 'success'" in evals["if"]
     assert hosted["environment"] == "${{ needs.resolve-env.outputs.github_environment }}"
+    assert prompt["environment"] == "${{ needs.resolve-env.outputs.github_environment }}"
 
     nested_commands = (
         "azd env ",
@@ -105,7 +124,10 @@ def test_workflow_resolves_target_installs_exact_extensions_and_smokes() -> None
 
     assert "deployment_target" in jobs["resolve-env"]["outputs"]
     assert 'match.get("deployment_target") or "selfhost"' in resolve
-    assert 'allowed_targets = {"selfhost", "hosted-preview"}' in resolve
+    assert (
+        'allowed_targets = {"selfhost", "foundry-prompt", "hosted-preview"}'
+        in resolve
+    )
     assert (
         "azd ext install azure.ai.agents --version 1.0.0-beta.6 --force --no-prompt"
         in hosted_runs
@@ -133,6 +155,18 @@ def test_workflow_resolves_target_installs_exact_extensions_and_smokes() -> None
     assert not re.search(r"azd env new[^\n]*\|\|", hosted_runs)
     assert hosted_runs.index("azd env set AZURE_PRINCIPAL_TYPE") < hosted_runs.index(
         "azd provision"
+    )
+    prompt_runs = "\n".join(
+        str(step.get("run") or "")
+        for step in jobs["foundry-prompt"]["steps"]
+    )
+    assert "--deployment-target foundry-prompt" in prompt_runs
+    assert "azd provision" in prompt_runs
+    assert "azd deploy" not in prompt_runs
+    assert (
+        "azd ext install microsoft.foundry --version 1.0.0-beta.1 "
+        "--force --no-prompt"
+        in prompt_runs
     )
 
 
@@ -281,6 +315,9 @@ def test_hosted_ack_python_region_and_rp_contract(monkeypatch: Any) -> None:
     monkeypatch.setattr(preflight, "_az", fake_az)
     assert preflight.check_resource_providers("hosted-preview").status == "pass"
     assert seen == preflight.HOSTED_PREVIEW_REQUIRED_RPS
+    seen.clear()
+    assert preflight.check_resource_providers("foundry-prompt").status == "pass"
+    assert seen == preflight.HOSTED_PREVIEW_REQUIRED_RPS
 
 
 def test_teardown_renders_target_specific_operator_commands(
@@ -295,6 +332,10 @@ def test_teardown_renders_target_specific_operator_commands(
     assert teardown.teardown_commands("hosted-preview", "hosted-preview") == [
         "cd deploy/hosted-preview",
         "azd down -e hosted-preview --purge --force",
+    ]
+    assert teardown.teardown_commands("prompt-agent", "foundry-prompt") == [
+        "cd deploy/foundry-prompt",
+        "azd down -e prompt-agent --purge --force",
     ]
 
     result = teardown.run_post_teardown(

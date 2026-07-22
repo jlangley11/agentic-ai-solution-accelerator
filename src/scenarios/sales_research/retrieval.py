@@ -37,14 +37,14 @@ from azure.search.documents.indexes.models import (
     AzureOpenAIVectorizer,
     AzureOpenAIVectorizerParameters,
     HnswAlgorithmConfiguration,
-    SearchableField,
+    SearchableField,  # pyright: ignore[reportPrivateImportUsage]
     SearchField,
     SearchIndex,
     SemanticConfiguration,
     SemanticField,
     SemanticPrioritizedFields,
     SemanticSearch,
-    SimpleField,
+    SimpleField,  # pyright: ignore[reportPrivateImportUsage]
     VectorSearch,
     VectorSearchProfile,
 )

@@ -16,9 +16,19 @@ def scenario_block(
     scenario_id: str,
     *,
     no_retrieval: bool,
+    agent_type: str = "hosted-agent",
+    orchestration_pattern: str = "supervisor-routing",
+    application_shell: str = "workbench",
 ) -> dict[str, Any]:
     leaf = scenario_id.replace("-", "_")
-    foundry_name = f"accel-{scenario_id}-supervisor"
+    agent_id = "primary" if agent_type == "prompt-agent" else "supervisor"
+    foundry_name = f"accel-{scenario_id}-{agent_id}"
+    experience_kind = {
+        "none": "api",
+        "existing-app": "dashboard",
+        "workbench": "form-report",
+        "custom": "api",
+    }.get(application_shell, "api")
     block: dict[str, Any] = {
         "id": scenario_id,
         "package": f"src.scenarios.{leaf}",
@@ -27,14 +37,19 @@ def scenario_block(
         "workflow_factory": "workflow:build_workflow",
         "endpoint": {"path": f"/{leaf}/stream"},
         "experience": {
-            "kind": "form-report",
+            "kind": experience_kind,
             "title": scenario_id.replace("-", " ").title(),
             "description": "",
             "output_sections": [
                 {"key": "result", "label": "Result", "layout": "record"}
             ],
         },
-        "agents": [{"id": "supervisor", "foundry_name": foundry_name}],
+        "implementation": {
+            "agent_type": agent_type,
+            "orchestration_pattern": orchestration_pattern,
+            "application_shell": application_shell,
+        },
+        "agents": [{"id": agent_id, "foundry_name": foundry_name}],
         "evals": {
             "quality_dataset": "evals/quality/golden_cases.jsonl",
             "redteam_dataset": "evals/redteam/cases.jsonl",
@@ -67,6 +82,14 @@ def render_scenario_yaml(block: dict[str, Any]) -> str:
     ).rstrip() + "\n"
 
 
+def render_architecture_yaml(block: dict[str, Any]) -> str:
+    return yaml.safe_dump(
+        {"architecture": block},
+        sort_keys=False,
+        allow_unicode=False,
+    ).rstrip() + "\n"
+
+
 def replace_scenario(
     context: RepositoryContext,
     block: dict[str, Any],
@@ -76,6 +99,24 @@ def replace_scenario(
     path = context.manifest_path
     original = path.read_text(encoding="utf-8")
     updated = _replace_top_level_block(original, "scenario", render_scenario_yaml(block))
+    if apply:
+        path.write_text(updated, encoding="utf-8")
+    return original, updated
+
+
+def replace_architecture(
+    context: RepositoryContext,
+    block: dict[str, Any],
+    *,
+    apply: bool,
+) -> tuple[str, str]:
+    path = context.manifest_path
+    original = path.read_text(encoding="utf-8")
+    updated = _replace_top_level_block(
+        original,
+        "architecture",
+        render_architecture_yaml(block),
+    )
     if apply:
         path.write_text(updated, encoding="utf-8")
     return original, updated

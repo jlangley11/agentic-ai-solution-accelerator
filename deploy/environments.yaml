@@ -15,7 +15,8 @@
 # shape and cross-references it against deploy.yml.
 #
 # `deployment_target` is optional for backward compatibility. Omitted values
-# resolve to `selfhost`; supported values are `selfhost` and `hosted-preview`.
+# resolve to `selfhost`; supported values are `selfhost`, `foundry-prompt`,
+# and `hosted-preview`.
 
 # Name of the environment deployed automatically on push to main.
 # Must appear in `environments[]` below.
@@ -30,3 +31,7 @@ environments:
     github_environment: hosted-preview
     deployment_target: hosted-preview
     description: Explicit preview-only Microsoft Foundry Hosted Agents deployment; never the default.
+  - name: prompt-agent
+    github_environment: prompt-agent
+    deployment_target: foundry-prompt
+    description: Agent-only Foundry prompt-agent deployment without an application runtime.

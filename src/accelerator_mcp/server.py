@@ -146,6 +146,60 @@ def accelerator_intake_disclosure_apply(
         openWorldHint=False,
     )
 )
+def accelerator_design_recommendation(
+    agent_type: str | None = None,
+    orchestration_pattern: str | None = None,
+    application_shell: str | None = None,
+    deployment_target: str | None = None,
+    override_reason: str | None = None,
+) -> dict[str, Any]:
+    """Recommend or preview a reviewed Foundry architecture decision."""
+    return _api().design(
+        agent_type=agent_type,
+        orchestration_pattern=orchestration_pattern,
+        application_shell=application_shell,
+        deployment_target=deployment_target,
+        override_reason=override_reason,
+        apply=False,
+    )
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
+def accelerator_design_approve(
+    approved_by: str,
+    agent_type: str | None = None,
+    orchestration_pattern: str | None = None,
+    application_shell: str | None = None,
+    deployment_target: str | None = None,
+    override_reason: str | None = None,
+) -> dict[str, Any]:
+    """Record an explicitly approved architecture decision."""
+    return _api().design(
+        agent_type=agent_type,
+        orchestration_pattern=orchestration_pattern,
+        application_shell=application_shell,
+        deployment_target=deployment_target,
+        approved_by=approved_by,
+        override_reason=override_reason,
+        apply=True,
+    )
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    )
+)
 def accelerator_scaffold_preview(
     scenario_id: str,
     no_retrieval: bool = False,

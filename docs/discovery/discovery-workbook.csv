@@ -36,6 +36,11 @@ section,question_id,question,answer,notes
 4. ROI hypothesis,RH-15,"KPI event #3 baseline","",
 4. ROI hypothesis,RH-16,"KPI event #3 target","",
 5. Solution shape,SS-01,"Pattern (supervisor-routing / single-agent / chat-with-actioning)","",Maps to accelerator.yaml:solution.pattern.
+5a. Architecture decision,AD-01,"Does the scenario require custom framework or runtime code (for example LangGraph, custom dependencies, protocols, or state)?","",Strong Hosted-agent signal.
+5a. Architecture decision,AD-02,"Is the process a deterministic sequence with branching, retries, approvals, or multiple specialist agents?","",Selects orchestration pattern; workflow is not a separate Agent Service type.
+5a. Architecture decision,AD-03,"Can instructions + model + managed tools express the behavior without custom orchestration code?","",Strong prompt-agent signal.
+5a. Architecture decision,AD-04,"Does the customer require an existing app, accelerator workbench, custom UI, or no application shell?","",Selects application_shell independently from agent type.
+5a. Architecture decision,AD-05,"Has the partner reviewed and approved the Architecture Advisor recommendation or documented an override?","",Required before accel scaffold.
 5. Solution shape,SS-02,"Rationale for pattern choice","",
 5. Solution shape,SS-03,"Grounding sources","",SharePoint / SQL / API / blob / etc. Feeds accelerator.yaml:solution.grounding_sources.
 5. Solution shape,SS-04,"Side-effect tool #1 — name / system / operation / reversible? / HITL policy","","Feeds accelerator.yaml:solution.side_effect_tools[]."

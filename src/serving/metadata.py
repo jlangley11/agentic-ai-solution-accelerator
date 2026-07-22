@@ -38,6 +38,17 @@ def scenario_metadata(bundle: ScenarioBundle) -> dict[str, Any]:
         "endpoint_path": bundle.endpoint_path,
         "request_schema": bundle.request_schema.model_json_schema(),
         "response_schema": response_schema,
+        "implementation": (
+            {
+                "agent_type": bundle.implementation.agent_type,
+                "orchestration_pattern": (
+                    bundle.implementation.orchestration_pattern
+                ),
+                "application_shell": bundle.implementation.application_shell,
+            }
+            if bundle.implementation is not None
+            else None
+        ),
         "agents": [
             {
                 "id": agent.id,

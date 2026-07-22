@@ -21,7 +21,7 @@ positional arguments:
     validate            run or preview repository validation
     intake              manage the local private evidence ledger
     discover            inspect discovery readiness and required inputs
-    design              validate the solution design contract
+    design              recommend, review, or approve the Foundry architecture
     scaffold            preview or create a scenario
     environment         inspect deployment environments
     deploy              preflight or deploy an environment
@@ -86,10 +86,23 @@ accel intake requirement export --apply
 
 Link types: `implementation`, `quality_eval`, `redteam`, `telemetry`, `ux`, and `decision`. Exported Markdown contains IDs and sanitized statements, never private source excerpts.
 
-## Scaffold and deployment
+## Architecture Advisor
 
 ```powershell
 accel design
+accel design --approved-by <name> --apply
+accel design --agent-type hosted-agent `
+  --orchestration-pattern supervisor-routing `
+  --application-shell workbench `
+  --deployment-target selfhost `
+  --override-reason <reason> --approved-by <name> --apply
+```
+
+Foundry Agent Service types are `prompt-agent` and `hosted-agent`; workflow is an orchestration pattern. Requirement changes invalidate the decision fingerprint and return `accel next` to design.
+
+## Scaffold and deployment
+
+```powershell
 accel scaffold --scenario-id <id> --dry-run
 accel scaffold --scenario-id <id> --apply
 accel environment list
@@ -98,7 +111,7 @@ accel deploy --env <env> --region <region> --execute
 accel deploy --env <env> --region <region> --execute --apply
 ```
 
-The target comes from `deploy/environments.yaml`; conflicting or unsupported overrides are rejected. Hosted apply runs both `azd provision` and `azd deploy` in the nested workspace.
+The target comes from `deploy/environments.yaml`; conflicting or unsupported overrides are rejected. `foundry-prompt` provisions agent-only resources; Hosted apply runs both `azd provision` and `azd deploy`; selfhost runs root `azd up`.
 
 ## Evaluation, UAT, and handover
 
@@ -118,4 +131,4 @@ Foundry-native evaluation is optional and writes evaluator inputs only on the ex
 
 ## MCP adapter
 
-Install `.[mcp]` and configure an MCP stdio server whose command is `accel-mcp`. Read/preview tools are separate from apply and Azure execution tools so client permission policies remain effective.
+Install `.[mcp]` and configure an MCP stdio server whose command is `accel-mcp`. Architecture recommendation/approval, read/preview tools, and apply/Azure execution tools are separate so client permission policies remain effective.

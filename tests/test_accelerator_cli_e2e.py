@@ -101,8 +101,8 @@ def test_local_customer_engagement_reaches_operate_state(
     source = repo / "customer-requirements.csv"
     _write(source, "id,requirement\nR1,Use Entra ID for every end user\n")
 
-    status = _run(repo, "status", expected=(30,))
-    assert status["stage"] == "scaffold"
+    status = _run(repo, "status")
+    assert status["stage"] == "design"
 
     intake = _run(repo, "intake", "add", str(source))
     source_id = intake["completed"][0].split(":", 1)[0]
@@ -163,6 +163,26 @@ def test_local_customer_engagement_reaches_operate_state(
     )
     _run(repo, "intake", "requirement", "export", "--apply")
     assert (repo / "docs/discovery/requirements-traceability.md").exists()
+
+    recommendation = _run(repo, "design", expected=(20,))
+    assert recommendation["details"]["recommendation"]["agent_type"] == "hosted-agent"
+    _run(
+        repo,
+        "design",
+        "--agent-type",
+        "hosted-agent",
+        "--orchestration-pattern",
+        "supervisor-routing",
+        "--application-shell",
+        "workbench",
+        "--deployment-target",
+        "selfhost",
+        "--approved-by",
+        "Partner Architect",
+        "--override-reason",
+        "Use the production-safe self-host target for this engagement.",
+        "--apply",
+    )
 
     preview = _run(
         repo,

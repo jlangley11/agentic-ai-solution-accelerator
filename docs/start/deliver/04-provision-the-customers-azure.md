@@ -7,7 +7,7 @@
     through `accel deploy`, against a GitHub Environment that holds the
     customer's OIDC credentials.
 
-    **📋 Prerequisite** — [6. Scaffold from the brief](03-scaffold-from-the-brief.md) complete — lint green; brief committed.
+    **📋 Prerequisite** — [6. Decide and scaffold](03-scaffold-from-the-brief.md) complete — architecture approved, lint green, brief committed.
 
     **💻 Where you'll work** — local terminal for `accel environment/deploy`;
     specialist agents and GitHub web for landing-zone, OIDC, and Environment
@@ -90,6 +90,9 @@ For regulated customers: set `controls.private_endpoints = required` (implies Ti
 
 The custom agent adds an entry to `deploy/environments.yaml`, creates the matching **GitHub Environment**, wires the OIDC federated credential between the customer's Entra app registration and the GitHub Environment, scopes the per-environment secrets (`AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID`) and variable (`AZURE_LOCATION`), and dispatches a first deploy.
 
+Choose the target recorded by `accel design`; deployment blocks if the
+environment and architecture decision disagree.
+
 !!! warning "Never hand-edit `deploy.yml` to add envs"
     The manifest + the `resolve-env` job is the contract; the `deploy_matrix_matches_azure_envs` lint rule rejects drift. The azd environment name is **always** derived from `deploy/environments.yaml` — never set `vars.AZURE_ENV_NAME`.
 
@@ -145,10 +148,16 @@ The first command is read-only. The second runs Azure preflight checks. The
 third executes only after a separate approval. `deployment_target` always comes
 from `deploy/environments.yaml`; a conflicting CLI override is rejected.
 
-For `selfhost`, apply runs `azd up` in the repository root. For
-`hosted-preview`, it runs `azd provision` followed by `azd deploy` in the
-nested workspace. Direct `azd` commands remain the documented recovery path,
-not the preferred guided path.
+Target behavior:
+
+| Target | What apply does |
+|---|---|
+| `foundry-prompt` | Provisions Foundry, models, Search/FoundryIQ, prompt agents, RBAC, monitoring, and readback checks—no application runtime |
+| `hosted-preview` | Runs nested `azd provision` then `azd deploy` for custom agent code |
+| `selfhost` | Runs root `azd up` for Container Apps API, Key Vault, ACR, Foundry, Search, and monitoring |
+
+The environment target must match the approved Architecture Advisor decision.
+Direct `azd` commands are recovery paths, not the guided path.
 
 The self-host `azd up` path provisions, in ~10–15 minutes:
 

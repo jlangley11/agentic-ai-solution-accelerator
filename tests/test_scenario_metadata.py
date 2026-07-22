@@ -7,6 +7,7 @@ from src.workflow.registry import (
     ScenarioAgent,
     ScenarioBundle,
     ScenarioExperience,
+    ScenarioImplementation,
 )
 
 
@@ -45,6 +46,11 @@ def _bundle(workflow=None) -> ScenarioBundle:
             title="Demo",
             output_sections=({"key": "answer", "label": "Answer"},),
         ),
+        implementation=ScenarioImplementation(
+            agent_type="prompt-agent",
+            orchestration_pattern="single-agent",
+            application_shell="workbench",
+        ),
     )
 
 
@@ -56,6 +62,7 @@ def test_scenario_metadata_exposes_schemas_and_experience() -> None:
     assert payload["request_schema"]["required"] == ["query"]
     assert payload["response_schema"]["required"] == ["answer"]
     assert payload["output_sections"][0]["key"] == "answer"
+    assert payload["implementation"]["agent_type"] == "prompt-agent"
     assert payload["stream_contract"]["validated_partial_event"] is None
 
 

@@ -12,7 +12,9 @@
 > confirm you can create resources there. `accel deploy` previews the resolved
 > target and cloud actions before execution.
 
-> **Joining mid-engagement?** If discovery is already complete, jump to [Step 3 — Scaffold from the brief](#step-3--scaffold-the-solution-from-the-brief). If a brief doesn't yet exist, hand back to the delivery lead — discovery is owned in the [Discovery kit](docs/discovery/how-to-use.md), not here.
+> **Joining mid-engagement?** If discovery is complete, jump to
+> [Step 3 — Decide the architecture and scaffold](#step-3--decide-the-architecture-and-scaffold).
+> If a brief does not exist, return to the [Discovery kit](docs/discovery/how-to-use.md).
 
 ---
 
@@ -83,16 +85,22 @@ the executable deployment contract; `accel` checks the transition between them.
 
 ---
 
-## Step 3 — Scaffold the solution from the brief
+## Step 3 — Decide the architecture and scaffold
 
 **Where:** Local terminal for deterministic preview/apply; coding-agent CLI or
 VS Code for scenario-specific authoring.
 
 ```powershell
 accel design
+accel design --approved-by "<partner architect>" --apply
 accel scaffold --scenario-id <scenario-id> --dry-run
 accel scaffold --scenario-id <scenario-id> --apply
 ```
+
+`accel design` explains why the requirements fit a prompt or Hosted agent,
+which orchestration pattern is needed, whether an application shell is
+required, and which deployment target follows. An override requires
+`--override-reason`.
 
 Then use `/define-grounding` and `/implement-workers` when the scaffold needs
 customer-specific worker instructions, transforms, validators, and tools.
@@ -104,8 +112,9 @@ scenario-agnostic.
 | Brief field → | Lands in (flagship paths shown; `src/scenarios/<id>/` for custom scenarios) |
 |---|---|
 | Problem + persona | `docs/agent-specs/<supervisor>.md` system instructions; `prompt.py` remains a per-request envelope |
-| Solution shape | Keep flagship OR run `/switch-to-variant` for a walkthrough of re-authoring under `patterns/single-agent` or `patterns/chat-with-actioning` (manual re-authoring walkthroughs, not drop-ins) |
-| Grounding sources | `src/retrieval/ai_search.py` (scenario-agnostic client) + scenario-specific index schema at `src/scenarios/sales_research/retrieval.py` + `infra/modules/ai-search.bicep` |
+| Foundry architecture | `accelerator.yaml -> architecture` recommendation, approval, rationale, and requirements fingerprint |
+| Solution shape | `scenario.implementation` + architecture-aware primary/supervisor scaffold |
+| Grounding sources | `scenario.agents[].retrieval` + FoundryIQ/Search index declarations |
 | Side-effect tools | New files under `src/tools/` with HITL scaffolding |
 | HITL gates | `src/accelerator_baseline/hitl.py` rules |
 | Constraints | `infra/main.parameters.json` + `accelerator.yaml` |
@@ -126,7 +135,7 @@ These take 5–15 minutes and prevent the most common first-deploy failures.
 
 ```
 /configure-landing-zone     # pick standalone | avm | alz-integrated; updates accelerator.yaml + infra/
-/deploy-to-env <env-name>   # e.g., dev, uat, prod — registers the GitHub Environment, wires OIDC, scopes secrets
+/deploy-to-env <env-name>   # selfhost | foundry-prompt | hosted-preview
 accel environment list      # confirms the executable environment contract
 ```
 

@@ -6,6 +6,12 @@ import sys
 from collections.abc import Callable, Sequence
 
 from . import commands, lifecycle_commands
+from .architecture_advisor import (
+    AGENT_TYPES,
+    APPLICATION_SHELLS,
+    DEPLOYMENT_TARGETS,
+    ORCHESTRATION_PATTERNS,
+)
 from .intake import commands as intake_commands
 from .operations import record_operation
 from .output import render_human
@@ -118,7 +124,20 @@ def build_parser() -> argparse.ArgumentParser:
     requirement_export.add_argument("--apply", action="store_true")
 
     sub.add_parser("discover", help="inspect discovery readiness and required inputs")
-    sub.add_parser("design", help="validate the solution design contract")
+    design = sub.add_parser(
+        "design",
+        help="recommend, review, or approve the Foundry architecture",
+    )
+    design.add_argument("--agent-type", choices=AGENT_TYPES)
+    design.add_argument(
+        "--orchestration-pattern",
+        choices=ORCHESTRATION_PATTERNS,
+    )
+    design.add_argument("--application-shell", choices=APPLICATION_SHELLS)
+    design.add_argument("--deployment-target", choices=DEPLOYMENT_TARGETS)
+    design.add_argument("--approved-by")
+    design.add_argument("--override-reason")
+    design.add_argument("--apply", action="store_true")
 
     scaffold = sub.add_parser("scaffold", help="preview or create a scenario")
     scaffold.add_argument("--scenario-id", required=True)
@@ -137,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     deploy = sub.add_parser("deploy", help="preflight or deploy an environment")
     deploy.add_argument("--env", required=True)
     deploy.add_argument("--region", required=True)
-    deploy.add_argument("--target", choices=("selfhost", "hosted-preview"))
+    deploy.add_argument("--target", choices=DEPLOYMENT_TARGETS)
     deploy.add_argument("--acknowledge-preview", action="store_true")
     deploy.add_argument("--dry-run", action="store_true")
     deploy.add_argument("--execute", action="store_true")
@@ -302,7 +321,16 @@ def _dispatch(
         ),
         "intake": lambda: _dispatch_intake(args, context),
         "discover": lambda: lifecycle_commands.discover(context),
-        "design": lambda: lifecycle_commands.design(context),
+        "design": lambda: lifecycle_commands.design(
+            context,
+            agent_type=args.agent_type,
+            orchestration_pattern=args.orchestration_pattern,
+            application_shell=args.application_shell,
+            deployment_target=args.deployment_target,
+            approved_by=args.approved_by,
+            override_reason=args.override_reason,
+            apply=bool(args.apply),
+        ),
         "scaffold": lambda: lifecycle_commands.scaffold(
             context,
             scenario_id=args.scenario_id,

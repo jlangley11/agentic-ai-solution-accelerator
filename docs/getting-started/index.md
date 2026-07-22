@@ -58,7 +58,8 @@ This is the precedence rule for the whole site:
 
 - A customer-specific clone of this template, deployed to the customer's Azure subscription
 - A filled `docs/discovery/solution-brief.md` recording approved intent and an
-  aligned executable `accelerator.yaml`
+  aligned executable `accelerator.yaml`, including an approved Architecture
+  Advisor decision
 - CI gates (lint + quality evals + redteam) running on every PR; target-aware
   deployment shipping merged changes
 - An Application Insights dashboard wired to the brief's KPI events

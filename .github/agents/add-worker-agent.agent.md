@@ -19,7 +19,9 @@ Use this when the brief or a follow-on requirement introduces a capability no cu
 **Do not hand-scaffold.** `scripts/scaffold-agent.py` is the single supported entry point. It edits the declarative `WORKERS: dict[str, WorkerSpec]` registry in `src/scenarios/<scenario>/workflow.py` — that dict is the only attachment point the supervisor DAG reads. Hand edits whose shape doesn't match what the scaffolder expects flip the file to "no longer scaffold-managed" and break future automation.
 
 ## Preconditions
-- The solution uses the `supervisor-routing` pattern (check `accelerator.yaml.solution.pattern`).
+- `accelerator.yaml.architecture.status` is `approved`.
+- The decision uses `hosted-agent` with `supervisor-routing` or
+  `deterministic-workflow`. Do not add workers to a prompt-agent decision.
 - The target scenario exists under `src/scenarios/<scenario>/` and its `workflow.py` declares `WORKERS: dict[str, WorkerSpec] = { ... }` in the canonical single-form shape. (The flagship `sales-research` scenario is the reference.)
 - The new worker has a clear, one-sentence capability. If you can't write that sentence, push back to clarify — don't scaffold fuzziness.
 

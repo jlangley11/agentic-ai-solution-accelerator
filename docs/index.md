@@ -23,7 +23,7 @@ roles, and artifacts behind the command it returns. First-time partners can
 still read the linear walkthrough in two tracks:
 
 - **[Get ready](start/ready/01-get-oriented.md)** *(3 steps, do once)* — orient yourself, install your tools, rehearse in your own sandbox.
-- **[Deliver to a customer](start/deliver/01-clone-for-the-customer.md)** *(7 steps, repeat per engagement)* — clone, discover, scaffold, provision, iterate, hand over, operate.
+- **[Deliver to a customer](start/deliver/01-clone-for-the-customer.md)** *(7 steps, repeat per engagement)* — clone, discover, decide + scaffold, provision, iterate, hand over, operate.
 
 Roles are skim guidance, not separate paths:
 
@@ -47,7 +47,7 @@ flowchart LR
     end
     subgraph DELIVER["<b>Deliver</b> · per customer"]
       direction LR
-      D1["4. Clone"]:::deliver --> D2["5. Discover"]:::deliver --> D3["6. Scaffold"]:::deliver --> D4["7. Provision"]:::deliver --> D5["8. Iterate & evaluate"]:::deliver --> D6["9. UAT & handover"]:::deliver --> D7["10. Operate"]:::deliver
+      D1["4. Clone"]:::deliver --> D2["5. Discover"]:::deliver --> D3["6. Decide + scaffold"]:::deliver --> D4["7. Provision"]:::deliver --> D5["8. Iterate & evaluate"]:::deliver --> D6["9. UAT & handover"]:::deliver --> D7["10. Operate"]:::deliver
     end
     R3 --> D1
     D7 -. "next engagement" .-> D2
@@ -63,7 +63,7 @@ Jump in at the step that matches your current state.
 |---|---|
 | You haven't cloned the customer repo yet | [4. Clone for the customer](start/deliver/01-clone-for-the-customer.md) |
 | Repo is cloned, no brief yet | [5. Discover with the customer](start/deliver/02-discover-with-the-customer.md) |
-| Brief is filled in the repo, no scaffold yet | [6. Scaffold from the brief](start/deliver/03-scaffold-from-the-brief.md) |
+| Brief is filled, architecture not approved | [6. Decide and scaffold](start/deliver/03-scaffold-from-the-brief.md) |
 | Code scaffolded, not provisioned in customer Azure | [7. Provision the customer's Azure](start/deliver/04-provision-the-customers-azure.md) |
 | Provisioned, you're customising and running evals | [8. Iterate & evaluate](start/deliver/05-iterate-and-evaluate.md) |
 | Evals green, heading into UAT | [9. UAT & handover](start/deliver/06-uat-and-handover.md) |
@@ -82,7 +82,8 @@ Deep dives that sit **outside** the walkthrough — open them when a step sends 
 | Determine the current stage and next safe action | [`accel next`](lifecycle.md) |
 | Inspect blockers and all lifecycle stages | `accel status --verbose` |
 | Register PRDs, PDFs, spreadsheets, or workshop files | `accel intake add …` · [Discovery flow](discovery/how-to-use.md) |
-| Preview scenario creation | `accel design` → `accel scaffold --scenario-id <id> --dry-run` |
+| Decide prompt vs Hosted agent, workflow, UX, and target | `accel design` · [Architecture Advisor](reference/architecture-advisor.md) |
+| Preview scenario creation | approved design → `accel scaffold --scenario-id <id> --dry-run` |
 | Preview or execute a deployment | `accel deploy --dry-run` · [Provisioning](start/deliver/04-provision-the-customers-azure.md) |
 | Run acceptance and produce UAT artifacts | `accel evaluate` → `accel uat report` |
 | See which custom agent runs at which step | [Custom agents overview](agents-index.md) |

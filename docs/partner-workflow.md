@@ -26,7 +26,7 @@ This is the partner-facing end-to-end motion for cloning the
 accelerator and shipping a customer-specific agentic AI solution. The
 diagram below maps three responsibilities (Delivery Lead · Partner
 Engineer · Customer Ops) across the seven stages of
-[`docs/partner-playbook.md`](partner-playbook.md) (discover → scaffold
+[`docs/partner-playbook.md`](partner-playbook.md) (discover → design + scaffold
 → provision → iterate → UAT → handover → measure).
 
 Each node's click target is its **first-action doc** — the thing you
@@ -53,7 +53,7 @@ flowchart LR
 
     subgraph PE["🛠️ Partner Engineer"]
         direction LR
-        E1["<b>2. Scaffold from brief</b><br/>accel design + scaffold<br/>specialists implement workers"]
+        E1["<b>2. Decide + scaffold</b><br/>advisor → approve → scaffold<br/>specialists implement hosted workers"]
         EP["<b>3a. Preflight</b><br/>landing zone + OIDC<br/>accel environment + deploy preview"]
         E2["<b>3b. Provision customer Azure</b><br/>accel deploy → Foundry · Search · KV · ACA"]
         E3["<b>4. Iterate</b><br/>accel review + validate + evaluate"]
@@ -82,7 +82,7 @@ flowchart LR
     click D5 "../partner-playbook/#stage-5--uat" "D5 first action: read Stage 5 UAT sign-off criteria"
     click D6 "../handover/handover-packet-template/" "D6 first action: open the handover packet template"
     click D7 "../partner-playbook/#stage-7--measure" "D7 first action: Stage 7 — Measure (monthly KPI review)"
-    click E1 "../QUICKSTART/#step-3--scaffold-the-solution-from-the-brief" "E1 first action: QUICKSTART Step 3 — Scaffold (first-timer? run hands-on-lab once first)"
+    click E1 "../QUICKSTART/#step-3--decide-the-architecture-and-scaffold" "E1 first action: QUICKSTART Step 3 — Decide architecture and scaffold"
     click EP "../QUICKSTART/#step-4--preflight-landing-zone--github-environment" "Preflight: pick a landing-zone tier and wire the GitHub Environment + OIDC before deployment"
     click E2 "../getting-started/setup-and-prereqs/" "E2 first action: Setup & prereqs — accel deploy + troubleshooting"
     click E3 "../QUICKSTART/#step-7--iterate-with-copilot-ship-through-ci-gates" "E3 first action: QUICKSTART Step 7 — iterate through CI gates"
@@ -100,7 +100,7 @@ Each row states **why this step matters**. "Authority" is the doc that owns the 
 | # | Who | Step | Why | Authority (playbook) | First action (click target) |
 |---|---|---|---|---|---|
 | D1 | Delivery Lead | Scope + discover | `accel intake` preserves evidence and disclosure; `/discover-scenario` runs the interview; the approved brief + ROI define intent. | [Stage 1](partner-playbook.md#stage-1--discovery) | [`discovery/how-to-use.md`](discovery/how-to-use.md) |
-| E1 | Partner Engineer | Scaffold from brief | `accel design` checks readiness; `accel scaffold` previews and applies initial structure; specialists implement grounding and workers. | [Stage 2](partner-playbook.md#stage-2--scaffold) | [`QUICKSTART.md` Step 3](../QUICKSTART.md#step-3--scaffold-the-solution-from-the-brief) |
+| E1 | Partner Engineer | Decide + scaffold | `accel design` recommends agent type/orchestration/UX/target and requires approval; `accel scaffold` then applies the selected structure. | [Stage 2](partner-playbook.md#stage-2--design--scaffold) | [`QUICKSTART.md` Step 3](../QUICKSTART.md#step-3--decide-the-architecture-and-scaffold) |
 | EP | Partner Engineer | Preflight | Specialist agents select landing zone and register OIDC; `accel environment list` and `accel deploy --dry-run` verify executable state. | [Stage 3](partner-playbook.md#stage-3--provision) | [`QUICKSTART.md` Step 4](../QUICKSTART.md#step-4--preflight-landing-zone--github-environment) |
 | E2 | Partner Engineer | Provision customer Azure | `accel deploy` separates preview, Azure preflight, and approved execution for self-hosted or hosted targets. | [Stage 3](partner-playbook.md#stage-3--provision) | [`getting-started/setup-and-prereqs.md`](getting-started/setup-and-prereqs.md) |
 | E3 | Partner Engineer | Iterate | `accel review`, `accel validate`, and `accel evaluate` keep implementation, policy, safety, and acceptance aligned. | [Stage 4](partner-playbook.md#stage-4--iterate) | [`QUICKSTART.md` Step 7](../QUICKSTART.md#step-7--iterate-with-copilot-ship-through-ci-gates) |

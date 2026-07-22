@@ -89,11 +89,29 @@ XLSX, and XLSM. Scanned PDFs fail closed with an OCR/export remediation rather
 than silently producing an empty requirement set. Sources default to a 50 MiB
 limit; macros are never executed.
 
+## Architecture Advisor
+
+After discovery is complete, run `accel design`. Present the recommendation,
+matched signals, confidence, alternatives, and official Foundry references.
+Foundry agent types are `prompt-agent` and `hosted-agent`; workflow is a
+separate orchestration pattern.
+
+Do not scaffold until the partner approves:
+
+```powershell
+accel design --approved-by "<partner architect>" --apply
+```
+
+If any selected dimension differs from the recommendation, require
+`--override-reason`. Requirement changes invalidate the stored fingerprint and
+return the lifecycle to design.
+
 ## Common lifecycle commands
 
 ```text
 accel discover
 accel design
+accel design --approved-by <name> --apply
 accel scaffold --scenario-id <id> --dry-run
 accel environment list
 accel deploy --env <env> --region <region> --dry-run
@@ -117,6 +135,8 @@ workflow.
 Read and follow `AGENTS.md`. In particular:
 
 - Keep `accelerator.yaml` as the executable engagement contract.
+- Keep `accelerator.yaml.architecture` approved and current before
+  scaffold/deploy.
 - Treat `docs/discovery/solution-brief.md` as approved intent and
   `.accelerator/private/evidence.db` as local provenance—not parallel config.
 - Keep Foundry agent instructions in `docs/agent-specs/*.md`.

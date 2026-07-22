@@ -19,6 +19,7 @@ name: deploy
 #
 # Deploy chain:
 #   * selfhost: accelerator-lint + resolve-env -> azd-up -> post-deploy evals
+#   * foundry-prompt: accelerator-lint + resolve-env -> prompt-agent provision
 #   * hosted-preview: accelerator-lint + resolve-env -> hosted deploy + smoke
 # Hosted full postdeploy eval parity is intentionally deferred to Phase 5.
 #
@@ -114,7 +115,7 @@ jobs:
               sys.exit(f"Environment '{requested}' not found in deploy/environments.yaml. Known: {names}.")
           gh_env = match.get("github_environment") or match["name"]
           deployment_target = match.get("deployment_target") or "selfhost"
-          allowed_targets = {"selfhost", "hosted-preview"}
+          allowed_targets = {"selfhost", "foundry-prompt", "hosted-preview"}
           if deployment_target not in allowed_targets:
               sys.exit(
                   f"Environment '{requested}' has unknown deployment_target "
@@ -166,6 +167,68 @@ jobs:
             exit 1
           fi
           echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+
+  foundry-prompt:
+    needs: [accelerator-lint, resolve-env]
+    if: ${{ needs.resolve-env.outputs.deployment_target == 'foundry-prompt' }}
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.github_environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install root dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - uses: Azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Install azd
+        uses: Azure/setup-azd@v2
+      - name: Install Foundry extension
+        run: |
+          azd ext install microsoft.foundry --version 1.0.0-beta.1 --force --no-prompt
+      - name: Prompt-agent preflight
+        env:
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          python scripts/preflight-deploy.py \
+           --region "$AZURE_LOCATION" \
+           --tenant "$AZURE_TENANT_ID" \
+           --subscription "$AZURE_SUBSCRIPTION_ID" \
+           --deployment-target foundry-prompt
+      - name: Provision prompt agents
+        working-directory: deploy/foundry-prompt
+        env:
+          AZURE_ENV_NAME: ${{ needs.resolve-env.outputs.azd_env_name }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_PRINCIPAL_ID: ${{ vars.AZURE_PRINCIPAL_ID }}
+          AZURE_PRINCIPAL_TYPE: ServicePrincipal
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$AZURE_PRINCIPAL_ID" || {
+            echo "::error::GitHub Environment variable AZURE_PRINCIPAL_ID is required"
+            exit 1
+          }
+          ENV_LIST="$(azd env list -o json --no-prompt)"
+          export ENV_LIST AZURE_ENV_NAME
+          if python -c 'import json, os, sys; environments = json.loads(os.environ["ENV_LIST"]); requested = os.environ["AZURE_ENV_NAME"]; sys.exit(0 if any(isinstance(entry, dict) and (entry.get("Name") or entry.get("name")) == requested for entry in environments) else 1)'; then
+            azd env select "$AZURE_ENV_NAME" --no-prompt
+          else
+            azd env new "$AZURE_ENV_NAME" --location "$AZURE_LOCATION" --subscription "$AZURE_SUBSCRIPTION_ID" --no-prompt
+          fi
+          azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+          azd env set AZURE_LOCATION "$AZURE_LOCATION"
+          azd env set AZURE_PRINCIPAL_ID "$AZURE_PRINCIPAL_ID"
+          azd env set AZURE_PRINCIPAL_TYPE "$AZURE_PRINCIPAL_TYPE"
+          azd provision --no-prompt
 
   hosted-preview:
     needs: [accelerator-lint, resolve-env]

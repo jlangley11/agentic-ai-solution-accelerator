@@ -10,7 +10,8 @@ Web Apps.
 A reference UI that wraps the accelerator API in a runnable browser experience.
 The sales scenario keeps its tailored form and briefing layouts. Other
 scenarios receive a schema-generated form and validated dynamic result panels
-from their request/response metadata.
+from their request/response metadata. The workbench also shows the approved
+agent type, orchestration pattern, and application shell.
 
 ## When to use it
 
@@ -24,7 +25,7 @@ from their request/response metadata.
 The backend exposes:
 
 - `GET /scenario/metadata` — request/response JSON Schema, endpoint, agents,
-  experience metadata, and approval mode.
+  implementation shape, experience metadata, and approval mode.
 - `POST /scenario/feedback` — redacted section-level feedback telemetry.
 - The scenario's SSE endpoint — generic mode renders only validated `partial`
   events and the final briefing; raw `chunk` output is never shown.

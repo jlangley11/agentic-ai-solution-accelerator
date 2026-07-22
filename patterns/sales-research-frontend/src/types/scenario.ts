@@ -34,6 +34,11 @@ export interface ScenarioMetadata {
   endpoint_path: string;
   request_schema: JsonSchema;
   response_schema: JsonSchema | null;
+  implementation: {
+    agent_type: string;
+    orchestration_pattern: string;
+    application_shell: string;
+  } | null;
   agents: {
     id: string;
     foundry_name: string;

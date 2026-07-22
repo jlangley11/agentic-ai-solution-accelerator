@@ -6,14 +6,23 @@ import json
 import pathlib
 import re
 import sys
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 import yaml
 
+from .architecture_advisor import (
+    FOUNDRY_AGENT_OVERVIEW,
+    HOSTED_AGENT_GUIDANCE,
+    architecture_is_current,
+    committed_requirement_context,
+    recommend_architecture,
+    validate_selection,
+)
 from .intake.ledger import EvidenceLedger
 from .lifecycle import detect_lifecycle
-from .manifest_edit import replace_scenario, scenario_block
+from .manifest_edit import replace_architecture, replace_scenario, scenario_block
 from .operations import ensure_private_workspace
 from .protocol import (
     ApprovalLevel,
@@ -30,6 +39,7 @@ from .runner import load_script, python_command, render_command, run_process
 
 _SCENARIO_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 _ENVIRONMENT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_DEPLOYMENT_TARGETS = {"selfhost", "foundry-prompt", "hosted-preview"}
 
 
 def discover(context: RepositoryContext) -> CommandResult:
@@ -89,9 +99,28 @@ def discover(context: RepositoryContext) -> CommandResult:
     )
 
 
-def design(context: RepositoryContext) -> CommandResult:
+def design(
+    context: RepositoryContext,
+    *,
+    agent_type: str | None = None,
+    orchestration_pattern: str | None = None,
+    application_shell: str | None = None,
+    deployment_target: str | None = None,
+    approved_by: str | None = None,
+    override_reason: str | None = None,
+    apply: bool = False,
+) -> CommandResult:
     brief = context.brief_path.read_text(encoding="utf-8") if context.brief_path.exists() else ""
     manifest = context.manifest()
+    discovery_stage = detect_lifecycle(context).for_stage(Stage.DISCOVER)
+    if discovery_stage.status != ResultStatus.COMPLETE:
+        return CommandResult(
+            stage=Stage.DESIGN,
+            status=ResultStatus.NEEDS_INPUT,
+            summary="Architecture advice requires a completed solution brief.",
+            blocking_issues=discovery_stage.issues,
+            next_command="accel discover",
+        )
     requirements = {
         "solution pattern": "## 5. Solution shape" in brief,
         "UX shape": "UX shape" in brief and "ux_shape" in brief,
@@ -104,7 +133,7 @@ def design(context: RepositoryContext) -> CommandResult:
     missing = [label for label, present in requirements.items() if not present]
     if missing:
         return CommandResult(
-            stage=Stage.SCAFFOLD,
+            stage=Stage.DESIGN,
             status=ResultStatus.NEEDS_INPUT,
             summary=f"{len(missing)} design contract item(s) are missing.",
             blocking_issues=tuple(
@@ -119,13 +148,256 @@ def design(context: RepositoryContext) -> CommandResult:
             next_command="accel discover",
             details={"checks": requirements},
         )
+    local_approved_requirements = tuple(
+        requirement.statement
+        for requirement in EvidenceLedger(context).list_requirements()
+        if requirement.status == "approved"
+    )
+    traceability = (
+        context.root / "docs" / "discovery" / "requirements-traceability.md"
+    )
+    if local_approved_requirements and not traceability.exists():
+        return CommandResult(
+            stage=Stage.DESIGN,
+            status=ResultStatus.NEEDS_INPUT,
+            summary="Export approved requirements before architecture review.",
+            blocking_issues=(
+                Issue(
+                    "architecture-traceability",
+                    "Approved local requirements are not represented in a "
+                    "committed sanitized traceability artifact.",
+                    "Run `accel intake requirement export --apply`.",
+                    "docs/discovery/requirements-traceability.md",
+                ),
+            ),
+            next_command="accel intake requirement export --apply",
+        )
+    approved_requirements = committed_requirement_context(
+        context.root,
+        local_approved_requirements,
+    )
+    recommendation = recommend_architecture(brief, approved_requirements)
+    current_architecture = manifest.get("architecture")
+    current_architecture_map = (
+        current_architecture
+        if isinstance(current_architecture, dict)
+        else None
+    )
+    selected = {
+        "agent_type": agent_type or recommendation.agent_type,
+        "orchestration_pattern": (
+            orchestration_pattern or recommendation.orchestration_pattern
+        ),
+        "application_shell": application_shell or recommendation.application_shell,
+        "deployment_target": deployment_target or recommendation.deployment_target,
+    }
+    selection_issues = validate_selection(**selected)
+    if selection_issues:
+        return CommandResult(
+            stage=Stage.DESIGN,
+            status=ResultStatus.BLOCKED,
+            summary="The selected architecture combination is unsupported.",
+            blocking_issues=tuple(
+                Issue(
+                    f"architecture-selection-{index}",
+                    message,
+                    "Choose a supported combination from `accel design`.",
+                    "accelerator.yaml",
+                )
+                for index, message in enumerate(selection_issues, start=1)
+            ),
+            details={"recommendation": recommendation.to_dict(), "selected": selected},
+        )
+    recommended_selection = {
+        "agent_type": recommendation.agent_type,
+        "orchestration_pattern": recommendation.orchestration_pattern,
+        "application_shell": recommendation.application_shell,
+        "deployment_target": recommendation.deployment_target,
+    }
+    overridden = selected != recommended_selection
+    if overridden and not (override_reason or "").strip():
+        return CommandResult(
+            stage=Stage.DESIGN,
+            status=ResultStatus.NEEDS_INPUT,
+            summary="An override reason is required for a non-recommended architecture.",
+            required_inputs=(
+                RequiredInput(
+                    "override-reason",
+                    "Why is the partner overriding the deterministic recommendation?",
+                ),
+            ),
+            next_command=_design_command(
+                selected,
+                include_approval=apply,
+                include_override=True,
+            ),
+            details={
+                "recommendation": recommendation.to_dict(),
+                "selected": selected,
+            },
+        )
+    if (
+        not any(
+            value is not None
+            for value in (
+                agent_type,
+                orchestration_pattern,
+                application_shell,
+                deployment_target,
+                approved_by,
+                override_reason,
+            )
+        )
+        and architecture_is_current(
+            current_architecture_map,
+            recommendation.requirements_fingerprint,
+        )
+    ):
+        return CommandResult(
+            stage=Stage.DESIGN,
+            status=ResultStatus.COMPLETE,
+            summary="The approved architecture decision is current.",
+            completed=tuple(
+                f"{key.replace('_', ' ').title()}: {value}"
+                for key, value in (
+                    ((current_architecture_map or {}).get("decision") or {}).items()
+                )
+                if key in selected
+            ),
+            next_command="accel scaffold --scenario-id <scenario-id> --dry-run",
+            details={
+                "checks": requirements,
+                "recommendation": recommendation.to_dict(),
+                "architecture": current_architecture,
+            },
+        )
+    decision_block = _architecture_decision_block(
+        recommendation=recommendation.to_dict(),
+        selected=selected,
+        approved_by=approved_by,
+        override_reason=override_reason,
+    )
+    original, updated = replace_architecture(
+        context,
+        decision_block,
+        apply=False,
+    )
+    manifest_diff = "".join(
+        difflib.unified_diff(
+            original.splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile="accelerator.yaml",
+            tofile="accelerator.yaml (proposed)",
+        )
+    )
+    if not apply:
+        apply_command = _design_command(
+            selected,
+            include_approval=True,
+            include_override=overridden,
+        )
+        return CommandResult(
+            stage=Stage.DESIGN,
+            status=ResultStatus.APPROVAL_REQUIRED,
+            summary=(
+                "Architecture Advisor recommends "
+                f"{recommendation.agent_type} with "
+                f"{recommendation.orchestration_pattern}."
+            ),
+            completed=(
+                *recommendation.rationale,
+                *(
+                    "Alternative "
+                    f"{alternative['dimension']}={alternative['option']}: "
+                    f"{alternative['reason']}"
+                    for alternative in recommendation.alternatives
+                ),
+            ),
+            required_inputs=(
+                RequiredInput(
+                    "approved-by",
+                    "Who approves the selected architecture?",
+                ),
+            ),
+            proposed_actions=(
+                ProposedAction(
+                    "approve-architecture",
+                    "Record the reviewed architecture decision",
+                    apply_command,
+                    ApprovalLevel.APPLY,
+                    reason=(
+                        "Scaffolding and deployment remain blocked until the "
+                        "partner approves or overrides this recommendation."
+                    ),
+                ),
+            ),
+            next_command=apply_command,
+            details={
+                "checks": requirements,
+                "recommendation": recommendation.to_dict(),
+                "selected": selected,
+                "manifest_diff": manifest_diff,
+                "foundry_agent_types": {
+                    "prompt-agent": (
+                        "Declarative instructions, model, and tools; Foundry "
+                        "runs the agent without custom runtime code."
+                    ),
+                    "hosted-agent": (
+                        "Custom code or framework hosted by Foundry with managed "
+                        "endpoint, scaling, identity, and observability."
+                    ),
+                    "workflow-note": (
+                        "Workflow is an orchestration pattern. It is not a third "
+                        "Foundry Agent Service runtime type."
+                    ),
+                },
+                "references": [
+                    FOUNDRY_AGENT_OVERVIEW,
+                    HOSTED_AGENT_GUIDANCE,
+                ],
+            },
+        )
+    if not (approved_by or "").strip():
+        return CommandResult(
+            stage=Stage.DESIGN,
+            status=ResultStatus.NEEDS_INPUT,
+            summary="Architecture approval requires an approver name.",
+            required_inputs=(
+                RequiredInput(
+                    "approved-by",
+                    "Who approves the selected architecture?",
+                ),
+            ),
+            next_command=_design_command(
+                selected,
+                include_approval=True,
+                include_override=overridden,
+            ),
+            details={"recommendation": recommendation.to_dict(), "selected": selected},
+        )
+    decision_block = _architecture_decision_block(
+        recommendation=recommendation.to_dict(),
+        selected=selected,
+        approved_by=approved_by,
+        override_reason=override_reason,
+    )
+    replace_architecture(context, decision_block, apply=True)
     return CommandResult(
-        stage=Stage.SCAFFOLD,
+        stage=Stage.DESIGN,
         status=ResultStatus.COMPLETE,
-        summary="The solution design contract is present.",
-        completed=tuple(label for label, present in requirements.items() if present),
+        summary="The architecture decision was approved and recorded.",
+        completed=(
+            f"Agent type: {selected['agent_type']}",
+            f"Orchestration: {selected['orchestration_pattern']}",
+            f"Application shell: {selected['application_shell']}",
+            f"Deployment target: {selected['deployment_target']}",
+        ),
         next_command="accel scaffold --scenario-id <scenario-id> --dry-run",
-        details={"checks": requirements},
+        details={
+            "checks": requirements,
+            "recommendation": recommendation.to_dict(),
+            "architecture": decision_block,
+        },
     )
 
 
@@ -149,14 +421,35 @@ def scaffold(
                 ),
             ),
         )
+    design_stage = detect_lifecycle(context).for_stage(Stage.DESIGN)
+    if design_stage.status != ResultStatus.COMPLETE:
+        return CommandResult(
+            stage=Stage.SCAFFOLD,
+            status=ResultStatus.BLOCKED,
+            summary="Scaffolding requires an approved, current architecture decision.",
+            blocking_issues=design_stage.issues,
+            next_command="accel design",
+        )
+    architecture = context.manifest().get("architecture") or {}
+    decision = architecture.get("decision") or {}
     script = load_script(
         context,
         "scripts/scaffold-scenario.py",
         module_name="accelerator_cli_scaffold_scenario",
     )
-    plan = script._plan(scenario_id, no_retrieval=no_retrieval)
+    plan = script._plan(
+        scenario_id,
+        no_retrieval=no_retrieval,
+        agent_type=str(decision["agent_type"]),
+    )
     conflicts = [path for path, _ in plan if path.exists()]
-    block = scenario_block(scenario_id, no_retrieval=no_retrieval)
+    block = scenario_block(
+        scenario_id,
+        no_retrieval=no_retrieval,
+        agent_type=str(decision["agent_type"]),
+        orchestration_pattern=str(decision["orchestration_pattern"]),
+        application_shell=str(decision["application_shell"]),
+    )
     original, updated = replace_scenario(context, block, apply=False)
     manifest_diff = "".join(
         difflib.unified_diff(
@@ -211,12 +504,21 @@ def scaffold(
                 no_retrieval,
                 preserve_evals,
             ),
-            details={"manifest_diff": manifest_diff},
+            details={
+                "manifest_diff": manifest_diff,
+                "architecture_decision": decision,
+            },
         )
 
     command = python_command(
         "scripts/scaffold-scenario.py",
         scenario_id,
+        "--agent-type",
+        str(decision["agent_type"]),
+        "--orchestration-pattern",
+        str(decision["orchestration_pattern"]),
+        "--application-shell",
+        str(decision["application_shell"]),
         *(["--no-retrieval"] if no_retrieval else []),
         *(["--no-evals"] if preserve_evals else []),
     )
@@ -284,7 +586,10 @@ def scaffold(
             for item in proposed
         ),
         next_command="accel validate",
-        details={"script_stdout": process.stdout[-4000:]},
+        details={
+            "script_stdout": process.stdout[-4000:],
+            "architecture_decision": decision,
+        },
     )
 
 
@@ -345,7 +650,7 @@ def deploy(
             ),
         )
     manifest_target = str(entry.get("deployment_target") or "selfhost")
-    if manifest_target not in {"selfhost", "hosted-preview"}:
+    if manifest_target not in _DEPLOYMENT_TARGETS:
         return CommandResult(
             stage=Stage.PROVISION,
             status=ResultStatus.BLOCKED,
@@ -355,7 +660,8 @@ def deploy(
                     "deployment-target-invalid",
                     f"Environment {env!r} declares unsupported target "
                     f"{manifest_target!r}.",
-                    "Use selfhost or hosted-preview in deploy/environments.yaml.",
+                    "Use selfhost, foundry-prompt, or hosted-preview in "
+                    "deploy/environments.yaml.",
                     "deploy/environments.yaml",
                 ),
             ),
@@ -377,11 +683,36 @@ def deploy(
             ),
         )
     deployment_target = manifest_target
-    workspace = (
-        context.root / "deploy" / "hosted-preview"
-        if deployment_target == "hosted-preview"
-        else context.root
+    design_stage = detect_lifecycle(context).for_stage(Stage.DESIGN)
+    if design_stage.status != ResultStatus.COMPLETE:
+        return CommandResult(
+            stage=Stage.PROVISION,
+            status=ResultStatus.BLOCKED,
+            summary="Deployment requires an approved, current architecture decision.",
+            blocking_issues=design_stage.issues,
+            next_command="accel design",
+        )
+    architecture_decision = (
+        (context.manifest().get("architecture") or {}).get("decision") or {}
     )
+    selected_target = str(architecture_decision.get("deployment_target") or "")
+    if selected_target != deployment_target:
+        return CommandResult(
+            stage=Stage.PROVISION,
+            status=ResultStatus.BLOCKED,
+            summary="The environment target conflicts with the architecture decision.",
+            blocking_issues=(
+                Issue(
+                    "architecture-deployment-target",
+                    f"Architecture selected {selected_target!r}, but environment "
+                    f"{env!r} declares {deployment_target!r}.",
+                    "Approve the intended target with `accel design` or select a "
+                    "matching environment.",
+                    "accelerator.yaml",
+                ),
+            ),
+        )
+    workspace = _deployment_workspace(context, deployment_target)
     preflight = [
         sys.executable,
         str(context.root / "scripts" / "preflight-deploy.py"),
@@ -398,6 +729,8 @@ def deploy(
             ["azd", "provision", "-e", env, "--no-prompt"],
             ["azd", "deploy", "-e", env, "--no-prompt"],
         ]
+    elif deployment_target == "foundry-prompt":
+        deploy_commands = [["azd", "provision", "-e", env, "--no-prompt"]]
 
     if not execute:
         actions = [
@@ -427,7 +760,11 @@ def deploy(
                 f"accel deploy --env {env} --region {region} "
                 f"--target {deployment_target} --execute"
             ),
-            details={"workspace": str(workspace), "apply_requested": apply},
+            details={
+                "workspace": str(workspace),
+                "apply_requested": apply,
+                "architecture_decision": architecture_decision,
+            },
         )
 
     preflight_result = run_process(context, preflight, cwd=context.root, timeout=900)
@@ -474,8 +811,13 @@ def deploy(
         status=ResultStatus.COMPLETE,
         summary=f"Environment {env!r} deployed successfully.",
         completed=(f"Deployment target: {deployment_target}",),
-        next_command="accel evaluate --api-url <api-url>",
+        next_command=(
+            "accel next"
+            if deployment_target == "foundry-prompt"
+            else "accel evaluate --api-url <api-url>"
+        ),
         details={
+            "architecture_decision": architecture_decision,
             "deployment_commands": [
                 {
                     "command": list(result.command),
@@ -721,7 +1063,7 @@ def handover_generate(
     target = str(
         environment_entries[env].get("deployment_target") or "selfhost"
     )
-    if target not in {"selfhost", "hosted-preview"}:
+    if target not in _DEPLOYMENT_TARGETS:
         return CommandResult(
             stage=Stage.HANDOVER,
             status=ResultStatus.BLOCKED,
@@ -730,7 +1072,7 @@ def handover_generate(
                 Issue(
                     "handover-environment-target",
                     f"Environment {env!r} declares target {target!r}.",
-                    "Use selfhost or hosted-preview.",
+                    "Use selfhost, foundry-prompt, or hosted-preview.",
                     "deploy/environments.yaml",
                 ),
             ),
@@ -1016,11 +1358,7 @@ def _azd_values(context: RepositoryContext, env: str) -> dict[str, str]:
     }
     entry = entries.get(env) or {}
     target = str(entry.get("deployment_target") or "selfhost")
-    workspace = (
-        context.root / "deploy" / "hosted-preview"
-        if target == "hosted-preview"
-        else context.root
-    )
+    workspace = _deployment_workspace(context, target)
     path = workspace / ".azure" / env / ".env"
     if path.exists():
         values: dict[str, str] = {}
@@ -1041,6 +1379,8 @@ def _handover_markdown(
 ) -> str:
     manifest = context.manifest()
     scenario = manifest.get("scenario") or {}
+    architecture = manifest.get("architecture") or {}
+    decision = architecture.get("decision") or {}
     endpoint = next(
         (
             values[key]
@@ -1064,9 +1404,17 @@ def _handover_markdown(
         "`PARTNER-FILL REQUIRED` marker before delivery.\n\n"
         "## Deployment\n\n"
         f"- Environment: `{env}`\n"
+        f"- Target: `{decision.get('deployment_target', 'unknown')}`\n"
         f"- Endpoint: {endpoint}\n"
         f"- Foundry project: {project}\n"
         f"- Manifest: `accelerator.yaml`\n\n"
+        "## Approved architecture\n\n"
+        f"- Agent type: `{decision.get('agent_type', 'unknown')}`\n"
+        f"- Orchestration: `{decision.get('orchestration_pattern', 'unknown')}`\n"
+        f"- Application shell: `{decision.get('application_shell', 'unknown')}`\n"
+        f"- Approved by: {decision.get('approved_by', 'unknown')}\n"
+        f"- Requirements fingerprint: "
+        f"`{architecture.get('requirements_fingerprint', 'unknown')}`\n\n"
         "## Acceptance\n\n"
         "- UAT sign-off: `.accelerator/artifacts/uat-signoff.json`\n"
         "- Acceptance report: `.accelerator/artifacts/acceptance-report.json`\n\n"
@@ -1080,3 +1428,85 @@ def _handover_markdown(
         "- `docs/discovery/solution-brief.md`\n"
         "- `docs/references/security-review-checklist.md`\n"
     )
+
+
+def _architecture_decision_block(
+    *,
+    recommendation: dict[str, Any],
+    selected: dict[str, str],
+    approved_by: str | None,
+    override_reason: str | None,
+) -> dict[str, Any]:
+    recommended = {
+        key: recommendation[key]
+        for key in (
+            "agent_type",
+            "orchestration_pattern",
+            "application_shell",
+            "deployment_target",
+            "confidence",
+            "rationale",
+            "signals",
+            "alternatives",
+            "score",
+        )
+    }
+    return {
+        "status": "approved" if (approved_by or "").strip() else "proposed",
+        "requirements_fingerprint": recommendation["requirements_fingerprint"],
+        "recommendation": recommended,
+        "decision": {
+            **selected,
+            "approved_by": (approved_by or "").strip() or None,
+            "approved_at": (
+                datetime.now(UTC).isoformat()
+                if (approved_by or "").strip()
+                else None
+            ),
+            "override_reason": (override_reason or "").strip() or None,
+        },
+        "platform_context": {
+            "agent_service_types": ["prompt-agent", "hosted-agent"],
+            "workflow_note": (
+                "Workflow is modeled as an orchestration pattern, not as a "
+                "third Foundry Agent Service runtime type."
+            ),
+            "references": [FOUNDRY_AGENT_OVERVIEW, HOSTED_AGENT_GUIDANCE],
+        },
+        "accelerator_support": {
+            "foundry-prompt": "supported",
+            "hosted-preview": "preview-toolchain",
+            "selfhost": "supported",
+        },
+    }
+
+
+def _design_command(
+    selected: Mapping[str, str],
+    *,
+    include_approval: bool,
+    include_override: bool = False,
+) -> str:
+    parts = [
+        "accel design",
+        f"--agent-type {selected['agent_type']}",
+        f"--orchestration-pattern {selected['orchestration_pattern']}",
+        f"--application-shell {selected['application_shell']}",
+        f"--deployment-target {selected['deployment_target']}",
+    ]
+    if include_override:
+        parts.append("--override-reason <reason>")
+    if include_approval:
+        parts.extend(("--approved-by <name>", "--apply"))
+    return " ".join(parts)
+
+
+def _deployment_workspace(
+    context: RepositoryContext,
+    deployment_target: str,
+) -> pathlib.Path:
+    if deployment_target == "hosted-preview":
+        return context.root / "deploy" / "hosted-preview"
+    if deployment_target == "foundry-prompt":
+        return context.root / "deploy" / "foundry-prompt"
+    return context.root

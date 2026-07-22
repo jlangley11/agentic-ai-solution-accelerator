@@ -14,6 +14,13 @@ param resourceGroupName string
 @description('Tags applied to all resources.')
 param tags object = {}
 
+@description('Foundry deployment surface sharing this slim infrastructure.')
+@allowed([
+  'foundry-prompt'
+  'hosted-preview'
+])
+param deploymentSurface string = 'hosted-preview'
+
 @description('Optional salt to vary resource names across re-provisions.')
 param resourceTokenSalt string = ''
 
@@ -114,8 +121,8 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: resourceGroupName
   location: location
   tags: union(tags, {
-    'hosted-agents': 'preview'
-    'deployment-surface': 'deploy/hosted-preview'
+    'hosted-agents': deploymentSurface == 'hosted-preview' ? 'preview' : 'none'
+    'deployment-surface': 'deploy/${deploymentSurface}'
   })
 }
 
@@ -163,6 +170,6 @@ output AZURE_AI_FOUNDRY_KB_MCP_CONNECTION_NAME string = resources.outputs.AZURE_
 output AZURE_AI_FOUNDRY_KB_NAME string = resources.outputs.AZURE_AI_FOUNDRY_KB_NAME
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = resources.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING
 output AZURE_AI_MODEL_DEPLOYMENT_NAME string = resources.outputs.AZURE_AI_FOUNDRY_MODEL
-output HOSTED_AGENT string = '1'
-output ENABLE_HOSTED_AGENTS string = '1'
+output HOSTED_AGENT string = deploymentSurface == 'hosted-preview' ? '1' : '0'
+output ENABLE_HOSTED_AGENTS string = deploymentSurface == 'hosted-preview' ? '1' : '0'
 output HOSTED_PREVIEW_PROVIDER_CONTRACT object = providerContract

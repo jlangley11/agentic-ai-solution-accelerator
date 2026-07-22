@@ -53,7 +53,7 @@ def canonical_values(values: Mapping[str, object]) -> dict[str, str]:
 
     if missing:
         raise RuntimeError(
-            "hosted preview provision omitted required environment outputs: "
+            "Foundry provision omitted required environment outputs: "
             + ", ".join(missing)
         )
     return resolved
@@ -80,7 +80,7 @@ def normalize(
 
     for name, value in canonical_values(values).items():
         run([azd, "env", "set", name, value], check=True)
-        print(f"hosted-preview: normalized {name}")
+        print(f"foundry-workspace: normalized {name}")
 
 
 def main() -> None:
