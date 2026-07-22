@@ -33,7 +33,7 @@ Roles are skim guidance, not separate paths:
 | **Partner engineer** | *Set up your machine*, *Rehearse in a sandbox*, *Clone* through *Iterate & evaluate* | *Get oriented* |
 | **Solo partner** | All 10 steps | — |
 
-[:material-console: Start or continue with **`accel next`** →](lifecycle.md){ .md-button .md-button--primary }
+[:material-console: Start or continue with **accel next** →](lifecycle.md){ .md-button .md-button--primary }
 [:material-rocket-launch: First time? **Get oriented** →](start/ready/01-get-oriented.md){ .md-button }
 [:material-robot-outline: Browse custom agents →](agents-index.md){ .md-button }
 
