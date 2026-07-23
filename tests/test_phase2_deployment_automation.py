@@ -92,6 +92,12 @@ def test_workflow_target_gates_dependencies_and_nested_working_directory() -> No
     assert "needs.azd-up.result == 'success'" in evals["if"]
     assert hosted["environment"] == "${{ needs.resolve-env.outputs.github_environment }}"
     assert prompt["environment"] == "${{ needs.resolve-env.outputs.github_environment }}"
+    setup_python = next(
+        step
+        for step in prompt["steps"]
+        if step.get("uses") == "actions/setup-python@v5"
+    )
+    assert setup_python["with"]["python-version"] == "3.11"
 
     nested_commands = (
         "azd env ",

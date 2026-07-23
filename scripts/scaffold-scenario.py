@@ -54,12 +54,23 @@ def _package_leaf(scenario_id: str) -> str:
     return scenario_id.replace("-", "_")
 
 
-def _agent_id(agent_type: str) -> str:
-    return "primary" if agent_type == "prompt-agent" else "supervisor"
+def _agent_id(
+    agent_type: str,
+    implementation_pattern: str = "custom-workflow",
+) -> str:
+    return (
+        "primary"
+        if agent_type == "prompt-agent" or implementation_pattern == "harness"
+        else "supervisor"
+    )
 
 
-def _foundry_name(scenario_id: str, agent_type: str = "hosted-agent") -> str:
-    return f"accel-{scenario_id}-{_agent_id(agent_type)}"
+def _foundry_name(
+    scenario_id: str,
+    agent_type: str = "hosted-agent",
+    implementation_pattern: str = "custom-workflow",
+) -> str:
+    return f"accel-{scenario_id}-{_agent_id(agent_type, implementation_pattern)}"
 
 
 def _supervisor_foundry_name(scenario_id: str) -> str:
@@ -299,15 +310,48 @@ TEMPLATES: dict[str, Callable[[str, str], str]] = {
 }
 
 
+def _harness_workflow_template(sid: str) -> str:
+    return (
+        '"""Microsoft Agent Framework Harness workflow for the {sid} scenario."""\n'
+        "from __future__ import annotations\n\n"
+        "from typing import Any\n\n"
+        "from src.workflow.base import BaseWorkflow\n"
+        "from src.workflow.harness import HarnessWorkflow\n\n"
+        "from .agents import primary\n\n\n"
+        "def build_workflow(context: Any) -> BaseWorkflow:\n"
+        "    return HarnessWorkflow(\n"
+        "        context=context,\n"
+        "        build_prompt=primary.build_prompt,\n"
+        "        transform_response=primary.transform_response,\n"
+        "        validate_response=primary.validate_response,\n"
+        "    )\n"
+    ).format(sid=sid)
+
+
+def _harness_prompt_template() -> str:
+    return (
+        '"""Harness request envelope builder - no system instructions here."""\n'
+        "from __future__ import annotations\n\n"
+        "import json\n"
+        "from typing import Any\n\n\n"
+        "def build_prompt(request: dict[str, Any]) -> str:\n"
+        "    return (\n"
+        '        "Complete this request autonomously. Return only the JSON object "\n'
+        '        "required by the scenario response schema.\\nREQUEST:\\n"\n'
+        "        + json.dumps(request, sort_keys=True)\n"
+        "    )\n"
+    )
+
+
 SPEC_TEMPLATE = """# {agent_name}
 
 > **This file IS your agent's system instructions.** The `## Instructions`
-> section below is synced **verbatim** by shared provisioning during
-> deployment. **Edit this file to change agent behaviour.**
+> section below is consumed **verbatim** by shared provisioning or the Harness
+> runtime. **Edit this file to change agent behaviour.**
 > Never put agent system instructions in Python code — `prompt.py` builds
 > *per-request* input, not system instructions.
 
-Foundry agent spec for the {sid} scenario's {agent_role}. The model comes
+Agent instruction spec for the {sid} scenario's {agent_role}. The model comes
 from ``AZURE_AI_FOUNDRY_MODEL`` (emitted by Bicep) - do NOT add a
 ``**Model:**`` field here (the lint blocks it).
 
@@ -337,8 +381,15 @@ scenario:
       - {{ key: result, label: Result, layout: record }}
   implementation:
     agent_type: {agent_type}
+    implementation_pattern: {implementation_pattern}
     orchestration_pattern: {orchestration_pattern}
     application_shell: {application_shell}
+  architecture_diagram:
+    path: docs/assets/diagrams/{sid}-architecture.svg
+    provenance: docs/assets/diagrams/{sid}-architecture.mcp.json
+    generator: azure-architecture-diagram-builder-mcp
+    version: "1.0.0"
+    tools: [list_services, validate_architecture, render_diagram]
   agents:
     - id: supervisor
       foundry_name: {agent_name}
@@ -387,8 +438,15 @@ scenario:
       - {{ key: result, label: Result, layout: record }}
   implementation:
     agent_type: {agent_type}
+    implementation_pattern: {implementation_pattern}
     orchestration_pattern: {orchestration_pattern}
     application_shell: {application_shell}
+  architecture_diagram:
+    path: docs/assets/diagrams/{sid}-architecture.svg
+    provenance: docs/assets/diagrams/{sid}-architecture.mcp.json
+    generator: azure-architecture-diagram-builder-mcp
+    version: "1.0.0"
+    tools: [list_services, validate_architecture, render_diagram]
   agents:
     - {{ id: supervisor, foundry_name: {agent_name} }}
   evals:
@@ -402,10 +460,15 @@ def _plan(
     *,
     no_retrieval: bool = False,
     agent_type: str = "hosted-agent",
+    implementation_pattern: str = "custom-workflow",
 ) -> list[tuple[pathlib.Path, str]]:
     leaf = _package_leaf(scenario_id)
     pkg_root = ROOT / "src" / "scenarios" / leaf
-    agent_name = _foundry_name(scenario_id, agent_type)
+    agent_name = _foundry_name(
+        scenario_id,
+        agent_type,
+        implementation_pattern,
+    )
     files: list[tuple[pathlib.Path, str]] = []
     for rel, tmpl in TEMPLATES.items():
         # Skip retrieval.py when --no-retrieval; the manifest won't reference it.
@@ -413,7 +476,9 @@ def _plan(
             continue
         rendered_path = rel
         rendered = tmpl(scenario_id, leaf)
-        if agent_type == "prompt-agent":
+        if implementation_pattern == "harness" and rel == "workflow.py":
+            rendered = _harness_workflow_template(scenario_id)
+        if agent_type == "prompt-agent" or implementation_pattern == "harness":
             rendered_path = rendered_path.replace("supervisor", "primary")
             rendered = rendered.replace("Supervisor", "Primary").replace(
                 "supervisor",
@@ -432,13 +497,25 @@ def _plan(
                 _supervisor_foundry_name(scenario_id),
                 agent_name,
             )
+        if (
+            implementation_pattern == "harness"
+            and rendered_path == "agents/primary/prompt.py"
+        ):
+            rendered = _harness_prompt_template()
         files.append((pkg_root / rendered_path, rendered))
     responsibility = (
         "Answer the request directly using only declared tools and grounding. "
         "Do not invent worker delegation."
         if agent_type == "prompt-agent"
-        else "Plan which worker agents to invoke and synthesize their outputs. "
-        "Never call side-effect tools directly."
+        else (
+            "Plan and execute the request with the stable Agent Framework Harness. "
+            "Return only the declared JSON response. Runtime tools are not "
+            "scaffolded by default; every later side-effect tool must retain "
+            "accelerator HITL."
+            if implementation_pattern == "harness"
+            else "Plan which worker agents to invoke and synthesize their outputs. "
+            "Never call side-effect tools directly."
+        )
     )
     files.append((
         ROOT / "docs" / "agent-specs" / f"{agent_name}.md",
@@ -448,7 +525,11 @@ def _plan(
             agent_role=(
                 "primary prompt agent"
                 if agent_type == "prompt-agent"
-                else "supervisor"
+                else (
+                    "primary Harness agent"
+                    if implementation_pattern == "harness"
+                    else "supervisor"
+                )
             ),
             responsibility=responsibility,
         ),
@@ -530,6 +611,11 @@ def main() -> int:
         help="shape the primary package for the approved Foundry agent type",
     )
     ap.add_argument(
+        "--implementation-pattern",
+        choices=("managed-prompt", "harness", "custom-workflow"),
+        default="custom-workflow",
+    )
+    ap.add_argument(
         "--orchestration-pattern",
         choices=("single-agent", "deterministic-workflow", "supervisor-routing"),
         default="supervisor-routing",
@@ -546,11 +632,29 @@ def main() -> int:
         print(f"::error::invalid scenario id {sid!r}; must match "
               f"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", file=sys.stderr)
         return 2
+    if args.implementation_pattern == "harness" and (
+        args.agent_type != "hosted-agent"
+        or args.orchestration_pattern != "single-agent"
+    ):
+        print(
+            "::error::Harness requires --agent-type hosted-agent and "
+            "--orchestration-pattern single-agent",
+            file=sys.stderr,
+        )
+        return 2
+    if args.implementation_pattern == "harness" and not args.no_retrieval:
+        print(
+            "::error::Harness scaffolds currently require --no-retrieval; "
+            "governed FoundryIQ tool bridging is not wired yet",
+            file=sys.stderr,
+        )
+        return 2
 
     plan = _plan(
         sid,
         no_retrieval=args.no_retrieval,
         agent_type=args.agent_type,
+        implementation_pattern=args.implementation_pattern,
     )
     conflicts = [p for p, _ in plan if p.exists()]
     if conflicts:
@@ -589,20 +693,27 @@ def main() -> int:
             golden_cases_path.write_text(
                 _golden_cases_stub(
                     sid,
-                    agent_id=_agent_id(args.agent_type),
+                    agent_id=_agent_id(
+                        args.agent_type,
+                        args.implementation_pattern,
+                    ),
                 ),
                 encoding="utf-8",
             )
 
         leaf = _package_leaf(sid)
-        agent_name = _foundry_name(sid, args.agent_type)
+        agent_name = _foundry_name(
+            sid,
+            args.agent_type,
+            args.implementation_pattern,
+        )
         snippet = (
             MANIFEST_SNIPPET_NO_RETRIEVAL if args.no_retrieval
             else MANIFEST_SNIPPET_FOUNDRYIQ
         )
         print(
             f"scaffolded scenario: src/scenarios/{leaf}/ "
-            f"({args.agent_type})"
+            f"({args.agent_type}/{args.implementation_pattern})"
         )
         if args.no_retrieval:
             print("(no retrieval -- scenario operates on input only)")
@@ -621,6 +732,7 @@ def main() -> int:
             leaf=leaf,
             agent_name=agent_name,
             agent_type=args.agent_type,
+            implementation_pattern=args.implementation_pattern,
             orchestration_pattern=args.orchestration_pattern,
             application_shell=args.application_shell,
             experience_kind={
@@ -630,7 +742,7 @@ def main() -> int:
                 "custom": "api",
             }[args.application_shell],
         )
-        if args.agent_type == "prompt-agent":
+        if _agent_id(args.agent_type, args.implementation_pattern) == "primary":
             rendered_snippet = rendered_snippet.replace(
                 "id: supervisor",
                 "id: primary",

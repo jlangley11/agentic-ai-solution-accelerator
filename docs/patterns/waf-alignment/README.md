@@ -42,7 +42,7 @@ Legend:
 | Per-call cost tracking in telemetry | 🟡 | CI cost gating is in the box: `cost_per_call_usd` in `accelerator.yaml.acceptance` runs as a CI gate, and `src/accelerator_baseline/telemetry.py` declares the typed `cost.call` event. Production per-call cost telemetry (the actual `cost.call` emission) is **not wired into the flagship scenario today** — partners call `record_call_cost(...)` from `src/accelerator_baseline/cost.py` at their Foundry call sites. The shipped `MODEL_PRICE_USD_PER_1K_TOKENS` table is partial — partners extend it for their region/SKUs. See [`docs/customer-runbook.md`](../../customer-runbook.md#4-cost) for the full wire-up. |
 | Acceptance thresholds fail CI on regression | 🟢 | `src/accelerator_baseline/evals.py` + `.github/workflows/evals.yml`. |
 | Mandatory Azure tags | 🟢 | `infra/main.bicep` applies `azd-env-name` + `accelerator-version` tags. |
-| Model tier selection | 🟡 | `modelName` + `modelCapacity` params in `infra/main.bicep`; partner picks per quota. |
+| Model tier selection | 🟡 | The `models:` block in `accelerator.yaml` is read by `infra/main.bicep` via `loadYamlContent`; partner picks per quota. |
 | FinOps maturity + chargeback | 🔴 | Customer finance. |
 
 ## Operational Excellence
@@ -74,10 +74,10 @@ Legend:
 |---|---|---|
 | Content filter strict by default | 🟢 | Bicep; `content_filter_iac_only` lint. |
 | Groundedness threshold as CI gate | 🟢 | `groundedness_threshold` in `accelerator.yaml.acceptance`. |
-| HITL on every declared side-effect | 🟢 | Tools in `src/tools/` must register a HITL checkpoint; lint rule `tool_registers_hitl`. |
+| HITL on every declared side-effect | 🟢 | Tools in `src/tools/` must register a HITL checkpoint; lint rule `side_effect_tools_call_hitl`. |
 | Red-team eval suite in CI | 🟢 | `evals/redteam/run.py` + `redteam_must_pass` acceptance gate. |
 | Grounding source attribution in response | 🟢 | Workers emit `citations` arrays; `must_cite` eval check. |
-| Model choice for domain | 🟡 | `modelName` param; partner validates via evals. |
+| Model choice for domain | 🟡 | Configure `accelerator.yaml.models[]`; partner validates the selected deployment via evals. |
 | Residual prompt injection on novel attacks | 🔴 | Industry-wide unsolved — defence in depth (content filter + grounding restrictions + HITL + red-team + kill switch). |
 
 ---

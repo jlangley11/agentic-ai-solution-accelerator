@@ -48,6 +48,37 @@ function enumValues(
   return resolved.enum;
 }
 
+function allowsNull(property: JsonSchemaProperty): boolean {
+  return (
+    (Array.isArray(property.type) && property.type.includes("null"))
+    || Boolean(property.anyOf?.some((item) => item.type === "null"))
+  );
+}
+
+function arrayItemType(
+  schema: JsonSchema,
+  property: JsonSchemaProperty,
+): string {
+  return property.items ? fieldType(schema, property.items) : "string";
+}
+
+function isMultiline(name: string, property: JsonSchemaProperty): boolean {
+  if (property.format) return false;
+  if ((property.maxLength ?? 0) > 200) return true;
+  return /(context|description|details|notes|query|prompt|instructions|summary)/i.test(
+    name,
+  );
+}
+
+function inputType(property: JsonSchemaProperty, type: string): string {
+  if (type === "number" || type === "integer") return "number";
+  if (property.format === "email") return "email";
+  if (property.format === "uri" || property.format === "url") return "url";
+  if (property.format === "date") return "date";
+  if (property.format === "date-time") return "datetime-local";
+  return "text";
+}
+
 function initialState(
   schema: JsonSchema,
   values?: Record<string, unknown>,
@@ -83,6 +114,11 @@ export function DynamicSchemaForm({
   const required = useMemo(() => new Set(schema.required ?? []), [schema.required]);
   const [form, setForm] = useState(() => initialState(schema, initialValues));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Set<string>>(() => new Set());
+
+  function markTouched(name: string) {
+    setTouched((current) => new Set(current).add(name));
+  }
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -91,17 +127,82 @@ export function DynamicSchemaForm({
     for (const [name, property] of Object.entries(properties)) {
       const value = form[name];
       const type = fieldType(schema, property);
-      if (type === "boolean") request[name] = Boolean(value);
+      const isRequired = required.has(name);
+      const empty = (
+        value === ""
+        || value == null
+        || (
+          type === "object"
+          && String(value).trim() === "{}"
+          && !isRequired
+        )
+      );
+      if (!isRequired && empty) {
+        if (allowsNull(property)) request[name] = null;
+        continue;
+      }
+      if (type === "boolean") {
+        const resolved = resolveProperty(schema, property);
+        const hasInitial = initialValues?.[name] !== undefined;
+        if (
+          !isRequired
+          && !touched.has(name)
+          && !hasInitial
+          && resolved.default === undefined
+        ) {
+          continue;
+        }
+        request[name] = Boolean(value);
+      }
       else if (type === "number" || type === "integer") {
-        request[name] = value === "" ? null : Number(value);
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          nextErrors[name] = "Enter a valid number.";
+        } else if (type === "integer" && !Number.isInteger(numeric)) {
+          nextErrors[name] = "Enter a whole number.";
+        } else {
+          request[name] = numeric;
+        }
       } else if (type === "array") {
-        request[name] = String(value ?? "")
+        const itemType = arrayItemType(schema, property);
+        const items = String(value ?? "")
           .split(",")
           .map((item) => item.trim())
           .filter(Boolean);
+        const converted = items.map((item) => {
+          if (itemType === "number" || itemType === "integer") return Number(item);
+          if (itemType === "boolean") return item.toLowerCase() === "true";
+          return item;
+        });
+        if (
+          (itemType === "number" || itemType === "integer")
+          && converted.some(
+            (item) =>
+              typeof item !== "number"
+              || !Number.isFinite(item)
+              || (itemType === "integer" && !Number.isInteger(item)),
+          )
+        ) {
+          nextErrors[name] = (
+            itemType === "integer"
+              ? "Enter comma-separated whole numbers."
+              : "Enter comma-separated numbers."
+          );
+        } else {
+          request[name] = converted;
+        }
       } else if (type === "object") {
         try {
-          request[name] = JSON.parse(String(value ?? "{}")) as unknown;
+          const parsed = JSON.parse(String(value ?? "{}")) as unknown;
+          if (
+            typeof parsed !== "object"
+            || parsed === null
+            || Array.isArray(parsed)
+          ) {
+            nextErrors[name] = "Enter a valid JSON object.";
+          } else {
+            request[name] = parsed;
+          }
         } catch {
           nextErrors[name] = "Enter a valid JSON object.";
         }
@@ -123,47 +224,54 @@ export function DynamicSchemaForm({
           const options = enumValues(schema, property);
           const label = resolved.title ?? humanize(name);
           const isRequired = required.has(name);
+          const helpId = resolved.description ? `field-${name}-help` : undefined;
+          const errorId = errors[name] ? `field-${name}-error` : undefined;
+          const describedBy = [helpId, errorId].filter(Boolean).join(" ") || undefined;
           const common = {
             id: `field-${name}`,
             required: isRequired,
             disabled: busy,
+            "aria-describedby": describedBy,
+            "aria-invalid": errors[name] ? true : undefined,
           };
           return (
-            <label
+            <div
               key={name}
               className={
-                type === "object" || (type === "string" && resolved.description)
-                  ? "full"
-                  : undefined
+                type === "object" || (type === "string" && isMultiline(name, resolved))
+                  ? "form-field full"
+                  : "form-field"
               }
             >
-              <span>
+              <label htmlFor={common.id}>
                 {label}
                 {isRequired ? " *" : ""}
-              </span>
+              </label>
               {type === "boolean" ? (
                 <input
-                  id={common.id}
-                  disabled={common.disabled}
+                  {...common}
+                  required={false}
                   type="checkbox"
                   checked={Boolean(form[name])}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    markTouched(name);
                     setForm((current) => ({
                       ...current,
                       [name]: event.target.checked,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               ) : options ? (
                 <select
                   {...common}
                   value={String(form[name] ?? "")}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    markTouched(name);
                     setForm((current) => ({
                       ...current,
                       [name]: event.target.value,
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   {!isRequired && <option value="">Select…</option>}
                   {options.map((option) => (
@@ -178,44 +286,55 @@ export function DynamicSchemaForm({
                   rows={6}
                   className="json-input"
                   value={String(form[name] ?? "{}")}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    markTouched(name);
                     setForm((current) => ({
                       ...current,
                       [name]: event.target.value,
-                    }))
-                  }
+                    }));
+                  }}
                 />
-              ) : type === "string" && resolved.description ? (
+              ) : type === "string" && isMultiline(name, resolved) ? (
                 <textarea
                   {...common}
                   rows={3}
                   value={String(form[name] ?? "")}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    markTouched(name);
                     setForm((current) => ({
                       ...current,
                       [name]: event.target.value,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               ) : (
                 <input
                   {...common}
-                  type={type === "number" || type === "integer" ? "number" : "text"}
+                  type={inputType(resolved, type)}
+                  min={resolved.minimum}
+                  max={resolved.maximum}
+                  minLength={resolved.minLength}
+                  maxLength={resolved.maxLength}
+                  pattern={resolved.pattern}
+                  step={type === "integer" ? 1 : type === "number" ? "any" : undefined}
                   value={String(form[name] ?? "")}
                   placeholder={type === "array" ? "comma-separated values" : undefined}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    markTouched(name);
                     setForm((current) => ({
                       ...current,
                       [name]: event.target.value,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               )}
               {resolved.description && (
-                <small className="field-help">{resolved.description}</small>
+                <small id={helpId} className="field-help">{resolved.description}</small>
               )}
-              {errors[name] && <small className="field-error">{errors[name]}</small>}
-            </label>
+              {errors[name] && (
+                <small id={errorId} className="field-error">{errors[name]}</small>
+              )}
+            </div>
           );
         })}
       </div>

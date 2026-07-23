@@ -3,9 +3,13 @@
 This directory is an explicit opt-in workspace for deploying the accelerator
 supervisor as hosted code in Microsoft Foundry. The accelerator continues to
 classify this target as `hosted-preview` because its pinned Python hosting
-packages and azd extensions are alpha/beta and hosted observability support is
+packages and azd extensions are prerelease and hosted observability support is
 not at parity with the default path. Do not place it on a production critical
 path without the engagement's approved prerelease exception.
+
+Hosted `single-agent` scenarios may use the stable Microsoft Agent Framework
+Harness implementation pattern. Deterministic and supervisor scenarios retain
+the accelerator's explicit custom workflow runtime.
 
 The repository-root `azure.yaml` is unchanged: running `azd up` from the repository root continues to deploy the current self-hosted Container Apps solution.
 

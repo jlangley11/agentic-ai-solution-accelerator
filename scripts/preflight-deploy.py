@@ -69,8 +69,6 @@ HOSTED_PREVIEW_REQUIRED_RPS = [
     "Microsoft.Insights",
 ]
 
-REQUIRED_RPS = SELFHOST_REQUIRED_RPS
-
 # AI Foundry project GA regions as of writing. Best-effort: the list grows
 # over time, so a region that's NOT here gets a WARN, not a FAIL — the
 # partner can override and proceed if they know better.

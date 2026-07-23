@@ -6,7 +6,8 @@
 - **Sponsor** — pays for it and owns the outcome
 - **Process owner** — knows the current-state workflow in enough detail to describe one journey end-to-end
 - **IT / security representative** — answers residency, identity, compliance
-- **Partner lead** — drives the agenda; uses `/discover-scenario` live
+- **Partner lead** — drives the agenda; uses `accel discover` plus the
+  discovery specialist live
 - *Optional:* analytics owner (for KPI baselines), an actual end user
 
 ## Agenda (2 hours)
@@ -18,11 +19,14 @@
 | 0:35–0:55 | 2. Users & journeys | 3 journeys named; 1 chosen as the wedge |
 | 0:55–1:15 | 3. Success criteria | Concrete metrics with current + target |
 | 1:15–1:30 | 4. ROI hypothesis | Baseline cost + target savings + payback |
-| 1:30–1:45 | 5. Solution shape | Pattern chosen; tools listed; HITL gates named |
+| 1:30–1:45 | 5. Solution requirements | Architecture signals captured; tools listed; HITL gates named |
 | 1:45–1:55 | 6. Constraints & RAI | Residency, identity, compliance, 3–5 risks |
-| 1:55–2:00 | Close | Next steps: `/scaffold-from-brief`, provisioning date |
+| 1:55–2:00 | Close | Next steps: Architecture Advisor review, scaffold, provisioning date |
 
 Section 7 (acceptance evals) is derived post-workshop from sections 3 and 6.
+Customer documents can be registered through `accel intake` as Markdown, text,
+CSV, DOCX, text-layer PDF, PPTX, XLSX, or XLSM. They remain local-only until an
+explicit disclosure decision; scanned PDFs require OCR.
 
 ## How to run each section well
 
@@ -39,9 +43,17 @@ Push hard against vagueness. "Faster" isn't a criterion; "4 hours → 30 minutes
 Work it through aloud: baseline FTE count × loaded rate × proportion of time on the journey = baseline cost. Target savings = baseline × (1 − 1/productivity_multiplier). Name the KPI **events** — these will be emitted by the agent as typed telemetry; they become the customer's monthly value-review deck.
 
 ### 5. Solution shape
-- If there are ≥2 distinct capabilities (research · score · write · route), that's **supervisor-routing**.
+- If capabilities require independently validated specialist contracts,
+  parallel ownership, or explicit aggregation, that's **supervisor-routing**.
 - If there's one capability with simple Q&A + one write-back, **single-agent**.
 - If the UX is a chat thread, **chat-with-actioning**.
+- If a single agent must plan and execute adaptive, long-running work with
+  todos, in-run history, context management, or several custom tools, capture those
+  signals for the **Harness** recommendation.
+- If steps, retries, aggregation, or worker ordering must remain deterministic,
+  capture them for **custom-workflow**, not Harness.
+- Durable cross-request session state or persistent files also require
+  **custom-workflow** until the engagement defines a governed state store.
 List every side-effect tool. Every one gets HITL by default; only mark HITL `never` if the action is fully reversible AND the customer explicitly accepts the risk.
 
 ### 6. Constraints & risks

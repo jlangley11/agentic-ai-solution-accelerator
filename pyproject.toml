@@ -9,7 +9,7 @@ license = { text = "MIT" }
 # Pinned to a known-good version matrix. See docs/version-matrix.md.
 # Weekly version-matrix.yml CI job re-tests against latest; deprecation policy N-1 minor.
 dependencies = [
-  "agent-framework>=1.11.0,<2.0.0",
+  "agent-framework>=1.12.1,<2.0.0",
   # Hosted-agent versioning and code-upload APIs are stable in 2.3.0.
   "azure-ai-projects>=2.3.0,<3.0.0",
   "azure-ai-agents>=1.1.0,<2.0.0",
@@ -31,9 +31,9 @@ dependencies = [
   # (constrained to the three Search roles via ABAC condition in
   # infra/main.bicep) so this is the minimum-privilege path.
   "azure-mgmt-authorization>=4.0.0,<5.0.0",
-  "azure-monitor-opentelemetry>=1.6.0,<2.0.0",
-  "opentelemetry-api>=1.27.0,<2.0.0",
-  "opentelemetry-sdk>=1.27.0,<2.0.0",
+  "azure-monitor-opentelemetry>=1.8.9,<2.0.0",
+  "opentelemetry-api>=1.43.0,<2.0.0",
+  "opentelemetry-sdk>=1.43.0,<2.0.0",
   # FastAPI auto-instrumentation: creates a parent request span per HTTP call
   # so every `emit_event(...)` inside the workflow correlates to a single
   # operation_Id in App Insights. Without this, span events emitted by the
@@ -41,7 +41,7 @@ dependencies = [
   # `traces`-table fallback in `accelerator_baseline.telemetry.emit_event`
   # is what keeps events queryable; FastAPI instrumentation is what makes
   # them correlatable. Both are required for Lab 3 to work as described.
-  "opentelemetry-instrumentation-fastapi>=0.48b0,<1.0.0",
+  "opentelemetry-instrumentation-fastapi>=0.64b0,<1.0.0",
   "fastapi>=0.115.0,<1.0.0",
   "uvicorn[standard]>=0.32.0,<1.0.0",
   "pydantic>=2.9.0,<3.0.0",
@@ -61,18 +61,18 @@ mcp = [
   "mcp>=1.28.1,<2.0.0",
 ]
 hosted-preview = [
-  "agent-framework-foundry-hosting==1.0.0a260709",
-  "azure-ai-agentserver-core==2.0.0b7",
-  "azure-ai-agentserver-responses==1.0.0b8",
-  "azure-ai-agentserver-invocations==1.0.0b6",
+  "agent-framework-foundry-hosting==1.0.0b260721",
+  "azure-ai-agentserver-core==2.0.0b8",
+  "azure-ai-agentserver-responses==1.0.0b9",
+  "azure-ai-agentserver-invocations==1.0.0b7",
 ]
 dev = [
   "hatchling>=1.31.0,<2.0.0",
   # CI type-checks the hosted entrypoint; preview runtime remains an explicit extra.
-  "agent-framework-foundry-hosting==1.0.0a260709",
-  "azure-ai-agentserver-core==2.0.0b7",
-  "azure-ai-agentserver-responses==1.0.0b8",
-  "azure-ai-agentserver-invocations==1.0.0b6",
+  "agent-framework-foundry-hosting==1.0.0b260721",
+  "azure-ai-agentserver-core==2.0.0b8",
+  "azure-ai-agentserver-responses==1.0.0b9",
+  "azure-ai-agentserver-invocations==1.0.0b7",
   "pytest>=8.0",
   "pytest-asyncio>=1.4.0,<2.0.0",
   "ruff>=0.7",
@@ -100,6 +100,7 @@ packages = ["src"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "accelerator.yaml" = "accelerator.yaml"
+"docs/agent-specs" = "docs/agent-specs"
 
 [tool.ruff]
 line-length = 100

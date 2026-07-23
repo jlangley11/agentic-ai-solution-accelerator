@@ -9,6 +9,11 @@ export interface JsonSchemaProperty {
   anyOf?: JsonSchemaProperty[];
   $ref?: string;
   additionalProperties?: boolean | JsonSchemaProperty;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
 }
 
 export interface JsonSchema {
@@ -36,6 +41,7 @@ export interface ScenarioMetadata {
   response_schema: JsonSchema | null;
   implementation: {
     agent_type: string;
+    implementation_pattern: string;
     orchestration_pattern: string;
     application_shell: string;
   } | null;
@@ -47,7 +53,6 @@ export interface ScenarioMetadata {
   output_sections: ScenarioOutputSection[];
   approval: {
     mode: string;
-    configured: boolean;
   };
   stream_contract: {
     validated_partial_event: string | null;

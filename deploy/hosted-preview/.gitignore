@@ -1,6 +1,7 @@
 .azure/
 infra/main.json
 app/src/
+app/docs/agent-specs/
 app/accelerator.yaml
 app/pyproject.toml
 app/README.md

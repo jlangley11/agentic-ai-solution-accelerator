@@ -85,15 +85,25 @@ npm audit
   customer intent; `accelerator.yaml` is the executable contract; the
   gitignored evidence ledger stores local provenance.
 - **Architecture is an approval gate.** `accel design` records agent type,
-  orchestration, application shell, target, rationale, alternatives, approver,
-  and requirements fingerprint. Never scaffold/deploy a stale decision.
-  Foundry agent types are prompt and Hosted; workflow is orchestration.
+  implementation pattern, orchestration, application shell, target, rationale,
+  alternatives, approver, and requirements fingerprint. Never scaffold/deploy a
+  stale decision. Foundry agent types are prompt and Hosted; implementation
+  patterns are `managed-prompt`, `harness`, and `custom-workflow`; workflow is
+  orchestration.
+- **Architecture diagrams are governed scaffold artifacts.** Generate Azure
+  resource diagrams with Azure Architecture Diagram Builder MCP v1.0.0 using
+  `list_services`, `validate_architecture`, then `render_diagram`. Commit the SVG
+  and checksum-bound `.mcp.json` provenance; never hand-edit generated SVGs.
+  Diagram findings do not override the approved architecture decision.
 - **Scenario loading is manifest-driven.** The registry resolves request and
   response schemas, experience metadata, workflow, endpoint, agents, retrieval,
   and eval paths into a `ScenarioBundle`.
 - **The reference workbench is schema-driven.** `/scenario/metadata` drives
   generic inputs/results. Never render or retain raw `chunk` content; render
   only final output and explicitly validated partials.
+- **Metadata and browser state are disclosure-safe.** Expose approved
+  implementation shape, not secret/approver configuration. Local history is
+  opt-in, must have clear/delete UX, and must not display saved request values.
 - **There are three serving targets.**
   - Root `azure.yaml` + `src/main.py` is the default self-hosted FastAPI/Container Apps path. It exposes the scenario SSE endpoint and runs `src.bootstrap.bootstrap()` in the lifespan.
   - `deploy/foundry-prompt/` provisions prompt agents without application runtime code.
@@ -105,7 +115,10 @@ npm audit
   stack. Prompt-agent and Hosted targets share slim Foundry/Search/monitoring
   infrastructure; only Hosted stages runtime code.
 - **Serving shares one SSE contract.** `src/serving/sse.py` validates before streaming, adds monotonic `seq`, converts heartbeats to `: ka`, emits in-band `error`, and always terminates with `done`. Keep the reference frontend types aligned with this event vocabulary.
-- **Provisioning is shared and ordered.** `src/provisioning.py::provision()` creates Search schemas/seeds, then FoundryIQ knowledge sources/KB, then prompt-agent versions and Search RBAC, then the optional canary. `src/bootstrap.py` is only the self-host compatibility shim and no-ops in hosted mode.
+- **Serving errors fail safely.** Log server exceptions, emit exception type
+  only to telemetry, and return generic client messages—never raw exception
+  text.
+- **Provisioning is shared and ordered.** `src/provisioning.py::provision()` creates Search schemas/seeds, then FoundryIQ knowledge sources/KB, then prompt-agent versions and Search RBAC, then the optional canary. Harness scenarios invoke the model directly and skip unused prompt-agent versions. `src/bootstrap.py` is only the self-host compatibility shim and no-ops in hosted mode.
 - **The hosted workspace stages source; it is not a second codebase.** Edit root `src/`, `accelerator.yaml`, and `pyproject.toml`, then let `deploy/hosted-preview/hooks/prepare.py` regenerate ignored `app/src` and metadata. Do not edit generated files under `deploy/hosted-preview/app/`.
 - **The worker graph is declarative.** `src/scenarios/<scenario>/workflow.py::WORKERS` is the only attachment point. `SupervisorDAG` schedules workers when dependencies are ready, creates fresh `WorkerState` per request, retries validation, propagates optional-worker skips, and fails fast for required workers. Aggregation and HITL execution remain outside workers.
 - **New manifests use `foundry_tool` or `none`.** `python_injected` is a legacy
@@ -138,7 +151,7 @@ When a doc/comment says "agent" without qualifier, infer from context: `.py` →
 
 ### SDK & platform
 - MUST use Microsoft Agent Framework (`agent_framework`) with Microsoft Foundry as the model backend.
-- MUST author Foundry agent system instructions in `docs/agent-specs/<foundry_name>.md`. `src/provisioning.py` syncs each spec to the matching Foundry agent. Reuse the scenario workflow's Agent Framework invocation/version-resolution path; do not construct a parallel client path. NEVER hardcode system instructions inside Python code (`prompt.py` is the user-message envelope builder, not the system instruction). NEVER author instructions in the Foundry portal — provisioning overwrites portal drift.
+- MUST author agent system instructions in `docs/agent-specs/<foundry_name>.md`. `src/provisioning.py` syncs managed-prompt/custom-workflow specs to Foundry; `src/workflow/harness.py` loads the same spec for Harness. Reuse the approved `FoundryAgent` or Harness path; do not construct another inference client. NEVER hardcode system instructions inside Python code (`prompt.py` is the user-message envelope builder, not the system instruction). NEVER author instructions in the Foundry portal — provisioning overwrites portal drift.
 - MUST pin SDK versions per `pyproject.toml` / `docs/version-matrix.md`.
 - NEVER introduce LangChain, LlamaIndex, Haystack, or any other orchestration SDK. Microsoft Agent Framework only.
 - NEVER instantiate OpenAI clients for agent inference. The provisioning-time
@@ -156,6 +169,18 @@ than hand-scaffolding. The transactional script updates the `WORKERS` registry,
 `agents/__init__.py`, the three-layer files, the Foundry spec stub, and existing
 golden-case `exercises` arrays. Paste its printed agent snippet into
 `accelerator.yaml -> scenario.agents[]`.
+
+### Agent Framework Harness
+- `harness` requires `hosted-agent` + `single-agent`; it is not an Agent Service
+  type or orchestration pattern.
+- Use `src/workflow/harness.py` with instructions from
+  `docs/agent-specs/<name>.md`.
+- Keep file memory/access, background agents, looping, shell, built-in web
+  search, and framework auto-approval disabled unless a separate governed design
+  approves them.
+- Harness scaffolds require retrieval mode `none`. Never bypass governed
+  retrieval with direct Search/HTTP calls.
+- Side-effect tools still require `hitl.checkpoint(...)`.
 
 ### Supervisor + workers wiring
 - Workers are stateless. Supervisor routes based on intent classification in its prompt.
@@ -186,6 +211,12 @@ golden-case `exercises` arrays. Paste its printed agent snippet into
 - MUST keep `evals/redteam/` XPIA + jailbreak suites passing. New tools trigger new redteam cases.
 - MUST flag PII handling in the solution brief; map RAI risks to eval cases.
 - See `docs/patterns/rai/README.md` for the full RAI checklist.
+
+### UX and accessibility
+- Dynamic schema forms MUST preserve types, omit empty optional non-nullable
+  fields, validate numeric arrays/integers, and associate help/errors with
+  inputs.
+- Require visible keyboard focus and honor `prefers-reduced-motion`.
 
 ### Well-Architected Framework + Azure AI Landing Zone
 - Follow `docs/patterns/waf-alignment/README.md` (reliability · security · cost · op-ex · performance).
@@ -262,7 +293,7 @@ golden-case `exercises` arrays. Paste its printed agent snippet into
 - Hardcoded resource names, subscription IDs, tenant IDs
 - Adding a side-effect tool without `hitl.checkpoint`
 - Editing `src/accelerator_baseline/` to wrap Azure SDKs (it is for primitives only)
-- Authoring agent system instructions in the Foundry portal (provisioning overwrites portal drift on the next sync) or hardcoding them inside Python code — use `docs/agent-specs/<foundry_name>.md`
+- Authoring agent system instructions in the Foundry portal or hardcoding them inside Python code — use `docs/agent-specs/<foundry_name>.md`; provisioning or Harness consumes that source.
 - Disabling content filters, evals, or telemetry
 - `time.sleep` in async code, bare `except:`, swallowing errors silently
 

@@ -122,8 +122,8 @@ export function DynamicResultPanel({
             Approvals are handled by the configured external approver. This
             workbench does not bypass the accelerator HITL checkpoint.
           </p>
-          {pendingApprovals.map((approval) => (
-            <div key={approval.tool} className="hitl-card">
+          {pendingApprovals.map((approval, index) => (
+            <div key={`${approval.tool}-${index}`} className="hitl-card">
               <header>
                 <code>{approval.tool}</code>
                 <span className="badge warn">awaiting external approval</span>

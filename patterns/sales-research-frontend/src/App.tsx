@@ -10,21 +10,50 @@ import { ScenarioWorkbench } from "./components/ScenarioWorkbench";
 
 export default function App() {
   const [metadata, setMetadata] = useState<ScenarioMetadata | null>(null);
-  const [metadataUnavailable, setMetadataUnavailable] = useState(false);
+  const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [metadataLoading, setMetadataLoading] = useState(true);
+
+  async function loadMetadata() {
+    setMetadataLoading(true);
+    setMetadataError(null);
+    try {
+      setMetadata(await fetchScenarioMetadata());
+    } catch (error) {
+      setMetadata(null);
+      setMetadataError((error as Error).message);
+    } finally {
+      setMetadataLoading(false);
+    }
+  }
 
   useEffect(() => {
-    void fetchScenarioMetadata()
-      .then(setMetadata)
-      .catch(() => setMetadataUnavailable(true));
+    void loadMetadata();
   }, []);
 
-  if (!metadata && !metadataUnavailable) {
+  if (metadataLoading) {
     return (
       <div className="app">
         <div className="card" role="status">
           Loading scenario metadata…
         </div>
       </div>
+    );
+  }
+  if (metadataError || !metadata) {
+    return (
+      <main className="app metadata-failure">
+        <section className="card error" role="alert">
+          <h1>Scenario metadata is unavailable</h1>
+          <p>
+            The workbench cannot safely choose a scenario-specific interface
+            without <code>/scenario/metadata</code>.
+          </p>
+          {metadataError && <p className="muted">{metadataError}</p>}
+          <button type="button" className="primary" onClick={() => void loadMetadata()}>
+            Retry
+          </button>
+        </section>
+      </main>
     );
   }
   if (metadata && metadata.id !== "sales-research") {
@@ -162,10 +191,33 @@ function SalesResearchApp() {
               {busy && <span className="muted"> — running…</span>}
               {!busy && briefing && <span className="muted"> — complete</span>}
               {busy && (
-                <button type="button" className="cancel-inline" onClick={handleCancel}>Cancel</button>
+                <button
+                  type="button"
+                  className="cancel-inline"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleCancel();
+                  }}
+                >
+                  Cancel
+                </button>
               )}
               {!busy && briefing && (
-                <button type="button" className="new-research-btn" onClick={() => { setBriefing(null); setEvents([]); setError(null); setToolWarnings([]); setInterruption(null); setWorkerProgress({}); }}>
+                <button
+                  type="button"
+                  className="new-research-btn"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setBriefing(null);
+                    setEvents([]);
+                    setError(null);
+                    setToolWarnings([]);
+                    setInterruption(null);
+                    setWorkerProgress({});
+                  }}
+                >
                   New research
                 </button>
               )}

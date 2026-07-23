@@ -57,8 +57,10 @@
 | `e.g. escalation_rate` | ratio |  |  |
 
 ## 5. Solution shape
-- **Pattern:** supervisor-routing / single-agent / chat-with-actioning
+- **Pattern:** supervisor-routing / deterministic-workflow / single-agent / chat-with-actioning
 - **Rationale:**
+- **Agent autonomy:** bounded response / adaptive plan-and-execute / deterministic steps
+- **Runtime needs:** todos / session history / context compaction / custom tools / none
 - **Grounding sources:** SharePoint / SQL / APIs / blob / other
 - **Side-effect tools (list every one):**
 
@@ -75,6 +77,7 @@ Record the reviewed decision rather than treating orchestration and hosting as
 the same choice.
 
 - **Foundry agent type:** prompt-agent / hosted-agent
+- **Implementation pattern:** managed-prompt / harness / custom-workflow
 - **Orchestration pattern:** single-agent / deterministic-workflow / supervisor-routing
 - **Application shell:** none / existing-app / workbench / custom
 - **Deployment target:** foundry-prompt / hosted-preview / selfhost
@@ -87,6 +90,9 @@ the same choice.
 
 > Workflow is an orchestration pattern, not a third Foundry Agent Service
 > runtime type. Prompt agents and Hosted agents are the Agent Service types.
+> Harness is an Agent Framework implementation pattern for adaptive Hosted
+> single-agent work; it is not a third Agent Service type or an orchestration
+> pattern.
 
 ## 5b. UX shape
 - **`ux_shape`:** TBD — pick one of:

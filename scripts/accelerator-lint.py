@@ -173,6 +173,11 @@ def architecture_decision_shape(ctx: Ctx) -> list[Finding]:
         return findings
     allowed = {
         "agent_type": {"prompt-agent", "hosted-agent"},
+        "implementation_pattern": {
+            "managed-prompt",
+            "harness",
+            "custom-workflow",
+        },
         "orchestration_pattern": {
             "single-agent",
             "deterministic-workflow",
@@ -191,6 +196,7 @@ def architecture_decision_shape(ctx: Ctx) -> list[Finding]:
                 f"architecture.decision.{key}={value!r} is unsupported",
             ))
     agent_type = decision.get("agent_type")
+    implementation_pattern = decision.get("implementation_pattern")
     orchestration = decision.get("orchestration_pattern")
     target = decision.get("deployment_target")
     if agent_type == "prompt-agent" and orchestration != "single-agent":
@@ -199,6 +205,46 @@ def architecture_decision_shape(ctx: Ctx) -> list[Finding]:
             "block",
             rel,
             "prompt-agent decisions must use single-agent orchestration",
+        ))
+    if agent_type == "prompt-agent" and implementation_pattern != "managed-prompt":
+        findings.append(Finding(
+            "architecture-decision",
+            "block",
+            rel,
+            "prompt-agent decisions must use managed-prompt",
+        ))
+    if implementation_pattern == "managed-prompt" and agent_type != "prompt-agent":
+        findings.append(Finding(
+            "architecture-decision",
+            "block",
+            rel,
+            "managed-prompt requires a prompt-agent decision",
+        ))
+    if implementation_pattern == "harness" and (
+        agent_type != "hosted-agent" or orchestration != "single-agent"
+    ):
+        findings.append(Finding(
+            "architecture-decision",
+            "block",
+            rel,
+            "Harness requires a hosted-agent single-agent decision",
+        ))
+    if implementation_pattern == "custom-workflow" and agent_type != "hosted-agent":
+        findings.append(Finding(
+            "architecture-decision",
+            "block",
+            rel,
+            "custom-workflow requires a hosted-agent decision",
+        ))
+    if (
+        orchestration in {"deterministic-workflow", "supervisor-routing"}
+        and implementation_pattern != "custom-workflow"
+    ):
+        findings.append(Finding(
+            "architecture-decision",
+            "block",
+            rel,
+            "deterministic and supervisor orchestration require custom-workflow",
         ))
     if target == "foundry-prompt" and agent_type != "prompt-agent":
         findings.append(Finding(
@@ -221,7 +267,9 @@ def architecture_decision_shape(ctx: Ctx) -> list[Finding]:
             rel,
             "architecture.decision requires approved_by and approved_at",
         ))
-    implementation = (data.get("scenario") or {}).get("implementation")
+    raw_scenario = data.get("scenario")
+    scenario = raw_scenario if isinstance(raw_scenario, dict) else {}
+    implementation = scenario.get("implementation")
     if not isinstance(implementation, dict):
         findings.append(Finding(
             "architecture-decision",
@@ -230,7 +278,12 @@ def architecture_decision_shape(ctx: Ctx) -> list[Finding]:
             "scenario.implementation must mirror the approved architecture",
         ))
     else:
-        for key in ("agent_type", "orchestration_pattern", "application_shell"):
+        for key in (
+            "agent_type",
+            "implementation_pattern",
+            "orchestration_pattern",
+            "application_shell",
+        ):
             if implementation.get(key) != decision.get(key):
                 findings.append(Finding(
                     "architecture-decision",
@@ -238,6 +291,38 @@ def architecture_decision_shape(ctx: Ctx) -> list[Finding]:
                     rel,
                     f"scenario.implementation.{key} must match "
                     f"architecture.decision.{key}",
+                ))
+        if implementation_pattern == "harness":
+            agents = scenario.get("agents") or []
+            retrieval = scenario.get("retrieval") or {}
+            if not isinstance(agents, list) or len(agents) != 1:
+                findings.append(Finding(
+                    "architecture-decision",
+                    "block",
+                    rel,
+                    "Harness scenarios must declare exactly one primary agent",
+                ))
+            elif isinstance(agents[0], dict):
+                if agents[0].get("id") != "primary":
+                    findings.append(Finding(
+                        "architecture-decision",
+                        "block",
+                        rel,
+                        "Harness scenario agent id must be primary",
+                    ))
+                if agents[0].get("retrieval"):
+                    findings.append(Finding(
+                        "architecture-decision",
+                        "block",
+                        rel,
+                        "Harness scenarios currently require retrieval mode none",
+                    ))
+            if isinstance(retrieval, dict) and retrieval.get("indexes"):
+                findings.append(Finding(
+                    "architecture-decision",
+                    "block",
+                    rel,
+                    "Harness scenarios must not declare retrieval indexes",
                 ))
     return findings
 
@@ -430,6 +515,7 @@ def hosted_preview_workspace(ctx: Ctx) -> list[Finding]:
         }
         required_generated_ignores = {
             "app/src/",
+            "app/docs/agent-specs/",
             "app/accelerator.yaml",
             "app/pyproject.toml",
             "app/README.md",
@@ -593,6 +679,491 @@ def solution_brief_present(ctx: Ctx) -> list[Finding]:
         return [Finding("brief-unfilled", "warn", _rel(brief),
                         "Solution brief still contains FILL IN / TBD / TODO markers.")]
     return []
+
+
+@check
+def quickstart_enforces_intake_disclosure(ctx: Ctx) -> list[Finding]:
+    """Keep the primary document-intake path disclosure-safe."""
+    del ctx
+    rel = "QUICKSTART.md"
+    path = ROOT / rel
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    if "accel intake add" not in text:
+        return []
+    required = (
+        "accel intake review <source-id>",
+        "accel intake disclose <source-id> approved_for_model --apply",
+    )
+    missing = [command for command in required if command not in text]
+    return [
+        Finding(
+            "quickstart-intake-disclosure",
+            "block",
+            rel,
+            f"document intake must show `{command}` before model-assisted use",
+        )
+        for command in missing
+    ]
+
+
+@check
+def architecture_diagram_mcp_contract(ctx: Ctx) -> list[Finding]:
+    """Keep scaffold architecture diagrams reproducible through the pinned MCP."""
+    import hashlib
+
+    del ctx
+    rule = "architecture-diagram-mcp"
+    findings: list[Finding] = []
+    required_contracts = {
+        "docs/start/deliver/03-scaffold-from-the-brief.md": (
+            "Azure Architecture Diagram Builder MCP",
+            "list_services",
+            "validate_architecture",
+            "render_diagram",
+            ".mcp.json",
+        ),
+        ".agents/skills/accelerator/SKILL.md": (
+            "Azure Architecture Diagram Builder MCP",
+            "list_services",
+            "validate_architecture",
+            "render_diagram",
+            ".mcp.json",
+        ),
+        "AGENTS.md": (
+            "Azure Architecture Diagram Builder MCP",
+            "checksum-bound `.mcp.json`",
+        ),
+        ".github/copilot-instructions.md": (
+            "Azure Architecture Diagram Builder MCP",
+            "checksum-bound `.mcp.json`",
+        ),
+        "scripts/prepare-pages.py": (
+            "asset_suffixes",
+            '".json"',
+        ),
+        ".gitattributes": (
+            "docs/assets/diagrams/*.svg text eol=lf -whitespace",
+            "docs/assets/diagrams/*.mcp.json text eol=lf",
+        ),
+    }
+    for rel, tokens in required_contracts.items():
+        path = ROOT / rel
+        if not path.exists():
+            findings.append(Finding(rule, "block", rel, "diagram contract file is missing"))
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in tokens:
+            if token not in text:
+                findings.append(Finding(
+                    rule,
+                    "block",
+                    rel,
+                    f"scaffold diagram contract is missing `{token}`",
+                ))
+
+    manifest_path = ROOT / "accelerator.yaml"
+    try:
+        import yaml
+
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        findings.append(Finding(
+            rule,
+            "block",
+            "accelerator.yaml",
+            f"cannot read architecture diagram contract: {exc}",
+        ))
+        return findings
+    scenario = manifest.get("scenario")
+    diagram = (
+        scenario.get("architecture_diagram")
+        if isinstance(scenario, dict)
+        else None
+    )
+    if not isinstance(diagram, dict):
+        findings.append(Finding(
+            rule,
+            "block",
+            "accelerator.yaml",
+            "scenario.architecture_diagram must declare the MCP artifacts",
+        ))
+        return findings
+    if diagram.get("generator") != "azure-architecture-diagram-builder-mcp":
+        findings.append(Finding(
+            rule,
+            "block",
+            "accelerator.yaml",
+            "architecture_diagram.generator must be "
+            "azure-architecture-diagram-builder-mcp",
+        ))
+    if diagram.get("version") != "1.0.0":
+        findings.append(Finding(
+            rule,
+            "block",
+            "accelerator.yaml",
+            "architecture_diagram.version must be pinned to 1.0.0",
+        ))
+    manifest_tools = diagram.get("tools")
+    required_tools = {"list_services", "validate_architecture", "render_diagram"}
+    if (
+        not isinstance(manifest_tools, list)
+        or not all(isinstance(tool, str) for tool in manifest_tools)
+        or not required_tools.issubset(set(manifest_tools))
+    ):
+        findings.append(Finding(
+            rule,
+            "block",
+            "accelerator.yaml",
+            f"architecture_diagram.tools must include {sorted(required_tools)}",
+        ))
+
+    def artifact_rel(field: str, suffix: str) -> str | None:
+        value = diagram.get(field)
+        if not isinstance(value, str):
+            findings.append(Finding(
+                rule,
+                "block",
+                "accelerator.yaml",
+                f"architecture_diagram.{field} must be a path string",
+            ))
+            return None
+        candidate = pathlib.PurePosixPath(value)
+        if (
+            candidate.is_absolute()
+            or ".." in candidate.parts
+            or candidate.suffix != suffix
+            or candidate.parts[:3] != ("docs", "assets", "diagrams")
+        ):
+            findings.append(Finding(
+                rule,
+                "block",
+                "accelerator.yaml",
+                f"architecture_diagram.{field} must be a {suffix} file under "
+                "docs/assets/diagrams/",
+            ))
+            return None
+        return candidate.as_posix()
+
+    svg_rel = artifact_rel("path", ".svg")
+    provenance_rel = artifact_rel("provenance", ".json")
+    if svg_rel is None or provenance_rel is None:
+        return findings
+    provenance_path = ROOT / provenance_rel
+    svg_path = ROOT / svg_rel
+    if not provenance_path.exists():
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            "MCP diagram provenance is required",
+        ))
+        return findings
+    if not svg_path.exists():
+        findings.append(Finding(
+            rule,
+            "block",
+            svg_rel,
+            "MCP-generated architecture SVG is required",
+        ))
+        return findings
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            f"diagram provenance is not valid JSON: {exc}",
+        ))
+        return findings
+    if not isinstance(provenance, dict):
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            "diagram provenance root must be a JSON object",
+        ))
+        return findings
+
+    raw_generator = provenance.get("generator")
+    generator = raw_generator if isinstance(raw_generator, dict) else {}
+    if generator.get("name") != "Azure Architecture Diagram Builder MCP":
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            "diagram generator must be Azure Architecture Diagram Builder MCP",
+        ))
+    if generator.get("version") != "1.0.0":
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            "diagram generator must use pinned version 1.0.0",
+        ))
+    if generator.get("release") != "v1.0.0":
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            "diagram generator release must be v1.0.0",
+        ))
+    source_commit = generator.get("source_commit")
+    expected_commit = "429a43b1c235bf058945a2fc04c64a4e4ef0b7fd"
+    if source_commit != expected_commit:
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            f"diagram provenance must record pinned MCP commit {expected_commit}",
+        ))
+    expected_blog = (
+        "https://techcommunity.microsoft.com/blog/azurearchitectureblog/"
+        "beyond-the-canvas-the-azure-architecture-diagram-builder-becomes-"
+        "agent-ready/4534590"
+    )
+    if generator.get("blog") != expected_blog:
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            "diagram provenance must reference the agent-ready builder blog",
+        ))
+    tools = generator.get("tools")
+    if (
+        not isinstance(tools, list)
+        or not all(isinstance(tool, str) for tool in tools)
+        or not required_tools.issubset(set(tools))
+    ):
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            f"diagram provenance must record tools {sorted(required_tools)}",
+        ))
+
+    raw_artifact = provenance.get("artifact")
+    artifact = raw_artifact if isinstance(raw_artifact, dict) else {}
+    expected_hash = artifact.get("sha256")
+    actual_hash = hashlib.sha256(svg_path.read_bytes()).hexdigest()
+    if artifact.get("path") != svg_path.name:
+        findings.append(Finding(
+            rule,
+            "block",
+            provenance_rel,
+            f"artifact.path must be {svg_path.name!r}",
+        ))
+    if expected_hash != actual_hash:
+        findings.append(Finding(
+            rule,
+            "block",
+            svg_rel,
+            "generated SVG checksum does not match MCP provenance",
+        ))
+
+    svg = svg_path.read_text(encoding="utf-8")
+    for token in (
+        "Generated by Azure Architecture Diagram Builder",
+        "Azure Architecture Diagram Builder MCP v1.0.0",
+    ):
+        if token not in svg:
+            findings.append(Finding(
+                rule,
+                "block",
+                svg_rel,
+                f"generated SVG footer is missing `{token}`",
+            ))
+
+    if isinstance(scenario, dict) and scenario.get("id") == "sales-research":
+        references = {
+            "README.md": (svg_rel, provenance_rel),
+            "docs/assets/diagrams/README.md": (
+                svg_path.name,
+                provenance_path.name,
+            ),
+            "docs/patterns/architecture/README.md": (
+                svg_path.name,
+                provenance_path.name,
+            ),
+        }
+        for rel, tokens in references.items():
+            path = ROOT / rel
+            text = path.read_text(encoding="utf-8") if path.exists() else ""
+            for token in tokens:
+                if token not in text:
+                    findings.append(Finding(
+                        rule,
+                        "block",
+                        rel,
+                        f"diagram documentation is missing `{token}`",
+                    ))
+    return findings
+
+
+@check
+def harness_runtime_safe_defaults(ctx: Ctx) -> list[Finding]:
+    """Keep the released Harness path inside accelerator safety boundaries."""
+    del ctx
+    rel = "src/workflow/harness.py"
+    path = ROOT / rel
+    if not path.exists():
+        return [Finding(
+            "harness-runtime-safety",
+            "block",
+            rel,
+            "Harness implementation pattern requires src/workflow/harness.py",
+        )]
+    text = path.read_text(encoding="utf-8")
+    required = (
+        "create_harness_agent",
+        "FoundryChatClient",
+        "DefaultAzureCredential",
+        "parse_agent_instructions",
+        "tools=None",
+        "disable_file_memory=True",
+        "file_access_store=None",
+        "background_agents=None",
+        "shell_executor=None",
+        "disable_web_search=True",
+        "disable_tool_auto_approval=True",
+        "loop_should_continue=None",
+        'otel_provider_name="accelerator.harness"',
+    )
+    findings = [
+        Finding(
+            "harness-runtime-safety",
+            "block",
+            rel,
+            f"Harness safe runtime is missing `{token}`",
+        )
+        for token in required
+        if token not in text
+    ]
+    experimental = (
+        "background_agents",
+        "file_access_store",
+        "shell_executor",
+        "loop_should_continue",
+    )
+    for token in experimental:
+        if re.search(rf"\b{token}\s*=(?!\s*None\b)", text):
+            findings.append(Finding(
+                "harness-runtime-safety",
+                "block",
+                rel,
+                f"experimental Harness feature must remain disabled: `{token}`",
+            ))
+    return findings
+
+
+@check
+def no_raw_exception_streaming(ctx: Ctx) -> list[Finding]:
+    """Prevent server exception text from entering telemetry or client events."""
+    import ast as _ast
+
+    findings: list[Finding] = []
+    guarded_roots = (
+        ROOT / "src" / "agent_host.py",
+        ROOT / "src" / "serving",
+        ROOT / "src" / "workflow",
+        ROOT / "src" / "scenarios",
+    )
+
+    def raw_exception_text(node: _ast.AST, exception_name: str) -> bool:
+        if isinstance(node, _ast.Name):
+            return node.id == exception_name
+        if (
+            isinstance(node, _ast.Attribute)
+            and isinstance(node.value, _ast.Name)
+            and node.value.id == exception_name
+        ):
+            return node.attr != "client_message"
+        if isinstance(node, _ast.Subscript):
+            return raw_exception_text(node.value, exception_name)
+        if (
+            isinstance(node, _ast.Call)
+            and isinstance(node.func, _ast.Name)
+            and node.func.id == "str"
+            and len(node.args) == 1
+        ):
+            return (
+                isinstance(node.args[0], _ast.Name)
+                and node.args[0].id == exception_name
+            )
+        if isinstance(node, _ast.JoinedStr):
+            return any(
+                isinstance(value, _ast.FormattedValue)
+                and raw_exception_text(value.value, exception_name)
+                for value in node.values
+            )
+        if isinstance(node, _ast.BinOp):
+            return (
+                raw_exception_text(node.left, exception_name)
+                or raw_exception_text(node.right, exception_name)
+            )
+        return False
+
+    sensitive_names = {"detail", "error", "message"}
+
+    def handler_streams_exception(handler: _ast.ExceptHandler) -> bool:
+        if not isinstance(handler.name, str):
+            return False
+        exception_name = handler.name
+        for node in _ast.walk(handler):
+            if isinstance(node, _ast.Call):
+                for keyword in node.keywords:
+                    if (
+                        keyword.arg in sensitive_names
+                        and raw_exception_text(keyword.value, exception_name)
+                    ):
+                        return True
+            if isinstance(node, _ast.Dict):
+                for key, value in zip(node.keys, node.values, strict=True):
+                    if (
+                        isinstance(key, _ast.Constant)
+                        and key.value in sensitive_names
+                        and raw_exception_text(value, exception_name)
+                    ):
+                        return True
+            if isinstance(node, _ast.Assign):
+                if any(
+                    isinstance(target, _ast.Name)
+                    and target.id in sensitive_names
+                    for target in node.targets
+                ) and raw_exception_text(node.value, exception_name):
+                    return True
+            if (
+                isinstance(node, _ast.AnnAssign)
+                and isinstance(node.target, _ast.Name)
+                and node.target.id in sensitive_names
+                and node.value is not None
+                and raw_exception_text(node.value, exception_name)
+            ):
+                return True
+        return False
+
+    for path, text in ctx.iter(".py"):
+        if not any(root == path or root in path.parents for root in guarded_roots):
+            continue
+        try:
+            tree = _ast.parse(text)
+        except SyntaxError:
+            continue
+        if any(
+            handler_streams_exception(node)
+            for node in _ast.walk(tree)
+            if isinstance(node, _ast.ExceptHandler)
+        ):
+            findings.append(Finding(
+                "raw-exception-streaming",
+                "block",
+                _rel(path),
+                "log full exceptions server-side; emit exception type to telemetry "
+                "and generic text to client-visible events",
+            ))
+    return findings
 
 
 @check

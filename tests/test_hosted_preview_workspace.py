@@ -50,8 +50,10 @@ def test_prepare_replaces_only_generated_source_and_filters_local_artifacts(
     workspace = repo / "deploy" / "hosted-preview"
     app = workspace / "app"
     source = repo / "src"
+    specs = repo / "docs" / "agent-specs"
     app.mkdir(parents=True)
     source.mkdir(parents=True)
+    specs.mkdir(parents=True)
 
     (source / "package.py").write_text("VALUE = 1\n", encoding="utf-8")
     (source / ".env").write_text("SECRET=do-not-copy\n", encoding="utf-8")
@@ -59,6 +61,10 @@ def test_prepare_replaces_only_generated_source_and_filters_local_artifacts(
     (source / "__pycache__" / "package.pyc").write_bytes(b"cache")
     (source / ".venv").mkdir()
     (source / ".venv" / "token.txt").write_text("secret", encoding="utf-8")
+    (specs / "accel-test-primary.md").write_text(
+        "# Agent\n\n## Instructions\n\nDo work.\n",
+        encoding="utf-8",
+    )
     (repo / ".azure").mkdir()
     (repo / ".azure" / "local.env").write_text("SECRET=local\n", encoding="utf-8")
     (repo / "accelerator.yaml").write_text("scenario: {}\n", encoding="utf-8")
@@ -67,6 +73,11 @@ def test_prepare_replaces_only_generated_source_and_filters_local_artifacts(
     (app / "main.py").write_text("committed = True\n", encoding="utf-8")
     (app / "src").mkdir()
     (app / "src" / "stale.py").write_text("stale = True\n", encoding="utf-8")
+    (app / "docs" / "agent-specs").mkdir(parents=True)
+    (app / "docs" / "agent-specs" / "stale.md").write_text(
+        "stale",
+        encoding="utf-8",
+    )
 
     prepare.prepare(repo_root=repo, workspace_root=workspace)
     first = _snapshot(app)
@@ -74,6 +85,8 @@ def test_prepare_replaces_only_generated_source_and_filters_local_artifacts(
     assert (app / "main.py").read_text(encoding="utf-8") == "committed = True\n"
     assert (app / "src" / "package.py").is_file()
     assert (app / "README.md").read_text(encoding="utf-8") == "# Test package\n"
+    assert (app / "docs/agent-specs/accel-test-primary.md").is_file()
+    assert not (app / "docs/agent-specs/stale.md").exists()
     assert not (app / "src" / "stale.py").exists()
     assert not (app / "src" / ".env").exists()
     assert not (app / "src" / "__pycache__").exists()
@@ -232,13 +245,15 @@ def test_prepared_app_builds_real_wheel_metadata(tmp_path: pathlib.Path) -> None
     wheels = list(wheelhouse.glob("*.whl"))
     assert len(wheels) == 1
     with zipfile.ZipFile(wheels[0]) as wheel:
+        names = wheel.namelist()
         metadata_name = next(
-            name for name in wheel.namelist() if name.endswith(".dist-info/METADATA")
+            name for name in names if name.endswith(".dist-info/METADATA")
         )
         metadata = wheel.read(metadata_name).decode("utf-8")
     assert "Name: agentic-ai-solution-accelerator" in metadata
     assert "Provides-Extra: hosted-preview" in metadata
     assert "# Agentic AI Solution Accelerator" in metadata
+    assert "docs/agent-specs/accel-sales-research-supervisor.md" in names
 
 
 def test_postdeploy_delegates_to_shared_registry_and_provisioner(

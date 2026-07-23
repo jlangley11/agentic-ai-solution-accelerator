@@ -144,6 +144,9 @@ def test_invocations_validation_and_sse_streaming() -> None:
         )
 
     assert invalid_json.status_code == 400
+    assert invalid_json.json() == {
+        "detail": "Request body must contain valid JSON."
+    }
     assert invalid_schema.status_code == 422
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
@@ -267,6 +270,32 @@ def test_responses_reject_empty_input_with_failed_event() -> None:
     assert response.status_code == 200
     assert "response.failed" in response.text
     assert "Responses input text must not be empty." in response.text
+
+
+def test_responses_hide_schema_validation_details() -> None:
+    app = create_app(_bundle(HostedWorkflow()))
+    private_value = "do-not-echo-this-input"
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/responses",
+            json={
+                "model": "test-model",
+                "input": json.dumps(
+                    {
+                        "company_name": {"private": private_value},
+                        "seller_intent": "Prepare",
+                        "tags": [],
+                    }
+                ),
+                "stream": True,
+            },
+        )
+
+    assert response.status_code == 200
+    assert "response.failed" in response.text
+    assert "Responses input does not match the scenario request schema." in response.text
+    assert private_value not in response.text
 
 
 def test_responses_hide_unexpected_workflow_errors(

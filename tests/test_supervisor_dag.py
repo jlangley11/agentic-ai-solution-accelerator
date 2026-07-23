@@ -245,6 +245,8 @@ async def test_optional_failure_skips_downstream():
     )
     skipped_events = [e for e in events if e.get("type") == "worker_skipped"]
     assert len(skipped_events) == 1 and skipped_events[0]["worker_id"] == "a"
+    assert skipped_events[0]["error"] == "Optional worker failed."
+    assert "simulated failure" not in skipped_events[0]["error"]
     assert set(skipped_events[0]["downstream_skipped"]) == {"b", "c"}
 
 

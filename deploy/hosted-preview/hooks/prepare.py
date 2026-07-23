@@ -39,12 +39,14 @@ def prepare(
     repo_root: Path = REPO_ROOT,
     workspace_root: Path = WORKSPACE_ROOT,
 ) -> None:
-    """Replace generated app/src and copy the exact package inputs."""
+    """Replace generated runtime sources and copy the exact package inputs."""
     repo = repo_root.resolve(strict=True)
     workspace = workspace_root.resolve(strict=True)
     app = (workspace / "app").resolve(strict=True)
     source = (repo / "src").resolve(strict=True)
+    specs = (repo / "docs" / "agent-specs").resolve(strict=True)
     staged_source = (app / "src").resolve()
+    staged_specs = (app / "docs" / "agent-specs").resolve()
 
     if workspace.parent.name != "deploy" or workspace.name != "hosted-preview":
         raise RuntimeError(f"unexpected hosted workspace path: {workspace}")
@@ -52,13 +54,20 @@ def prepare(
         raise RuntimeError(f"source path escaped repository root: {source}")
     if staged_source.parent != app:
         raise RuntimeError(f"staged source path escaped app directory: {staged_source}")
+    if app not in staged_specs.parents:
+        raise RuntimeError(f"staged specs path escaped app directory: {staged_specs}")
 
     metadata_files = ("accelerator.yaml", "pyproject.toml", "README.md")
-    required = [source, *(repo / name for name in metadata_files)]
+    required = [source, specs, *(repo / name for name in metadata_files)]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
         raise FileNotFoundError(f"hosted preview staging inputs missing: {missing}")
-    linked = [str(path) for path in source.rglob("*") if path.is_symlink()]
+    linked = [
+        str(path)
+        for root in (source, specs)
+        for path in root.rglob("*")
+        if path.is_symlink()
+    ]
     if linked:
         raise RuntimeError(f"hosted preview source must not contain symlinks: {linked}")
 
@@ -66,8 +75,14 @@ def prepare(
         if not staged_source.is_dir():
             raise RuntimeError(f"generated source path is not a directory: {staged_source}")
         shutil.rmtree(staged_source)
+    if staged_specs.exists():
+        if not staged_specs.is_dir():
+            raise RuntimeError(f"generated specs path is not a directory: {staged_specs}")
+        shutil.rmtree(staged_specs)
 
     shutil.copytree(source, staged_source, ignore=_ignore_generated)
+    staged_specs.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(specs, staged_specs, ignore=_ignore_generated)
     for name in metadata_files:
         shutil.copy2(repo / name, app / name)
 

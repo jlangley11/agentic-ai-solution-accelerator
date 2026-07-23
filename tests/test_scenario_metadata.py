@@ -48,6 +48,7 @@ def _bundle(workflow=None) -> ScenarioBundle:
         ),
         implementation=ScenarioImplementation(
             agent_type="prompt-agent",
+            implementation_pattern="managed-prompt",
             orchestration_pattern="single-agent",
             application_shell="workbench",
         ),
@@ -63,6 +64,8 @@ def test_scenario_metadata_exposes_schemas_and_experience() -> None:
     assert payload["response_schema"]["required"] == ["answer"]
     assert payload["output_sections"][0]["key"] == "answer"
     assert payload["implementation"]["agent_type"] == "prompt-agent"
+    assert payload["implementation"]["implementation_pattern"] == "managed-prompt"
+    assert payload["approval"] == {"mode": "external"}
     assert payload["stream_contract"]["validated_partial_event"] is None
 
 

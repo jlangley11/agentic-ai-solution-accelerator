@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import uuid
 from typing import Any, Literal
 
@@ -41,6 +40,9 @@ def scenario_metadata(bundle: ScenarioBundle) -> dict[str, Any]:
         "implementation": (
             {
                 "agent_type": bundle.implementation.agent_type,
+                "implementation_pattern": (
+                    bundle.implementation.implementation_pattern
+                ),
                 "orchestration_pattern": (
                     bundle.implementation.orchestration_pattern
                 ),
@@ -62,7 +64,6 @@ def scenario_metadata(bundle: ScenarioBundle) -> dict[str, Any]:
         "output_sections": list(experience.output_sections) if experience else [],
         "approval": {
             "mode": "external",
-            "configured": bool(os.getenv("HITL_APPROVER_ENDPOINT")),
         },
         "stream_contract": {
             "validated_partial_event": (

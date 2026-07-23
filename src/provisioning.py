@@ -14,10 +14,11 @@ What it does (idempotent — safe to re-run):
 2. **FoundryIQ** — create-or-update the Knowledge Sources and Knowledge Base
    that wrap the Search indexes.
 
-3. **Foundry agents** — for every ``scenario.agents[]`` entry in
-   ``accelerator.yaml``, read ``docs/agent-specs/<foundry_name>.md``, parse
-   the ``## Instructions`` body, and create-or-update the Foundry agent
-   bound to the slug-resolved model deployment.
+3. **Foundry agents** — for managed-prompt and custom-workflow scenarios, read
+   every ``docs/agent-specs/<foundry_name>.md`` file and create-or-update the
+   Foundry prompt-agent version. Harness scenarios validate the same spec but
+   skip unused prompt-agent versions because ``FoundryChatClient`` invokes the
+   model deployment directly.
 
 Inputs (env, set by Bicep outputs and loaded from azd or the host environment):
 - ``FOUNDRY_PROJECT_ENDPOINT`` or ``AZURE_AI_FOUNDRY_ENDPOINT`` required
@@ -37,12 +38,11 @@ import asyncio
 import json
 import logging
 import os
-import pathlib
-import re
 import time
 import uuid
 from typing import Any, Awaitable, Callable
 
+from .agent_specs import SPECS_DIR, parse_agent_instructions
 from .config.settings import foundry_project_endpoint
 from .workflow.registry import ROOT, ScenarioAgent, ScenarioBundle, ScenarioIndex
 
@@ -57,14 +57,6 @@ _AGENT_SEARCH_ROLES: dict[str, str] = {
     "Search Index Data Contributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
     "Search Service Contributor": "7ca78c08-252a-4471-8644-bb5ff32d4ba0",
 }
-
-SPECS_DIR = ROOT / "docs" / "agent-specs"
-
-_INSTRUCTIONS_RE = re.compile(
-    r"^##\s+Instructions\s*\n(.*?)(?=^##\s|\Z)", re.DOTALL | re.MULTILINE
-)
-_MODEL_RE = re.compile(r"^\s*\*\*Model:\*\*", re.MULTILINE)
-
 
 def _retry_budget_seconds() -> float:
     raw = os.environ.get("BOOTSTRAP_RETRY_BUDGET_SECONDS", "600")
@@ -98,24 +90,6 @@ def _parse_model_map() -> dict[str, str]:
             "deployment_name)"
         )
     return {str(k): str(v) for k, v in mapping.items()}
-
-
-def _parse_spec(path: pathlib.Path) -> str:
-    """Return the ``## Instructions`` body of the spec file.
-
-    The Foundry agent's model is set from the resolved model map (Bicep
-    output) — the spec must NOT carry a ``**Model:**`` field.
-    """
-    txt = path.read_text(encoding="utf-8")
-    if _MODEL_RE.search(txt):
-        raise RuntimeError(
-            f"{path.name}: spec contains a '**Model:**' field, which is no "
-            "longer allowed. The deployed model is authoritative."
-        )
-    m = _INSTRUCTIONS_RE.search(txt)
-    if not m:
-        raise RuntimeError(f"{path.name}: missing '## Instructions' section")
-    return m.group(1).strip()
 
 
 async def _retry(
@@ -590,6 +564,30 @@ async def _bootstrap_foundry(bundle: ScenarioBundle) -> None:
             "AZURE_AI_FOUNDRY_MODEL (Bicep output) or include a `models:` "
             "block with `default: true` in accelerator.yaml."
         )
+    implementation_pattern = (
+        bundle.implementation.implementation_pattern
+        if bundle.implementation is not None
+        else ""
+    )
+    if implementation_pattern == "harness":
+        for agent in bundle.agents:
+            spec_path = SPECS_DIR / f"{agent.foundry_name}.md"
+            if not spec_path.exists():
+                raise RuntimeError(
+                    f"{agent.foundry_name}: missing spec file {spec_path}"
+                )
+            parse_agent_instructions(spec_path)
+            retrieval = agent.retrieval
+            if retrieval is not None and retrieval.mode != "none":
+                raise RuntimeError(
+                    f"{agent.foundry_name}: Harness currently requires "
+                    "retrieval.mode=none"
+                )
+        logger.info(
+            "bootstrap.foundry: Harness uses FoundryChatClient directly; "
+            "skipping prompt-agent version provisioning."
+        )
+        return
 
     # Pre-resolve specs and tools so we fail fast on missing files / asset
     # mismatches BEFORE touching the control plane.
@@ -600,7 +598,7 @@ async def _bootstrap_foundry(bundle: ScenarioBundle) -> None:
             raise RuntimeError(
                 f"{agent.foundry_name}: missing spec file {spec_path}"
             )
-        instructions = _parse_spec(spec_path)
+        instructions = parse_agent_instructions(spec_path)
         deployment = model_map.get("default", "")
         tool = _build_mcp_tool(agent)
         work.append((agent, deployment, instructions, tool))
