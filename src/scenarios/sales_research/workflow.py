@@ -297,16 +297,17 @@ class SalesResearchWorkflow:
                     try:
                         result = await fn(**args)
                     except Exception as exc:
+                        logger.exception("Side-effect tool %s failed", tool_name)
                         emit_event(Event(
                             name="tool.failed",
                             ok=False,
-                            error=str(exc),
+                            error=type(exc).__name__,
                             args_redacted={"tool": tool_name},
                         ))
                         await out_q.put({
                             "type": "tool_error",
                             "tool": tool_name,
-                            "error": str(exc),
+                            "error": "Tool execution failed.",
                         })
                         continue
                     await out_q.put({
@@ -404,9 +405,13 @@ class SalesResearchWorkflow:
                 finally:
                     await proj.close()
             except Exception as exc:
+                logger.exception(
+                    "Foundry agent version lookup failed for %s",
+                    agent_name,
+                )
                 emit_event(Event(
                     name="agent.version_lookup_failed",
-                    ok=False, error=f"{agent_name}: {exc}",
+                    ok=False, error=f"{agent_name}: {type(exc).__name__}",
                 ))
                 return None
             if not versions:
@@ -555,7 +560,13 @@ class SalesResearchWorkflow:
         """
         try:
             from src.retrieval.ai_search import SearchRetriever
-        except Exception:
+        except Exception as exc:
+            logger.exception("Could not initialize SearchRetriever")
+            emit_event(Event(
+                name="retrieval.returned",
+                ok=False,
+                error=type(exc).__name__,
+            ))
             return []
         try:
             retriever = SearchRetriever(self._primary_index_name)
@@ -573,7 +584,12 @@ class SalesResearchWorkflow:
                 for c in chunks
             ]
         except Exception as exc:
-            emit_event(Event(name="retrieval.returned", ok=False, error=str(exc)))
+            logger.exception("Retrieval failed")
+            emit_event(Event(
+                name="retrieval.returned",
+                ok=False,
+                error=type(exc).__name__,
+            ))
             return []
         finally:
             try:

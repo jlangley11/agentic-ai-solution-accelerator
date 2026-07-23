@@ -88,10 +88,17 @@ npm audit
   deployment/scenario contract. `.accelerator/private/evidence.db` stores
   local provenance and is never committed. Do not create a parallel config.
 - **Architecture is an approval gate.** `accel design` records agent type,
-  orchestration, application shell, deployment target, rationale, alternatives,
-  approver, and requirements fingerprint under `accelerator.yaml.architecture`.
+  implementation pattern, orchestration, application shell, deployment target,
+  rationale, alternatives, approver, and requirements fingerprint under
+  `accelerator.yaml.architecture`.
   Never scaffold or deploy a stale decision. Foundry agent types are prompt and
-  Hosted; workflow is an orchestration pattern.
+  Hosted; implementation patterns are `managed-prompt`, `harness`, and
+  `custom-workflow`; workflow is an orchestration pattern.
+- **Architecture diagrams are governed scaffold artifacts.** Generate Azure
+  resource diagrams with Azure Architecture Diagram Builder MCP v1.0.0 using
+  `list_services`, `validate_architecture`, then `render_diagram`. Commit the SVG
+  and checksum-bound `.mcp.json` provenance; never hand-edit generated SVGs.
+  Diagram findings do not override the approved architecture decision.
 - **Scenario loading is manifest-driven.** `load_scenario()` resolves request
   and response schemas, experience metadata, workflow, endpoint, agents,
   retrieval, and eval paths into a `ScenarioBundle`.
@@ -99,6 +106,10 @@ npm audit
   `DynamicSchemaForm` and `DynamicResultPanel`. Generic UIs render only
   workflows that explicitly advertise validated partials; raw `chunk` content
   is never rendered or retained.
+- **Metadata and browser state are disclosure-safe.** Scenario metadata may
+  expose the approved implementation shape, never secret/approver
+  configuration. Browser history is opt-in local storage with visible privacy
+  and deletion controls; do not render saved request values in navigation.
 - **There are three serving targets.**
   - Root `azure.yaml` + `src/main.py` is the default self-hosted FastAPI/Container Apps path.
   - `deploy/foundry-prompt/` provisions prompt agents without application
@@ -112,7 +123,10 @@ npm audit
   Foundry/Search/monitoring infrastructure; only Hosted preview stages runtime
   code.
 - **Serving shares one SSE contract.** `src/serving/sse.py` validates before streaming, adds monotonic `seq`, converts heartbeats to `: ka`, emits in-band `error`, and always terminates with `done`.
-- **Provisioning is shared and ordered.** `src/provisioning.py::provision()` creates Search schemas/seeds, then FoundryIQ knowledge sources/KB, then prompt-agent versions and Search RBAC, then the optional canary. `src/bootstrap.py` is only the self-host compatibility shim and no-ops in hosted mode.
+- **Serving errors fail safely.** Log exceptions server-side, emit exception
+  type only to telemetry, and return generic client messages. Never stream raw
+  exception text.
+- **Provisioning is shared and ordered.** `src/provisioning.py::provision()` creates Search schemas/seeds, then FoundryIQ knowledge sources/KB, then prompt-agent versions and Search RBAC, then the optional canary. Harness scenarios invoke the model directly and deliberately skip unused prompt-agent versions. `src/bootstrap.py` is only the self-host compatibility shim and no-ops in hosted mode.
 - **The hosted workspace stages source; it is not a second codebase.** Edit root sources, then let `deploy/hosted-preview/hooks/prepare.py` regenerate ignored files under `app/`.
 - **The worker graph is declarative.** `src/scenarios/<scenario>/workflow.py::WORKERS` is the only attachment point. `SupervisorDAG` schedules by dependency, creates fresh `WorkerState` per invocation, retries validation, propagates optional-worker skips, and fails fast for required workers.
 - **Supported manifest grounding modes are `foundry_tool` and `none`.**
@@ -158,7 +172,7 @@ context: a `.py` file is meaning #2, a `docs/agent-specs/` reference is
 
 ### SDK & platform
 - **MUST** use Microsoft Agent Framework (`agent_framework`) with Microsoft Foundry as the model backend. Do not introduce other orchestration frameworks.
-- **MUST** author Foundry agent system instructions in `docs/agent-specs/<foundry_name>.md`. `src/provisioning.py` syncs each spec to the matching Foundry agent. Reuse the scenario workflow's Agent Framework invocation/version-resolution path; do not construct a parallel inference path. **NEVER** hardcode system instructions inside Python code (`prompt.py` is the user-message envelope builder, not the system instruction). **NEVER** author instructions in the Foundry portal — provisioning overwrites portal drift.
+- **MUST** author agent system instructions in `docs/agent-specs/<foundry_name>.md`. `src/provisioning.py` syncs managed-prompt/custom-workflow specs to Foundry; `src/workflow/harness.py` loads the same spec for Harness. Reuse the approved `FoundryAgent` or Harness path; do not construct another inference client. **NEVER** hardcode system instructions inside Python code (`prompt.py` is the user-message envelope builder, not the system instruction). **NEVER** author instructions in the Foundry portal — provisioning overwrites portal drift.
 - **NEVER** instantiate OpenAI clients for agent inference. The only exception is
   provisioning-time seed embedding in `src/provisioning.py`, which uses
   `AsyncAzureOpenAI` with Entra authentication and performs no agent reasoning.
@@ -176,6 +190,19 @@ The transactional scaffolder updates `WORKERS`, `agents/__init__.py`, the
 three-layer files, the Foundry spec stub, and existing golden-case `exercises`
 arrays. Paste its printed agent snippet into `accelerator.yaml ->
 scenario.agents[]`. Preview/apply a new scenario with `accel scaffold`.
+
+### Agent Framework Harness
+- `harness` is an implementation pattern, not a Foundry agent type or
+  orchestration pattern. It requires `hosted-agent` + `single-agent`.
+- Use `src/workflow/harness.py`; domain instructions still live in
+  `docs/agent-specs/<name>.md` and are loaded verbatim at runtime.
+- Safe defaults disable file memory/access, background agents, looping, shell,
+  built-in web search, and framework auto-approval. These capabilities require a
+  separate governed design before enablement.
+- Harness scaffolds currently require retrieval mode `none`. Do not bypass this
+  with direct Search/HTTP calls.
+- Harness tools are added deliberately. Every side effect still calls
+  `hitl.checkpoint(...)`; Harness approval is not a substitute.
 
 ### HITL (Human-in-the-Loop)
 - **MUST** gate every side-effect tool (writes, sends, destructive actions) through `src/accelerator_baseline/hitl.py`.
@@ -200,6 +227,13 @@ scenario.agents[]`. Preview/apply a new scenario with `accel scaffold`.
 - **MUST** flag PII handling in the solution brief; RAI risks mapped to eval cases.
 - See `docs/patterns/rai/README.md` for full RAI checklist.
 
+### UX and accessibility
+- Dynamic schema forms MUST preserve JSON types, omit empty optional
+  non-nullable fields, validate numeric arrays/integers, and connect help/error
+  text with `aria-describedby`.
+- Interactive controls need visible `:focus-visible` states and motion must
+  respect `prefers-reduced-motion`.
+
 ### Well-Architected Framework (WAF) + Azure AI Landing Zone alignment
 - **MUST** follow `docs/patterns/waf-alignment/README.md` for reliability, security, cost, op-ex, performance.
 - **MUST** follow `docs/patterns/architecture/README.md` for topology.
@@ -223,7 +257,7 @@ scenario.agents[]`. Preview/apply a new scenario with `accel scaffold`.
 - Hardcoded resource names/IDs. Use env + Bicep params.
 - `print()` for observability. Use structured telemetry.
 - Editing `src/accelerator_baseline/` to wrap Azure SDKs (it is for primitives only).
-- Moving agent instructions into code. They live in `docs/agent-specs/<foundry_name>.md` (`src/provisioning.py` syncs them; never author instructions directly in the portal — they get overwritten on next provision).
+- Moving agent instructions into code. They live in `docs/agent-specs/<foundry_name>.md` (`src/provisioning.py` syncs managed agents; Harness loads the same source at runtime; portal edits are overwritten).
 
 ## When adding things
 - **Continue an engagement or determine what comes next** → run `accel next`.
@@ -233,7 +267,8 @@ scenario.agents[]`. Preview/apply a new scenario with `accel scaffold`.
 - **Use the legacy custom agents** only as compatibility workflows; their
   deterministic operations should converge on the matching `accel` command.
 - **New tool** → `/add-tool` custom agent → creates `src/tools/<tool>.py` with HITL scaffolding + unit test.
-- **New worker agent** → only for an approved hosted workflow/supervisor
+- **New worker agent** → only for an approved `custom-workflow`
+  deterministic/supervisor
   decision; `/add-worker-agent` creates the 3-layer module and wiring.
 - **Per-agent model override** → edit `accelerator.yaml` `models:` block (add a slug entry), then set `scenario.agents[].model: <slug>`. Bicep `loadYamlContent` parses the block at compile time; `infra/modules/foundry.bicep` provisions each extra deployment with the shared RAI policy (`@batchSize(1)` serialises the loop); `src/provisioning.py` resolves agent slugs to deployment names. Lint rules `models_block_shape` + `agent_model_refs_exist` enforce shape. Removing the block resets state to template defaults; raw env-var overrides are NOT supported.
 - **New Azure environment** (partner dev/staging/customer sub) → `/deploy-to-env` custom agent → adds entry to `deploy/environments.yaml`, creates the GitHub Environment, wires OIDC, dispatches a deploy. Never hand-edit `deploy.yml` to add envs; the manifest + `resolve-env` job is the contract. The azd env name is **always** derived from `deploy/environments.yaml` — never set `vars.AZURE_ENV_NAME`.

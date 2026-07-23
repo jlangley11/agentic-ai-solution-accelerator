@@ -64,6 +64,32 @@ def test_disclosure_requires_explicit_ledger_update(tmp_path: pathlib.Path) -> N
         ledger.chunks(registered.id, include_text=True)
 
 
+@pytest.mark.parametrize(
+    "status",
+    (
+        "",
+        "APPROVED_FOR_MODEL",
+        "approved_for_model'; DROP TABLE sources; --",
+        "approved_for_model\x00OR 1=1",
+        'approved_for_model") UNION SELECT 1 --',
+    ),
+)
+def test_disclosure_rejects_invalid_or_injection_shaped_status(
+    tmp_path: pathlib.Path,
+    status: str,
+) -> None:
+    context = _context(tmp_path)
+    source = tmp_path / "requirements.csv"
+    source.write_text("id,requirement\nR1,Use Entra ID\n", encoding="utf-8")
+    ledger = EvidenceLedger(context)
+    registered = ledger.add_extraction(source, extract_document(context, source))
+
+    with pytest.raises(ValueError, match="Unsupported disclosure status"):
+        ledger.set_disclosure(registered.id, status)
+
+    assert ledger.get_source(registered.id).disclosure_status == "local_only"
+
+
 def test_duplicate_chunks_are_reported_across_sources(tmp_path: pathlib.Path) -> None:
     context = _context(tmp_path)
     ledger = EvidenceLedger(context)

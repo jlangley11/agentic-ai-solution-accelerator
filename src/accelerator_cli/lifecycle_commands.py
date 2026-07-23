@@ -12,11 +12,15 @@ from typing import Any
 
 import yaml
 
+from src.implementation_patterns import legacy_implementation_pattern_for
+
 from .architecture_advisor import (
     FOUNDRY_AGENT_OVERVIEW,
+    HARNESS_GUIDANCE,
     HOSTED_AGENT_GUIDANCE,
     architecture_is_current,
     committed_requirement_context,
+    implementation_pattern_for,
     recommend_architecture,
     validate_selection,
 )
@@ -103,6 +107,7 @@ def design(
     context: RepositoryContext,
     *,
     agent_type: str | None = None,
+    implementation_pattern: str | None = None,
     orchestration_pattern: str | None = None,
     application_shell: str | None = None,
     deployment_target: str | None = None,
@@ -148,34 +153,49 @@ def design(
             next_command="accel discover",
             details={"checks": requirements},
         )
+    ledger = EvidenceLedger(context)
     local_approved_requirements = tuple(
         requirement.statement
-        for requirement in EvidenceLedger(context).list_requirements()
+        for requirement in ledger.list_requirements()
         if requirement.status == "approved"
     )
     traceability = (
         context.root / "docs" / "discovery" / "requirements-traceability.md"
     )
-    if local_approved_requirements and not traceability.exists():
+    committed_requirements = committed_requirement_context(
+        context.root,
+        local_approved_requirements,
+    )
+    local_normalized = {
+        " ".join(statement.split()) for statement in local_approved_requirements
+    }
+    committed_normalized = {
+        " ".join(statement.split()) for statement in committed_requirements
+    }
+    if (
+        local_approved_requirements
+        and not traceability.exists()
+    ) or (
+        ledger.path.exists()
+        and traceability.exists()
+        and local_normalized != committed_normalized
+    ):
         return CommandResult(
             stage=Stage.DESIGN,
             status=ResultStatus.NEEDS_INPUT,
-            summary="Export approved requirements before architecture review.",
+            summary="Refresh the requirements export before architecture review.",
             blocking_issues=(
                 Issue(
                     "architecture-traceability",
-                    "Approved local requirements are not represented in a "
-                    "committed sanitized traceability artifact.",
+                    "The committed sanitized traceability artifact is missing "
+                    "or does not match approved local requirements.",
                     "Run `accel intake requirement export --apply`.",
                     "docs/discovery/requirements-traceability.md",
                 ),
             ),
             next_command="accel intake requirement export --apply",
         )
-    approved_requirements = committed_requirement_context(
-        context.root,
-        local_approved_requirements,
-    )
+    approved_requirements = committed_requirements
     recommendation = recommend_architecture(brief, approved_requirements)
     current_architecture = manifest.get("architecture")
     current_architecture_map = (
@@ -183,11 +203,26 @@ def design(
         if isinstance(current_architecture, dict)
         else None
     )
+    selected_agent_type = agent_type or recommendation.agent_type
+    selected_orchestration = (
+        orchestration_pattern or recommendation.orchestration_pattern
+    )
+    selected_implementation = implementation_pattern
+    if selected_implementation is None:
+        if (
+            selected_agent_type == recommendation.agent_type
+            and selected_orchestration == recommendation.orchestration_pattern
+        ):
+            selected_implementation = recommendation.implementation_pattern
+        else:
+            selected_implementation = implementation_pattern_for(
+                selected_agent_type,
+                selected_orchestration,
+            )
     selected = {
-        "agent_type": agent_type or recommendation.agent_type,
-        "orchestration_pattern": (
-            orchestration_pattern or recommendation.orchestration_pattern
-        ),
+        "agent_type": selected_agent_type,
+        "implementation_pattern": selected_implementation,
+        "orchestration_pattern": selected_orchestration,
         "application_shell": application_shell or recommendation.application_shell,
         "deployment_target": deployment_target or recommendation.deployment_target,
     }
@@ -210,6 +245,7 @@ def design(
         )
     recommended_selection = {
         "agent_type": recommendation.agent_type,
+        "implementation_pattern": recommendation.implementation_pattern,
         "orchestration_pattern": recommendation.orchestration_pattern,
         "application_shell": recommendation.application_shell,
         "deployment_target": recommendation.deployment_target,
@@ -241,6 +277,7 @@ def design(
             value is not None
             for value in (
                 agent_type,
+                implementation_pattern,
                 orchestration_pattern,
                 application_shell,
                 deployment_target,
@@ -301,7 +338,8 @@ def design(
             status=ResultStatus.APPROVAL_REQUIRED,
             summary=(
                 "Architecture Advisor recommends "
-                f"{recommendation.agent_type} with "
+                f"{recommendation.agent_type} / "
+                f"{recommendation.implementation_pattern} with "
                 f"{recommendation.orchestration_pattern}."
             ),
             completed=(
@@ -351,9 +389,22 @@ def design(
                         "Foundry Agent Service runtime type."
                     ),
                 },
+                "implementation_patterns": {
+                    "managed-prompt": (
+                        "Foundry owns the declarative prompt agent runtime."
+                    ),
+                    "harness": (
+                        "Agent Framework provides the hosted single-agent loop, "
+                        "planning, history, mode tracking, and telemetry."
+                    ),
+                    "custom-workflow": (
+                        "Partner code owns deterministic or supervisor orchestration."
+                    ),
+                },
                 "references": [
                     FOUNDRY_AGENT_OVERVIEW,
                     HOSTED_AGENT_GUIDANCE,
+                    HARNESS_GUIDANCE,
                 ],
             },
         )
@@ -388,6 +439,7 @@ def design(
         summary="The architecture decision was approved and recorded.",
         completed=(
             f"Agent type: {selected['agent_type']}",
+            f"Implementation pattern: {selected['implementation_pattern']}",
             f"Orchestration: {selected['orchestration_pattern']}",
             f"Application shell: {selected['application_shell']}",
             f"Deployment target: {selected['deployment_target']}",
@@ -432,6 +484,35 @@ def scaffold(
         )
     architecture = context.manifest().get("architecture") or {}
     decision = architecture.get("decision") or {}
+    implementation_pattern = (
+        str(decision.get("implementation_pattern"))
+        if decision.get("implementation_pattern")
+        else legacy_implementation_pattern_for(
+            str(decision.get("agent_type") or "")
+        )
+    )
+    if implementation_pattern == "harness" and not no_retrieval:
+        command = _scaffold_apply_command(
+            scenario_id,
+            True,
+            preserve_evals,
+        )
+        return CommandResult(
+            stage=Stage.SCAFFOLD,
+            status=ResultStatus.NEEDS_INPUT,
+            summary="Harness scaffolds currently require retrieval mode none.",
+            blocking_issues=(
+                Issue(
+                    "harness-retrieval",
+                    "FoundryIQ prompt-agent attachments are not available to the "
+                    "direct FoundryChatClient Harness runtime.",
+                    "Re-run scaffold with `--no-retrieval`; add only governed "
+                    "Harness tools whose side effects retain hitl.checkpoint.",
+                    "accelerator.yaml",
+                ),
+            ),
+            next_command=command,
+        )
     script = load_script(
         context,
         "scripts/scaffold-scenario.py",
@@ -441,12 +522,14 @@ def scaffold(
         scenario_id,
         no_retrieval=no_retrieval,
         agent_type=str(decision["agent_type"]),
+        implementation_pattern=implementation_pattern,
     )
     conflicts = [path for path, _ in plan if path.exists()]
     block = scenario_block(
         scenario_id,
         no_retrieval=no_retrieval,
         agent_type=str(decision["agent_type"]),
+        implementation_pattern=implementation_pattern,
         orchestration_pattern=str(decision["orchestration_pattern"]),
         application_shell=str(decision["application_shell"]),
     )
@@ -507,6 +590,7 @@ def scaffold(
             details={
                 "manifest_diff": manifest_diff,
                 "architecture_decision": decision,
+                "architecture_diagram": block["architecture_diagram"],
             },
         )
 
@@ -515,6 +599,8 @@ def scaffold(
         scenario_id,
         "--agent-type",
         str(decision["agent_type"]),
+        "--implementation-pattern",
+        implementation_pattern,
         "--orchestration-pattern",
         str(decision["orchestration_pattern"]),
         "--application-shell",
@@ -580,6 +666,10 @@ def scaffold(
         completed=(
             f"Created {len(plan)} scaffold artifacts",
             "Updated accelerator.yaml scenario block",
+            (
+                "Declared MCP architecture diagram deliverable: "
+                f"{block['architecture_diagram']['path']}"
+            ),
         ),
         artifacts=tuple(
             Artifact(item.id, item.path, "created", item.description)
@@ -589,6 +679,7 @@ def scaffold(
         details={
             "script_stdout": process.stdout[-4000:],
             "architecture_decision": decision,
+            "architecture_diagram": block["architecture_diagram"],
         },
     )
 
@@ -1410,6 +1501,8 @@ def _handover_markdown(
         f"- Manifest: `accelerator.yaml`\n\n"
         "## Approved architecture\n\n"
         f"- Agent type: `{decision.get('agent_type', 'unknown')}`\n"
+        f"- Implementation pattern: "
+        f"`{decision.get('implementation_pattern', 'unknown')}`\n"
         f"- Orchestration: `{decision.get('orchestration_pattern', 'unknown')}`\n"
         f"- Application shell: `{decision.get('application_shell', 'unknown')}`\n"
         f"- Approved by: {decision.get('approved_by', 'unknown')}\n"
@@ -1441,6 +1534,7 @@ def _architecture_decision_block(
         key: recommendation[key]
         for key in (
             "agent_type",
+            "implementation_pattern",
             "orchestration_pattern",
             "application_shell",
             "deployment_target",
@@ -1467,11 +1561,24 @@ def _architecture_decision_block(
         },
         "platform_context": {
             "agent_service_types": ["prompt-agent", "hosted-agent"],
+            "implementation_patterns": [
+                "managed-prompt",
+                "harness",
+                "custom-workflow",
+            ],
             "workflow_note": (
                 "Workflow is modeled as an orchestration pattern, not as a "
                 "third Foundry Agent Service runtime type."
             ),
-            "references": [FOUNDRY_AGENT_OVERVIEW, HOSTED_AGENT_GUIDANCE],
+            "harness_note": (
+                "Harness is the stable Agent Framework implementation for "
+                "hosted single-agent work; experimental capabilities remain off."
+            ),
+            "references": [
+                FOUNDRY_AGENT_OVERVIEW,
+                HOSTED_AGENT_GUIDANCE,
+                HARNESS_GUIDANCE,
+            ],
         },
         "accelerator_support": {
             "foundry-prompt": "supported",
@@ -1490,6 +1597,7 @@ def _design_command(
     parts = [
         "accel design",
         f"--agent-type {selected['agent_type']}",
+        f"--implementation-pattern {selected['implementation_pattern']}",
         f"--orchestration-pattern {selected['orchestration_pattern']}",
         f"--application-shell {selected['application_shell']}",
         f"--deployment-target {selected['deployment_target']}",

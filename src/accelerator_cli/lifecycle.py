@@ -6,6 +6,8 @@ import pathlib
 from dataclasses import dataclass
 from typing import Any
 
+from src.implementation_patterns import legacy_implementation_pattern_for
+
 from .architecture_advisor import (
     architecture_is_current,
     committed_requirement_context,
@@ -160,11 +162,86 @@ def _detect_scaffold(
             ),
         )
     package_path = context.root.joinpath(*package.split("."))
-    required = (
+    required = [
         package_path / "schema.py",
         package_path / "workflow.py",
         package_path / "agents",
-    )
+    ]
+    issues: list[Issue] = []
+    diagram_path: str | None = None
+    diagram = scenario.get("architecture_diagram")
+    if not isinstance(diagram, dict):
+        issues.append(Issue(
+            "scaffold-architecture-diagram",
+            "scenario.architecture_diagram is missing.",
+            "Re-run scaffold preview/apply, then generate the diagram through "
+            "Azure Architecture Diagram Builder MCP.",
+            "accelerator.yaml",
+        ))
+    else:
+        if diagram.get("generator") != "azure-architecture-diagram-builder-mcp":
+            issues.append(Issue(
+                "scaffold-architecture-diagram-generator",
+                "scenario.architecture_diagram.generator is not the Azure "
+                "Architecture Diagram Builder MCP.",
+                "Set generator to azure-architecture-diagram-builder-mcp.",
+                "accelerator.yaml",
+            ))
+        if diagram.get("version") != "1.0.0":
+            issues.append(Issue(
+                "scaffold-architecture-diagram-version",
+                "scenario.architecture_diagram.version is not pinned to 1.0.0.",
+                "Regenerate with Azure Architecture Diagram Builder MCP v1.0.0.",
+                "accelerator.yaml",
+            ))
+        tools = diagram.get("tools")
+        required_tools = {
+            "list_services",
+            "validate_architecture",
+            "render_diagram",
+        }
+        if (
+            not isinstance(tools, list)
+            or not all(isinstance(tool, str) for tool in tools)
+            or not required_tools.issubset(set(tools))
+        ):
+            issues.append(Issue(
+                "scaffold-architecture-diagram-tools",
+                "scenario.architecture_diagram.tools does not record the "
+                "required MCP sequence.",
+                f"Include {sorted(required_tools)}.",
+                "accelerator.yaml",
+            ))
+        for field in ("path", "provenance"):
+            value = diagram.get(field)
+            if not isinstance(value, str) or not value.strip():
+                issues.append(Issue(
+                    f"scaffold-architecture-diagram-{field}",
+                    f"scenario.architecture_diagram.{field} is missing.",
+                    "Set the MCP-generated diagram and provenance paths.",
+                    "accelerator.yaml",
+                ))
+                continue
+            candidate = pathlib.PurePosixPath(value)
+            expected_suffix = ".svg" if field == "path" else ".json"
+            if (
+                candidate.is_absolute()
+                or ".." in candidate.parts
+                or candidate.suffix != expected_suffix
+                or candidate.parts[:3] != ("docs", "assets", "diagrams")
+            ):
+                issues.append(Issue(
+                    f"scaffold-architecture-diagram-{field}",
+                    f"scenario.architecture_diagram.{field} is outside the "
+                    "governed diagrams directory.",
+                    f"Use a {expected_suffix} path under docs/assets/diagrams/.",
+                    "accelerator.yaml",
+                ))
+                continue
+            if field == "path":
+                diagram_path = value
+            required.append(context.root.joinpath(*candidate.parts))
+
     missing = tuple(path for path in required if not path.exists())
     agent_specs_missing: list[pathlib.Path] = []
     for raw in scenario.get("agents") or []:
@@ -175,22 +252,29 @@ def _detect_scaffold(
             spec = context.root / "docs" / "agent-specs" / f"{foundry_name}.md"
             if not spec.exists():
                 agent_specs_missing.append(spec)
-    all_missing = (*missing, *agent_specs_missing)
-    if all_missing:
+    for index, path in enumerate((*missing, *agent_specs_missing), start=1):
+        is_diagram = path.suffix in {".svg", ".json"} and (
+            "diagrams" in path.parts
+        )
+        issues.append(Issue(
+            f"scaffold-{index}",
+            f"Required scaffold artifact is missing: {context.relative(path)}",
+            (
+                "Generate the SVG and checksum-bound provenance through Azure "
+                "Architecture Diagram Builder MCP."
+                if is_diagram
+                else "Run the corresponding `accel scaffold` or worker command."
+            ),
+            context.relative(path),
+        ))
+    if issues:
         return StageSummary(
             Stage.SCAFFOLD,
             ResultStatus.BLOCKED,
             "The scenario scaffold is incomplete.",
-            issues=tuple(
-                Issue(
-                    f"scaffold-{index}",
-                    f"Required scaffold artifact is missing: {context.relative(path)}",
-                    "Run the corresponding `accel scaffold` or worker command.",
-                    context.relative(path),
-                )
-                for index, path in enumerate(all_missing, start=1)
-            ),
+            issues=tuple(issues),
         )
+    assert diagram_path is not None
     return StageSummary(
         Stage.SCAFFOLD,
         ResultStatus.COMPLETE,
@@ -198,6 +282,7 @@ def _detect_scaffold(
         (
             f"Scenario package: {package}",
             f"Registered agents: {len(scenario.get('agents') or [])}",
+            f"Architecture diagram: {diagram_path}",
         ),
     )
 
@@ -221,20 +306,40 @@ def _detect_design(
                 ),
             ),
         )
-    local_requirements = _local_approved_requirement_statements(context)
+    ledger = EvidenceLedger(context)
+    local_requirements = tuple(
+        requirement.statement
+        for requirement in ledger.list_requirements()
+        if requirement.status == "approved"
+    )
     traceability = (
         context.root / "docs" / "discovery" / "requirements-traceability.md"
     )
-    if local_requirements and not traceability.exists():
+    committed_requirements = committed_requirement_context(
+        context.root,
+        local_requirements,
+    )
+    local_normalized = {" ".join(statement.split()) for statement in local_requirements}
+    committed_normalized = {
+        " ".join(statement.split()) for statement in committed_requirements
+    }
+    if (
+        local_requirements
+        and not traceability.exists()
+    ) or (
+        ledger.path.exists()
+        and traceability.exists()
+        and local_normalized != committed_normalized
+    ):
         return StageSummary(
             Stage.DESIGN,
             ResultStatus.BLOCKED,
-            "Approved requirements must be exported before architecture review.",
+            "Approved requirements must be re-exported before architecture review.",
             issues=(
                 Issue(
                     "architecture-traceability",
-                    "The local evidence ledger has approved requirements but the "
-                    "sanitized traceability export is missing.",
+                    "The local approved requirements and committed sanitized "
+                    "traceability export do not match.",
                     "Run `accel intake requirement export --apply`.",
                     "docs/discovery/requirements-traceability.md",
                 ),
@@ -242,7 +347,7 @@ def _detect_design(
         )
     recommendation = recommend_architecture(
         brief,
-        committed_requirement_context(context.root, local_requirements),
+        committed_requirements,
     )
     architecture = manifest.get("architecture")
     if not isinstance(architecture, dict):
@@ -277,8 +382,16 @@ def _detect_design(
             ),
         )
     decision = architecture.get("decision") or {}
+    implementation_pattern = (
+        str(decision.get("implementation_pattern"))
+        if decision.get("implementation_pattern")
+        else legacy_implementation_pattern_for(
+            str(decision.get("agent_type") or "")
+        )
+    )
     selection_issues = validate_selection(
         agent_type=str(decision.get("agent_type") or ""),
+        implementation_pattern=implementation_pattern,
         orchestration_pattern=str(decision.get("orchestration_pattern") or ""),
         application_shell=str(decision.get("application_shell") or ""),
         deployment_target=str(decision.get("deployment_target") or ""),
@@ -304,6 +417,7 @@ def _detect_design(
         "The Foundry architecture decision is approved and current.",
         (
             f"Agent type: {decision.get('agent_type')}",
+            f"Implementation pattern: {implementation_pattern}",
             f"Orchestration: {decision.get('orchestration_pattern')}",
             f"Application shell: {decision.get('application_shell')}",
             f"Recommended target: {decision.get('deployment_target')}",

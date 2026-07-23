@@ -131,9 +131,10 @@ accel scaffold --scenario-id <id> --apply
 /implement-workers      →  fills every stub prompt.py / transform.py / validate.py + Foundry agent spec
 ```
 
-The Architecture Advisor compares prompt and Hosted agents, separately selects
-the workflow/supervisor pattern and application shell, and proposes the
-deployment target. Requirements changes invalidate the approval automatically.
+The Architecture Advisor compares prompt and Hosted agents, selects
+`managed-prompt`, `harness`, or `custom-workflow`, then separately selects the
+orchestration pattern, application shell, and deployment target. Requirements
+changes invalidate the approval automatically.
 
 `accel scaffold` wraps `scripts/scaffold-scenario.py` transactionally; that
 script and `scaffold-agent.py` auto-seed
@@ -143,8 +144,8 @@ without manual eval-file edits.
 **What `accel scaffold` materializes:**
 
 - `src/scenarios/<package>/{__init__,schema,workflow,retrieval}.py`
-- A `primary` package/spec for prompt-agent decisions, or `supervisor` package/spec
-  for hosted orchestration
+- A `primary` package/spec for prompt-agent or Harness decisions, or a
+  `supervisor` package/spec for hosted custom orchestration
 - `data/samples/<package>.json`
 - A transactionally updated `accelerator.yaml` scenario block
 - A stub `q-001` in `evals/quality/golden_cases.jsonl` (refine the

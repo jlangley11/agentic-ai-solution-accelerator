@@ -93,7 +93,8 @@ limit; macros are never executed.
 
 After discovery is complete, run `accel design`. Present the recommendation,
 matched signals, confidence, alternatives, and official Foundry references.
-Foundry agent types are `prompt-agent` and `hosted-agent`; workflow is a
+Foundry agent types are `prompt-agent` and `hosted-agent`. Implementation
+patterns are `managed-prompt`, `harness`, and `custom-workflow`; workflow is a
 separate orchestration pattern.
 
 Do not scaffold until the partner approves:
@@ -105,6 +106,28 @@ accel design --approved-by "<partner architect>" --apply
 If any selected dimension differs from the recommendation, require
 `--override-reason`. Requirement changes invalidate the stored fingerprint and
 return the lifecycle to design.
+
+Use Harness only for a Hosted `single-agent` recommendation. Scaffold it with
+`--no-retrieval`; the generated workflow uses `src.workflow.harness` and one
+primary agent spec. Do not add workers. File access, background agents, looping,
+shell, built-in web search, file memory, and framework auto-approval remain
+disabled until separately governed. Side-effect tools still require
+`hitl.checkpoint(...)`.
+
+## Architecture diagram deliverable
+
+After scaffold apply, generate the scenario's Azure resource diagram with
+**Azure Architecture Diagram Builder MCP v1.0.0**. Use the deterministic tool
+sequence `list_services` → `validate_architecture` → `render_diagram`, then
+commit both:
+
+- `docs/assets/diagrams/<scenario>-architecture.svg`
+- `docs/assets/diagrams/<scenario>-architecture.mcp.json`
+
+The provenance JSON must record the service graph, connections, groups, render
+options, MCP release and tools, WAF result, and SHA-256 of the generated SVG.
+Never hand-edit the SVG. Regenerate from the provenance input, and return to
+`accel design` if WAF remediation changes the approved topology.
 
 ## Common lifecycle commands
 

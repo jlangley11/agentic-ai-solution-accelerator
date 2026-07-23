@@ -10,7 +10,7 @@
 
 sdks:
   agent-framework:
-    min: "1.11.0"
+    min: "1.12.1"
     upper_exclusive: "2.0.0"
   azure-ai-projects:
     min: "2.3.0"
@@ -28,34 +28,40 @@ sdks:
     min: "14.1.0"
     upper_exclusive: "15.0.0"
 
-# Hosted-agent serving packages have no GA releases as of 2026-07-20.
-# They are recorded separately so the GA freshness job continues to enforce
-# only stable SDKs. Phase 5 adds lint enforcement for this exception shape.
+# Prerelease-only runtime packages are recorded separately so the GA freshness
+# job continues to enforce only stable SDKs.
 prerelease_exceptions:
   agent-framework-foundry-hosting:
-    version: "1.0.0a260709"
-    classification: alpha
+    version: "1.0.0b260721"
+    classification: beta
     reason: >-
       Required to host Microsoft Agent Framework agents on Foundry Agent
       Service; no GA release exists.
     revisit_by: 2026-10
   azure-ai-agentserver-core:
-    version: "2.0.0b7"
+    version: "2.0.0b8"
     classification: beta
     reason: >-
       Transitive runtime used by the Foundry hosting package; no GA release
       exists.
     revisit_by: 2026-10
   azure-ai-agentserver-responses:
-    version: "1.0.0b8"
+    version: "1.0.0b9"
     classification: beta
     reason: >-
       Required for the Responses protocol host; no GA release exists.
     revisit_by: 2026-10
   azure-ai-agentserver-invocations:
-    version: "1.0.0b6"
+    version: "1.0.0b7"
     classification: beta
     reason: >-
       Required for raw Invocations and SSE compatibility; no GA release
       exists.
+    revisit_by: 2026-10
+  opentelemetry-instrumentation-fastapi:
+    version: "0.64b0"
+    classification: beta
+    reason: >-
+      OpenTelemetry Python instrumentation uses beta-versioned releases; this
+      package provides FastAPI request-span correlation for Application Insights.
     revisit_by: 2026-10

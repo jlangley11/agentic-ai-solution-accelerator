@@ -60,6 +60,7 @@ scenario:
   package: src.scenarios.sales_research
   implementation:
     agent_type: hosted-agent
+    implementation_pattern: custom-workflow
     orchestration_pattern: supervisor-routing
     application_shell: workbench
   agents:
@@ -71,6 +72,7 @@ architecture:
   recommendation: {{}}
   decision:
     agent_type: hosted-agent
+    implementation_pattern: custom-workflow
     orchestration_pattern: supervisor-routing
     application_shell: workbench
     deployment_target: selfhost
@@ -106,6 +108,15 @@ def _set_architecture_target(
     data["architecture"]["decision"].update(
         {
             "agent_type": agent_type,
+            "implementation_pattern": (
+                "managed-prompt"
+                if agent_type == "prompt-agent"
+                else (
+                    "harness"
+                    if orchestration_pattern == "single-agent"
+                    else "custom-workflow"
+                )
+            ),
             "orchestration_pattern": orchestration_pattern,
             "deployment_target": target,
         }
@@ -142,6 +153,9 @@ def test_scaffold_dry_run_does_not_write(tmp_path: pathlib.Path) -> None:
     assert result.status == ResultStatus.APPROVAL_REQUIRED
     assert not (tmp_path / "src/scenarios/order_triage").exists()
     assert "order-triage" not in context.manifest_path.read_text(encoding="utf-8")
+    assert result.details["architecture_diagram"]["path"] == (
+        "docs/assets/diagrams/order-triage-architecture.svg"
+    )
 
 
 def test_prompt_agent_scaffold_uses_primary_agent_shape(
@@ -180,9 +194,76 @@ def test_prompt_agent_scaffold_uses_primary_agent_shape(
     assert manifest["scenario"]["agents"][0]["id"] == "primary"
     assert manifest["scenario"]["implementation"] == {
         "agent_type": "prompt-agent",
+        "implementation_pattern": "managed-prompt",
         "orchestration_pattern": "single-agent",
         "application_shell": "workbench",
     }
+    assert manifest["scenario"]["architecture_diagram"] == {
+        "path": "docs/assets/diagrams/faq-helper-architecture.svg",
+        "provenance": (
+            "docs/assets/diagrams/faq-helper-architecture.mcp.json"
+        ),
+        "generator": "azure-architecture-diagram-builder-mcp",
+        "version": "1.0.0",
+        "tools": [
+            "list_services",
+            "validate_architecture",
+            "render_diagram",
+        ],
+    }
+
+
+def test_harness_scaffold_uses_primary_harness_workflow(
+    tmp_path: pathlib.Path,
+) -> None:
+    context = _context(tmp_path)
+    _set_architecture_target(
+        context,
+        "hosted-preview",
+        agent_type="hosted-agent",
+        orchestration_pattern="single-agent",
+    )
+    script = tmp_path / "scripts/scaffold-scenario.py"
+    script.parent.mkdir(parents=True)
+    source = pathlib.Path(__file__).parents[1] / "scripts/scaffold-scenario.py"
+    script.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    blocked = scaffold(
+        context,
+        scenario_id="research-helper",
+        no_retrieval=False,
+        preserve_evals=True,
+        apply=False,
+    )
+    result = scaffold(
+        context,
+        scenario_id="research-helper",
+        no_retrieval=True,
+        preserve_evals=True,
+        apply=True,
+    )
+    manifest = yaml.safe_load(context.manifest_path.read_text(encoding="utf-8"))
+    workflow_text = (
+        tmp_path / "src/scenarios/research_helper/workflow.py"
+    ).read_text(encoding="utf-8")
+
+    assert blocked.status == ResultStatus.NEEDS_INPUT
+    assert "--no-retrieval" in (blocked.next_command or "")
+    assert result.status == ResultStatus.COMPLETE
+    assert (tmp_path / "src/scenarios/research_helper/agents/primary").is_dir()
+    assert "from src.workflow.harness import HarnessWorkflow" in workflow_text
+    assert "WorkerSpec" not in workflow_text
+    compile(workflow_text, "workflow.py", "exec")
+    assert manifest["scenario"]["implementation"]["implementation_pattern"] == (
+        "harness"
+    )
+    assert "retrieval" not in manifest["scenario"]
+    assert manifest["scenario"]["agents"] == [
+        {
+            "id": "primary",
+            "foundry_name": "accel-research-helper-primary",
+        }
+    ]
 
 
 def test_uat_signoff_and_handover_are_local_artifacts(tmp_path: pathlib.Path) -> None:

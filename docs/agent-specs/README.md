@@ -18,9 +18,16 @@ Use the per-agent files below for the actual system instructions; everything els
 
 ## Provisioning mechanics
 
-`src/provisioning.py` reads one Markdown file per manifest agent and creates or
-updates the corresponding version in Foundry. Self-host invokes it through
-`src/bootstrap.py`; Hosted preview invokes it from the postdeploy hook.
+`src/provisioning.py` reads one Markdown file per managed-prompt or
+custom-workflow manifest agent and creates or updates the corresponding version
+in Foundry. Self-host invokes it through `src/bootstrap.py`; Hosted preview
+invokes it from the postdeploy hook. Harness scenarios read the same
+`## Instructions` body directly through `src/workflow/harness.py` and skip the
+unused prompt-agent version.
+
+Harness still declares one `scenario.agents[]` entry. Its `foundry_name` is the
+stable spec identifier and telemetry name; it does not imply that provisioning
+creates a Foundry prompt-agent resource.
 
 ## File format
 
@@ -41,10 +48,10 @@ own `**Model:**` field.
 ## Important
 
 **Authoring source of truth:** the `.md` files in this directory.
-**Runtime location:** Foundry — shared provisioning syncs each spec verbatim to
-the matching agent version. The portal displays the materialized runtime copy
-but is not a durable authoring surface; manual instruction edits are
-**transient** and will be overwritten on the next sync.
+**Runtime location:** Foundry for managed-prompt/custom-workflow agents; the
+Harness runtime for `implementation_pattern: harness`. Shared provisioning
+syncs managed agent specs verbatim. Harness loads its spec verbatim at workflow
+construction. The portal is never a durable authoring surface.
 
 The supported loop is: edit the `.md` → apply `accel deploy` → run
 `accel evaluate`. Rollback is the same path after reverting the spec.
@@ -59,7 +66,8 @@ The supported loop is: edit the `.md` → apply `accel deploy` → run
 Instructions never become portal-managed. `BOOTSTRAP_SKIP=1` exists for tests
 and controlled diagnostics, not as a supported customer authoring mode.
 
-Do NOT reference these `.md` files at runtime. Do NOT import from them.
+Only `src.agent_specs.parse_agent_instructions` may read these Markdown files at
+runtime. Scenario modules must not parse or hardcode system instructions.
 
 ## Flagship agents (5)
 

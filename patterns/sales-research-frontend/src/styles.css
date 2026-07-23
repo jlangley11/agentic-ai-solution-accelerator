@@ -10,6 +10,9 @@
   --warn: #b06000;
   --err: #b3261e;
   --info: #0a66c2;
+  --focus: #005fb8;
+  --font-sans: "Segoe UI Variable Text", Aptos, "Segoe UI", sans-serif;
+  --font-display: "Segoe UI Variable Display", Aptos Display, "Segoe UI", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -19,7 +22,7 @@ html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg);
   color: var(--fg);
   line-height: 1.45;
@@ -31,7 +34,12 @@ body {
   padding: 16px 24px 36px;
 }
 
-.app-header h1 { margin: 0 0 2px; font-size: 1.4rem; }
+.app-header h1 {
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
 .app-header .muted { margin: 0 0 12px; font-size: 0.82rem; }
 .implementation-tags {
   display: flex;
@@ -124,6 +132,16 @@ form label {
   font-weight: 500;
 }
 form label.full { grid-column: 1 / -1; }
+.dynamic-form .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dynamic-form .form-field.full { grid-column: 1 / -1; }
+.dynamic-form .form-field > label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
 form input, form textarea {
   font: inherit;
   padding: 8px 10px;
@@ -157,9 +175,32 @@ form select {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.history-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .history-panel h2 { margin: 0 0 10px; font-size: 1rem; }
-.history-panel button {
+.history-panel-header h2 { margin-bottom: 0; }
+.history-panel .history-clear {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0;
+  padding: 3px 8px;
+  font-size: 0.76rem;
+}
+.history-privacy {
+  margin: 8px 0 12px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+.history-panel .history-entry {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -168,7 +209,7 @@ form select {
   margin-top: 8px;
   text-align: left;
 }
-.history-panel button span { color: var(--muted); font-size: 0.8rem; }
+.history-panel .history-entry span { color: var(--muted); font-size: 0.8rem; }
 .dynamic-section-grid { display: grid; gap: 12px; }
 .dynamic-section {
   border: 1px solid var(--border);
@@ -189,17 +230,23 @@ form select {
 
 @media (max-width: 760px) {
   .workbench-layout { grid-template-columns: 1fr; }
-  .history-panel { position: static; }
+  .workbench-main { grid-column: 1; grid-row: 1; }
+  .history-panel { position: static; grid-column: 1; grid-row: 2; max-height: none; }
   form .grid { grid-template-columns: 1fr; }
   form label.full { grid-column: auto; }
+  .dynamic-form .form-field.full { grid-column: auto; }
 }
-form input:focus, form textarea:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: -1px;
-  border-color: var(--primary);
+:where(button, input, textarea, select, summary, a):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+form input:focus-visible,
+form textarea:focus-visible,
+form select:focus-visible {
+  border-color: var(--focus);
 }
 
-.actions { display: flex; gap: 10px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
 button {
   font: inherit;
@@ -211,6 +258,8 @@ button {
 }
 button.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
+button:not(:disabled):hover { border-color: var(--primary); }
+.metadata-failure { max-width: 760px; padding-top: 8vh; }
 
 .event-log { list-style: none; padding: 0; margin: 12px 0 0; max-height: 320px; overflow: auto; }
 .event {
@@ -969,4 +1018,15 @@ details[open].stream-drawer > .stream-drawer-summary::before { content: "\u25bc"
   .result-two-col { grid-template-columns: 1fr; }
   .result-sidebar { position: static; }
   .competitor-row { flex-direction: column; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

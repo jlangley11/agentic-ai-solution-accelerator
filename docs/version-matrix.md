@@ -1,6 +1,11 @@
 # Version matrix
 
-Known-good GA versions of the accelerator's canonical SDKs, plus narrowly documented prerelease exceptions for the Foundry hosted-agent serving stack. A weekly CI job (`.github/workflows/version-matrix.yml`) runs `scripts/ga-sdk-freshness.py`, which queries PyPI for the latest non-prerelease version of each package under `ga-versions.yaml -> sdks`. The script classifies each package into one of three buckets:
+Known-good versions of the accelerator's dependencies, plus narrowly documented
+prerelease exceptions. A weekly CI job (`.github/workflows/version-matrix.yml`)
+runs `scripts/ga-sdk-freshness.py` for rows marked **weekly** by querying PyPI
+for each package under `ga-versions.yaml -> sdks`. Other rows are validated
+manually during release audits. The script classifies tracked packages into one
+of three buckets:
 
 - **drift** — PyPI has a newer GA than the pinned `min`. The workflow fails and opens a tracking issue.
 - **unknown** — PyPI lookup failed (404, network, JSON decode, or no GA release). The workflow surfaces the warning in the run summary but does **not** fail and does **not** open an issue — a transient PyPI hiccup should not generate noise.
@@ -10,32 +15,46 @@ Deprecation policy: **N-1 minor** supported.
 
 Stable packages are pinned in `pyproject.toml`; `ga-versions.yaml` is the manifest lint enforces drift against. Update all three together: this table, `pyproject.toml`, and `ga-versions.yaml`.
 
-| Package | Pinned range | Last validated | Latest tested | Notes |
-|---|---|---|---|---|
-| `agent-framework` | `>=1.11.0,<2.0.0` | 2026-07-20 | 1.11.0 | Microsoft Agent Framework orchestration |
-| `azure-ai-projects` | `>=2.3.0,<3.0.0` | 2026-07-20 | 2.3.0 | Stable hosted-agent versioning and code-upload APIs |
-| `azure-ai-agents` | `>=1.1.0,<2.0.0` | 2026-07-20 | 1.1.0 | Foundry prompt-agent operations |
-| `azure-ai-evaluation` | `>=1.0.0,<2.0.0` | 1.0.x |  | Evals SDK |
-| `azure-identity` | `>=1.25.3,<2.0.0` | 2026-07-20 | 1.25.3 | `DefaultAzureCredential`, `ManagedIdentityCredential` |
-| `azure-keyvault-secrets` | `>=4.8.0,<5.0.0` | 4.8.x |  | KV references |
-| `azure-search-documents` | `>=12.0.0,<13.0.0` | 2026-07-20 | 12.0.0 | Search schema/vectorizer compatibility verified |
-| `azure-mgmt-cognitiveservices` | `>=14.1.0,<15.0.0` | 2026-07-20 | 14.1.0 | Foundry control-plane provisioning |
-| `azure-monitor-opentelemetry` | `>=1.6.0,<2.0.0` | 1.6.x |  | App Insights distro |
-| `opentelemetry-api` / `-sdk` | `>=1.27.0,<2.0.0` | 1.27.x |  | Pinned together to avoid protocol drift |
-| `fastapi` | `>=0.115.0,<1.0.0` | 0.115.x |  | HTTP surface |
-| `pydantic` | `>=2.9.0,<3.0.0` | 2.9.x |  | Schemas |
+| Package | Pinned range | Freshness | Last validated | Latest tested | Notes |
+|---|---|---|---|---|---|
+| `agent-framework` | `>=1.12.1,<2.0.0` | weekly | 2026-07-23 | 1.12.1 | Microsoft Agent Framework orchestration + stable Harness factory |
+| `azure-ai-projects` | `>=2.3.0,<3.0.0` | weekly | 2026-07-20 | 2.3.0 | Stable hosted-agent versioning and code-upload APIs |
+| `azure-ai-agents` | `>=1.1.0,<2.0.0` | weekly | 2026-07-20 | 1.1.0 | Foundry prompt-agent operations |
+| `azure-identity` | `>=1.25.3,<2.0.0` | weekly | 2026-07-20 | 1.25.3 | `DefaultAzureCredential`, `ManagedIdentityCredential` |
+| `azure-keyvault-secrets` | `>=4.8.0,<5.0.0` | manual | 2026-07-23 | 4.11.0 | Key Vault references |
+| `azure-search-documents` | `>=12.0.0,<13.0.0` | weekly | 2026-07-20 | 12.0.0 | Search schema/vectorizer compatibility verified |
+| `azure-mgmt-cognitiveservices` | `>=14.1.0,<15.0.0` | weekly | 2026-07-20 | 14.1.0 | Foundry control-plane provisioning |
+| `azure-monitor-opentelemetry` | `>=1.8.9,<2.0.0` | manual | 2026-07-23 | 1.8.9 | App Insights distro validated with Harness |
+| `opentelemetry-api` / `-sdk` | `>=1.43.0,<2.0.0` | manual | 2026-07-23 | 1.43.0 | Pinned together to avoid protocol drift |
+| `fastapi` | `>=0.115.0,<1.0.0` | manual | 2026-07-23 | 0.128.0 | HTTP surface |
+| `pydantic` | `>=2.9.0,<3.0.0` | manual | 2026-07-23 | 2.12.5 | Schemas |
 
 ## Local delivery and workbench tooling
 
 | Tool/package | Pinned range | Purpose |
 |---|---|---|
 | `mcp` | `>=1.28.1,<2.0.0` *(optional extra)* | `accel-mcp` local stdio adapter |
+| `azure-ai-evaluation` | `>=1.0.0,<2.0.0` *(optional extra)* | Foundry-native relevance and groundedness evaluators |
 | `python-pptx` | `>=1.0.2,<2.0.0` | Local PowerPoint evidence extraction |
 | `openpyxl` | `>=3.1.5,<4.0.0` | Local Excel evidence extraction |
 | Node.js | `20.19+` or `22.12+` | Vite 8 reference workbench |
 | Vite | `^8.1.4` | Frontend build/dev server |
 | Vitest | `^4.1.10` | Frontend behavior and protocol tests |
 | Azure Architecture Diagram Builder MCP | `1.0.0` *(design-time external tool)* | Generates committed Azure-branded architecture SVGs |
+
+## Agent Framework Harness
+
+Agent Framework **1.12.1** includes the released `create_harness_agent` factory
+and a stateless reasoning/tool replay fix used by Foundry and Foundry hosting.
+The accelerator exposes Harness as an implementation pattern for
+`hosted-agent` + `single-agent` decisions.
+
+The default Harness scaffold enables only released core behavior: function
+invocation, in-run history, todo/mode providers, and OpenTelemetry. It disables
+file memory, built-in web search, and framework auto-approval, and does not
+configure experimental file access, background agents, looping, or shell.
+Harness retrieval remains `none` until a governed FoundryIQ tool bridge is
+implemented.
 
 ## Hosted-agent toolchain prerelease exceptions
 
@@ -62,10 +81,11 @@ default.
 
 | Package | Verified version | Status | Revisit |
 |---|---|---|---|
-| `agent-framework-foundry-hosting` | `1.0.0a260709` | Alpha; no GA release | 2026-10 |
-| `azure-ai-agentserver-core` | `2.0.0b7` | Beta; no GA release | 2026-10 |
-| `azure-ai-agentserver-responses` | `1.0.0b8` | Beta; no GA release | 2026-10 |
-| `azure-ai-agentserver-invocations` | `1.0.0b6` | Beta; no GA release | 2026-10 |
+| `agent-framework-foundry-hosting` | `1.0.0b260721` | Beta; no GA release | 2026-10 |
+| `azure-ai-agentserver-core` | `2.0.0b8` | Beta; no GA release | 2026-10 |
+| `azure-ai-agentserver-responses` | `1.0.0b9` | Beta; no GA release | 2026-10 |
+| `azure-ai-agentserver-invocations` | `1.0.0b7` | Beta; no GA release | 2026-10 |
+| `opentelemetry-instrumentation-fastapi` | `0.64b0` | Beta-versioned upstream instrumentation package | 2026-10 |
 
 See [Phase 0 hosted-agent spike report](plans/phase0-spike-report.md) for the live deployment evidence and required plan adjustments.
 
@@ -80,7 +100,9 @@ See [Phase 0 hosted-agent spike report](plans/phase0-spike-report.md) for the li
 - Foundry extensions: `microsoft.foundry` **1.0.0-beta.1** and `azure.ai.agents` **1.0.0-beta.6** verified.
 - Accelerator Hosted target: **preview-gated toolchain** despite Hosted agents
   being documented as a main Foundry Agent Service type.
-- Foundry model deployments: default `gpt-5-mini` (flagship; parameterized via `modelName` / `modelDeploymentName` in `infra/main.bicep`). Partners override per engagement; the weekly freshness script validates canonical GA SDKs against PyPI regardless of model choice.
+- Foundry model deployments: default `gpt-5-mini`. Partners override through
+  `accelerator.yaml.models[]`; `infra/main.bicep` reads that block with
+  `loadYamlContent` at compile time.
 - Azure regions: the current hosted-agent list contains 29 regions; model and AI Search capacity remain separate constraints.
 
 ## ARM api-versions

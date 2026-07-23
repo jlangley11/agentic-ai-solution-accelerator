@@ -34,11 +34,8 @@ export async function runResearch(
   });
 
   if (!response.ok) {
-    const detail = await response.text().catch(() => "");
     throw new Error(
-      `Request failed: ${response.status} ${response.statusText}${
-        detail ? ` — ${detail.slice(0, 300)}` : ""
-      }`,
+      `Request failed: ${response.status} ${response.statusText || "Unexpected response"}.`,
     );
   }
   if (!response.body) {
@@ -96,10 +93,10 @@ export async function runResearch(
             lastEventType = parsed.type;
           }
           onEvent(parsed);
-        } catch (err) {
+        } catch {
           onEvent({
             type: "error",
-            message: `Malformed SSE chunk: ${(err as Error).message}`,
+            message: "The server returned a malformed SSE event.",
           });
         }
       }

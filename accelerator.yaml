@@ -123,8 +123,18 @@ scenario:
       - { key: next_steps, label: Next Steps, layout: numbered-list }
   implementation:
     agent_type: hosted-agent
+    implementation_pattern: custom-workflow
     orchestration_pattern: supervisor-routing
     application_shell: workbench
+  # Required scaffold-phase visual deliverable. The SVG is generated through
+  # the pinned Azure Architecture Diagram Builder MCP; the companion JSON
+  # records exact inputs, WAF validation, tool sequence, and SVG checksum.
+  architecture_diagram:
+    path: docs/assets/diagrams/sales-research-reference.svg
+    provenance: docs/assets/diagrams/sales-research-reference.mcp.json
+    generator: azure-architecture-diagram-builder-mcp
+    version: "1.0.0"
+    tools: [list_services, validate_architecture, render_diagram]
   agents:
     - { id: supervisor,            foundry_name: accel-sales-research-supervisor }
     - id: account_planner
@@ -190,6 +200,7 @@ architecture:
   requirements_fingerprint: template-default
   recommendation:
     agent_type: hosted-agent
+    implementation_pattern: custom-workflow
     orchestration_pattern: supervisor-routing
     application_shell: workbench
     deployment_target: hosted-preview
@@ -208,6 +219,7 @@ architecture:
     score: { prompt-agent: 0, hosted-agent: 16 }
   decision:
     agent_type: hosted-agent
+    implementation_pattern: custom-workflow
     orchestration_pattern: supervisor-routing
     application_shell: workbench
     deployment_target: selfhost
@@ -217,9 +229,12 @@ architecture:
   platform_context:
     agent_service_types: [prompt-agent, hosted-agent]
     workflow_note: Workflow is an orchestration pattern, not a third Foundry Agent Service runtime type.
+    implementation_patterns: [managed-prompt, harness, custom-workflow]
+    harness_note: Harness is the stable Agent Framework single-agent runtime; experimental file access, background agents, looping, and shell remain disabled.
     references:
       - https://learn.microsoft.com/azure/foundry/agents/overview
       - https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents
+      - https://devblogs.microsoft.com/agent-framework/the-microsoft-agent-framework-harness-is-now-released/
   accelerator_support:
     foundry-prompt: supported
     hosted-preview: preview-toolchain

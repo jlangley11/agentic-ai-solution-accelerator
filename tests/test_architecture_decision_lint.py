@@ -27,6 +27,7 @@ def _manifest() -> dict:
             "recommendation": {},
             "decision": {
                 "agent_type": "prompt-agent",
+                "implementation_pattern": "managed-prompt",
                 "orchestration_pattern": "single-agent",
                 "application_shell": "none",
                 "deployment_target": "foundry-prompt",
@@ -37,6 +38,7 @@ def _manifest() -> dict:
         "scenario": {
             "implementation": {
                 "agent_type": "prompt-agent",
+                "implementation_pattern": "managed-prompt",
                 "orchestration_pattern": "single-agent",
                 "application_shell": "none",
             }
@@ -79,3 +81,37 @@ def test_scenario_implementation_must_match_decision(tmp_path, monkeypatch) -> N
     findings = _run(tmp_path, monkeypatch, data)
 
     assert any("scenario.implementation.agent_type" in finding.message for finding in findings)
+
+
+def test_harness_requires_hosted_single_agent(tmp_path, monkeypatch) -> None:
+    data = _manifest()
+    data["architecture"]["decision"]["implementation_pattern"] = "harness"
+    data["scenario"]["implementation"]["implementation_pattern"] = "harness"
+
+    findings = _run(tmp_path, monkeypatch, data)
+
+    assert any("Harness requires" in finding.message for finding in findings)
+
+
+def test_valid_harness_decision_passes(tmp_path, monkeypatch) -> None:
+    data = _manifest()
+    data["architecture"]["decision"].update(
+        {
+            "agent_type": "hosted-agent",
+            "implementation_pattern": "harness",
+            "orchestration_pattern": "single-agent",
+            "deployment_target": "hosted-preview",
+        }
+    )
+    data["scenario"]["implementation"].update(
+        {
+            "agent_type": "hosted-agent",
+            "implementation_pattern": "harness",
+            "orchestration_pattern": "single-agent",
+        }
+    )
+    data["scenario"]["agents"] = [
+        {"id": "primary", "foundry_name": "accel-demo-primary"}
+    ]
+
+    assert _run(tmp_path, monkeypatch, data) == []

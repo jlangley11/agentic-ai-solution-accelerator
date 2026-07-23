@@ -10,6 +10,7 @@ from .architecture_advisor import (
     AGENT_TYPES,
     APPLICATION_SHELLS,
     DEPLOYMENT_TARGETS,
+    IMPLEMENTATION_PATTERNS,
     ORCHESTRATION_PATTERNS,
 )
 from .intake import commands as intake_commands
@@ -129,6 +130,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="recommend, review, or approve the Foundry architecture",
     )
     design.add_argument("--agent-type", choices=AGENT_TYPES)
+    design.add_argument(
+        "--implementation-pattern",
+        choices=IMPLEMENTATION_PATTERNS,
+    )
     design.add_argument(
         "--orchestration-pattern",
         choices=ORCHESTRATION_PATTERNS,
@@ -324,6 +329,7 @@ def _dispatch(
         "design": lambda: lifecycle_commands.design(
             context,
             agent_type=args.agent_type,
+            implementation_pattern=args.implementation_pattern,
             orchestration_pattern=args.orchestration_pattern,
             application_shell=args.application_shell,
             deployment_target=args.deployment_target,

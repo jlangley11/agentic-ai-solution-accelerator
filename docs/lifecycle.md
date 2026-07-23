@@ -19,7 +19,7 @@ between GitHub Copilot CLI, Codex, Claude Code, or direct terminal use.
 |---|---|
 | Qualify | Sponsor, wedge process, measurable baseline, and workshop readiness |
 | Discover | Governed evidence, approved requirements/traceability, and solution brief with no unresolved markers |
-| Design | Architecture Advisor recommendation reviewed; agent type, orchestration, application shell, and target explicitly approved |
+| Design | Architecture Advisor recommendation reviewed; agent type, implementation pattern, orchestration, application shell, and target explicitly approved |
 | Scaffold | Scenario package, request/response schemas, experience metadata, agents, grounding, and eval datasets |
 | Provision | Declared environment, green preflight, and deployed endpoint metadata |
 | Iterate | Quality and red-team datasets plus repository validation |

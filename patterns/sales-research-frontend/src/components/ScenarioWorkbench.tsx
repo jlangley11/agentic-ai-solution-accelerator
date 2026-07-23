@@ -19,10 +19,32 @@ function historyKey(scenarioId: string): string {
 function readHistory(scenarioId: string): WorkbenchHistoryItem[] {
   try {
     const value = JSON.parse(localStorage.getItem(historyKey(scenarioId)) ?? "[]");
-    return Array.isArray(value) ? (value as WorkbenchHistoryItem[]) : [];
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is WorkbenchHistoryItem => {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+      const candidate = item as Record<string, unknown>;
+      return (
+        typeof candidate.id === "string"
+        && typeof candidate.createdAt === "string"
+        && Number.isFinite(Date.parse(candidate.createdAt))
+        && typeof candidate.request === "object"
+        && candidate.request !== null
+        && !Array.isArray(candidate.request)
+        && typeof candidate.briefing === "object"
+        && candidate.briefing !== null
+        && !Array.isArray(candidate.briefing)
+      );
+    }).slice(0, 20);
   } catch {
     return [];
   }
+}
+
+function displayTag(value: string): string {
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export function ScenarioWorkbench({ metadata }: Props) {
@@ -70,6 +92,7 @@ export function ScenarioWorkbench({ metadata }: Props) {
       }),
     [events],
   );
+  const currentRunSaved = history.some((item) => item.id === runId);
 
   async function submit(nextRequest: Record<string, unknown>) {
     const nextRunId = crypto.randomUUID();
@@ -159,10 +182,34 @@ export function ScenarioWorkbench({ metadata }: Props) {
     setError(null);
   }
 
+  function clearHistory() {
+    try {
+      localStorage.removeItem(historyKey(metadata.id));
+      setHistory([]);
+    } catch {
+      setError("This browser could not clear saved runs.");
+    }
+  }
+
   return (
     <div className="workbench-layout">
-      <aside className="history-panel">
-        <h2>History</h2>
+      <aside className="history-panel" aria-label="Saved runs">
+        <div className="history-panel-header">
+          <h2>History</h2>
+          {history.length > 0 && (
+            <button
+              type="button"
+              className="history-clear"
+              onClick={clearHistory}
+              disabled={busy}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <p className="history-privacy">
+          Saved only in this browser. Avoid saving sensitive customer data.
+        </p>
         {history.length === 0 ? (
           <p className="muted">Save a completed run to return to it later.</p>
         ) : (
@@ -170,11 +217,13 @@ export function ScenarioWorkbench({ metadata }: Props) {
             <button
               key={item.id}
               type="button"
+              className="history-entry"
               onClick={() => restore(item)}
               disabled={busy}
+              aria-label={`Restore run from ${new Date(item.createdAt).toLocaleString()}`}
             >
               <strong>{new Date(item.createdAt).toLocaleString()}</strong>
-              <span>{String(Object.values(item.request)[0] ?? "Saved run")}</span>
+              <span>Saved run</span>
             </button>
           ))
         )}
@@ -185,9 +234,10 @@ export function ScenarioWorkbench({ metadata }: Props) {
           <p className="muted">{metadata.description}</p>
           {metadata.implementation && (
             <div className="implementation-tags" aria-label="Scenario architecture">
-              <span>{metadata.implementation.agent_type}</span>
-              <span>{metadata.implementation.orchestration_pattern}</span>
-              <span>{metadata.implementation.application_shell}</span>
+              <span>{displayTag(metadata.implementation.agent_type)}</span>
+              <span>{displayTag(metadata.implementation.implementation_pattern)}</span>
+              <span>{displayTag(metadata.implementation.orchestration_pattern)}</span>
+              <span>{displayTag(metadata.implementation.application_shell)}</span>
             </div>
           )}
         </header>
@@ -204,7 +254,9 @@ export function ScenarioWorkbench({ metadata }: Props) {
           <div className="card warn" role="status">
             <strong>This run completed with warnings.</strong>
             <ul>
-              {warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              {warnings.map((warning, index) => (
+                <li key={`${index}-${warning}`}>{warning}</li>
+              ))}
             </ul>
           </div>
         )}
@@ -222,7 +274,9 @@ export function ScenarioWorkbench({ metadata }: Props) {
         />
         {briefing && (
           <div className="actions history-actions">
-            <button type="button" onClick={saveHistory}>Save to history</button>
+            <button type="button" onClick={saveHistory} disabled={currentRunSaved}>
+              {currentRunSaved ? "Saved to this browser" : "Save to this browser"}
+            </button>
           </div>
         )}
       </div>

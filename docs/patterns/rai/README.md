@@ -22,6 +22,9 @@ What ships in v1 and where it lives. Customisation within these rails is fine; d
 - **Every side-effect tool declares a HITL checkpoint.** Each tool module in `src/tools/` declares an `HITL_POLICY` constant at module scope and calls `hitl.checkpoint(...)` before executing the side effect. The lint rule `scripts/accelerator-lint.py::side_effect_tools_call_hitl` walks `src/tools/*.py` and blocks any module that has the side-effect shape but is missing either piece. The `accelerator.yaml.solution.hitl` value is engagement-level documentation (e.g. `none`, `pre-exec`, `post-exec`) — the lint reads it but the runtime gate is per-tool.
 - **HITL pattern is partner-scope.** The flagship scenario does not ship a HITL queue UI — partners wire approval flow into their engagement app (Logic Apps, Teams card, ticketing system) and the tool blocks until approval returns.
 - **Default checkpoint is pre-execution.** Reversible / telemetry-first variants require explicit partner + customer sign-off and heightened telemetry.
+- **Harness does not replace HITL.** The accelerator disables Harness framework
+  auto-approval by default. Any custom Harness tool that writes, sends, or
+  destroys still calls `hitl.checkpoint(...)` inside the tool implementation.
 
 ## Principle 4 — Red-team evals in CI
 
@@ -57,6 +60,13 @@ What ships in v1 and where it lives. Customisation within these rails is fine; d
   shown or retained by the reference workbench. Final and `briefing_ready`
   payloads must pass the declared response schema; partials render only when
   the workflow explicitly advertises validated partial output.
+- **Operational configuration is not advertised.** Client metadata describes
+  the approved implementation shape but does not reveal whether secret-backed
+  approver endpoints are configured.
+- **Failures do not disclose internals.** Full exceptions stay in server logs;
+  telemetry records exception type and clients receive generic error text.
+- **Demo history is explicit and erasable.** Browser-local saves carry privacy
+  messaging, do not display request values in navigation, and provide clear-all.
 
 ---
 
@@ -76,6 +86,6 @@ What ships in v1 and where it lives. Customisation within these rails is fine; d
 
 - Content filter + model deployment: `infra/modules/foundry.bicep`
 - Retrieval: `src/retrieval/ai_search.py`
-- HITL lint contract: `scripts/accelerator-lint.py::tool_registers_hitl`
+- HITL lint contract: `scripts/accelerator-lint.py::side_effect_tools_call_hitl`
 - Red-team suite + runner: `evals/redteam/`
 - Acceptance gates: `accelerator.yaml.acceptance` + `src/accelerator_baseline/evals.py`

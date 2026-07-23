@@ -96,6 +96,11 @@ async def test_sse_emits_error_then_terminal_done(
     workflow = StubWorkflow([], RuntimeError("workflow failed"))
     payload = validate_payload({"company_name": "Contoso"}, RequestModel)
 
+    logged = []
+    monkeypatch.setattr(
+        "src.serving.sse.logger.exception",
+        lambda *args, **_kwargs: logged.append(args[0]),
+    )
     chunks = [chunk async for chunk in stream_sse(workflow, payload, _connected)]
     data = [
         json.loads(chunk.removeprefix(b"data: ").removesuffix(b"\n\n"))
@@ -103,12 +108,18 @@ async def test_sse_emits_error_then_terminal_done(
     ]
 
     assert data == [
-        {"type": "error", "message": "workflow failed", "seq": 1},
+        {
+            "type": "error",
+            "message": "The workflow could not complete the response.",
+            "seq": 1,
+        },
         {"type": "done", "seq": 2},
     ]
     assert len(emitted) == 1
     assert emitted[0].name == "response.returned"
     assert emitted[0].ok is False
+    assert emitted[0].error == "RuntimeError"
+    assert logged == ["SSE workflow failed"]
 
 
 @pytest.mark.asyncio
@@ -129,7 +140,11 @@ async def test_sse_handles_synchronous_iterator_construction_error() -> None:
     ]
 
     assert data == [
-        {"type": "error", "message": "iterator construction failed", "seq": 1},
+        {
+            "type": "error",
+            "message": "The workflow could not complete the response.",
+            "seq": 1,
+        },
         {"type": "done", "seq": 2},
     ]
 
@@ -254,6 +269,9 @@ def test_fastapi_route_preserves_validation_status_headers_and_body() -> None:
         response = client.post(bundle.endpoint_path, json={"company_name": "Contoso"})
 
     assert invalid_json.status_code == 400
+    assert invalid_json.json() == {
+        "detail": "Request body must contain valid JSON."
+    }
     assert invalid_schema.status_code == 422
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")

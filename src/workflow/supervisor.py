@@ -346,11 +346,12 @@ class SupervisorDAG:
                     # Propagate cancellation to the caller, preserving asyncio semantics.
                     raise
                 except Exception as exc:
+                    logger.exception("Worker %s failed", wid)
                     emit_event(
                         Event(
                             name="worker.completed",
                             ok=False,
-                            error=str(exc),
+                            error=type(exc).__name__,
                             external_system=spec.module.AGENT_NAME,
                         )
                     )
@@ -362,7 +363,7 @@ class SupervisorDAG:
                     yield {
                         "type": "worker_skipped",
                         "worker_id": wid,
-                        "error": str(exc),
+                        "error": "Optional worker failed.",
                         "downstream_skipped": skipped,
                     }
                     continue

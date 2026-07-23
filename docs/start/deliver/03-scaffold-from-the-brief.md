@@ -13,7 +13,8 @@
 
     **✅ Done when** — The Architecture Advisor decision is approved and
     current; scaffold preview/apply is complete; required specialist authoring
-    is complete; validation passes.
+    is complete; the MCP-generated architecture SVG and provenance record are
+    committed; validation passes.
 
 !!! tip "Specialists used for hosted multi-agent decisions"
     [`/define-grounding`](../../../.github/agents/define-grounding.agent.md) →
@@ -41,6 +42,8 @@
     modified:   evals/quality/golden_cases.jsonl
     modified:   evals/redteam/<scenario>.jsonl
     modified:   infra/main.parameters.json
+    new file:   docs/assets/diagrams/<scenario>-architecture.svg
+    new file:   docs/assets/diagrams/<scenario>-architecture.mcp.json
     ```
 
     `accel validate --full --execute` finishes successfully with no policy,
@@ -73,7 +76,8 @@ scenario-agnostic.
 |---|---|
 | Problem + persona | `docs/agent-specs/<supervisor>.md` system instructions |
 | Request/response UX contract | Scenario `request_schema`, `response_schema`, and `experience` metadata in `accelerator.yaml` |
-| Foundry agent type + application architecture | `accelerator.yaml -> architecture` |
+| Foundry agent type + implementation pattern + application architecture | `accelerator.yaml -> architecture` |
+| Architecture diagram | Azure Architecture Diagram Builder MCP SVG + checksum-bound `.mcp.json` provenance under `docs/assets/diagrams/` |
 | Solution shape | `scenario.implementation` and architecture-aware primary/supervisor scaffold |
 | Grounding sources | `scenario.agents[].retrieval` (`foundry_tool` or `none`) + scenario index schema + `scenario.retrieval.indexes[]` |
 | Side-effect tools | New files under `src/tools/` with HITL scaffolding |
@@ -83,8 +87,28 @@ scenario-agnostic.
 | RAI risks | `evals/redteam/` custom adversarial cases |
 | ROI KPIs | `src/accelerator_baseline/telemetry.py` events + `infra/dashboards/roi-kpis.json` (panels are scenario-agnostic; rename the dashboard per engagement) |
 
+## Generate the architecture diagram deliverable
+
+After scaffold apply, use
+[Azure Architecture Diagram Builder MCP v1.0.0](https://techcommunity.microsoft.com/blog/azurearchitectureblog/beyond-the-canvas-the-azure-architecture-diagram-builder-becomes-agent-ready/4534590)
+for the scenario's Azure resource topology:
+
+1. Call `list_services` to resolve every component to a supported canonical
+   Azure service type.
+2. Call `validate_architecture` and retain its deterministic WAF result.
+3. Call `render_diagram` with `format: svg`, descriptive connection labels,
+   logical groups, and generator metadata.
+4. Commit `<scenario>-architecture.svg` plus
+   `<scenario>-architecture.mcp.json`. The provenance file records the exact
+   inputs, MCP version/tool sequence, validation result, and SVG SHA-256.
+
+Do not hand-edit the generated SVG. Change the graph in the provenance input and
+regenerate through the same pinned MCP release. Validation findings inform the
+landing-zone discussion; they do not silently change the approved architecture.
+If remediation changes the selected topology, return to `accel design`.
+
 <div class="architecture-diagram">
-  <img src="../../assets/diagrams/architecture-advisor-targets.svg" alt="Architecture Advisor target comparison">
+  <img src="../../assets/diagrams/sales-research-reference.svg" alt="MCP-generated Sales Research reference architecture">
 </div>
 
 See [Architecture Advisor](../../reference/architecture-advisor.md) for the
@@ -94,6 +118,11 @@ decision matrix and target-specific diagrams.
 existing scenario. Later brief changes are reviewed implementation diffs;
 specialist agents may update prompts, workers, tools, grounding, evals, and
 telemetry without re-scaffolding.
+
+For a Hosted `single-agent` + `harness` decision, scaffold with
+`--no-retrieval`. The generated primary workflow uses
+`src.workflow.harness.HarnessWorkflow`; do not add worker agents. Governed
+Harness retrieval/tool bridging is a later explicit implementation step.
 
 ## Wire grounding & implement workers
 

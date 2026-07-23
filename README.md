@@ -9,7 +9,20 @@ routes a request across Account Planner, ICP/Fit Analyst, Competitive Context,
 and Outreach Personalizer workers, returning a grounded, citable brief plus a
 CRM-ready outreach draft. HITL gates every CRM write and email send.
 
-**Stack:** Microsoft Agent Framework · Microsoft Foundry · Azure AI Search · Managed Identity · Key Vault · Container Apps · Application Insights · `azd` for infra.
+**Stack:** Microsoft Agent Framework + Harness · Microsoft Foundry · Azure AI Search · Managed Identity · Key Vault · Container Apps · Application Insights · `azd` for infra.
+
+### Flagship reference architecture
+
+![Sales Research and Personalized Outreach reference architecture](docs/assets/diagrams/sales-research-reference.svg)
+
+This sample was generated—not hand-drawn—with the
+[Azure Architecture Diagram Builder MCP](https://techcommunity.microsoft.com/blog/azurearchitectureblog/beyond-the-canvas-the-azure-architecture-diagram-builder-becomes-agent-ready/4534590)
+v1.0.0. The companion
+[MCP provenance record](docs/assets/diagrams/sales-research-reference.mcp.json)
+captures the exact service graph, tool sequence, SVG checksum, and deterministic
+WAF validation. It intentionally reflects the default single-region
+`standalone` example; the recorded findings call out the Front Door/WAF and
+multi-region upgrades expected for stricter production landing zones.
 
 **Adoption model:** `gh repo create --template` → `accel next` → governed
 discovery → Architecture Advisor decision → architecture-aware scaffold and
@@ -51,7 +64,8 @@ from GitHub Copilot CLI, Codex, Claude Code, or a normal terminal. See the
 
 ### 🛠️ Partner Engineer — scaffold, deploy, iterate, UAT support
 - **Start with:** `accel next`; use [`QUICKSTART.md`](QUICKSTART.md) as the printable command reference
-- **Decide:** `accel design` compares prompt versus Hosted agents, workflow
+- **Decide:** `accel design` compares prompt versus Hosted agents,
+  `managed-prompt` versus `harness` versus `custom-workflow`, orchestration
   patterns, application shells, and deployment targets; review/approve its
   evidence before scaffolding
 - **Build:** approved design → `accel scaffold --scenario-id <id> --dry-run` →
@@ -162,6 +176,7 @@ agentic-ai-solution-accelerator/
 | Partner re-invents auth, telemetry, HITL, evals, RAI posture every engagement | Ships as partner-owned source in `src/accelerator_baseline/`; used from day one |
 | Discovery notes disconnected from code | Private evidence ledger → approved brief → executable manifest → traceable evals |
 | "Should we use single-agent or supervisor?" → guesswork | Flagship + two variants + two reference scenarios; pick-and-scaffold |
+| Every hosted agent rebuilds planning, history, approvals, and telemetry | Advisor selects the stable Agent Framework Harness for adaptive hosted single-agent work |
 | Compliance & WAF done at the end (if at all) | Enforced from commit 1 via `copilot-instructions.md` + CI lint + IaC content filters |
 | ROI promises are slides | KPIs declared in `accelerator.yaml.kpis[]`; partners wire a telemetry event per KPI in the scenario code, then monitor in App Insights + the shipped workbook template (`infra/dashboards/roi-kpis.json`) |
 

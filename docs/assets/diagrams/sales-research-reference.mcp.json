@@ -1,0 +1,230 @@
+{
+  "schema_version": "1.0",
+  "artifact": {
+    "path": "sales-research-reference.svg",
+    "sha256": "3bada369109d9279532724a9d4ad12c71510febc1379eb89768117e6db87cbef"
+  },
+  "generator": {
+    "name": "Azure Architecture Diagram Builder MCP",
+    "version": "1.0.0",
+    "release": "v1.0.0",
+    "source_commit": "429a43b1c235bf058945a2fc04c64a4e4ef0b7fd",
+    "repository": "https://github.com/Arturo-Quiroga-MSFT/azure-architecture-diagram-builder",
+    "blog": "https://techcommunity.microsoft.com/blog/azurearchitectureblog/beyond-the-canvas-the-azure-architecture-diagram-builder-becomes-agent-ready/4534590",
+    "tools": [
+      "list_services",
+      "validate_architecture",
+      "render_diagram"
+    ]
+  },
+  "render": {
+    "title": "Sales Research & Personalized Outreach — Reference Architecture",
+    "format": "svg",
+    "direction": "LR",
+    "theme": "light",
+    "region": "none",
+    "author": "Azure Agentic AI Solution Accelerator",
+    "generatedBy": "Azure Architecture Diagram Builder MCP v1.0.0"
+  },
+  "groups": [
+    {
+      "id": "experience",
+      "label": "Seller Experience"
+    },
+    {
+      "id": "application",
+      "label": "Application Runtime"
+    },
+    {
+      "id": "ai-data",
+      "label": "Agentic AI & Grounding"
+    },
+    {
+      "id": "security-ops",
+      "label": "Identity, Security & Operations"
+    }
+  ],
+  "services": [
+    {
+      "name": "Reference Workbench",
+      "type": "Static Web Apps",
+      "description": "Optional React workbench for structured seller requests and validated results.",
+      "groupId": "experience"
+    },
+    {
+      "name": "Scenario API",
+      "type": "Container Apps",
+      "description": "FastAPI SSE endpoint and Microsoft Agent Framework supervisor runtime.",
+      "groupId": "application"
+    },
+    {
+      "name": "Application Images",
+      "type": "Container Registry",
+      "description": "Stores the signed self-host container image deployed by azd.",
+      "groupId": "application"
+    },
+    {
+      "name": "Microsoft Foundry",
+      "type": "Azure OpenAI",
+      "description": "Foundry project, model deployment, supervisor, and specialist agent versions.",
+      "groupId": "ai-data"
+    },
+    {
+      "name": "FoundryIQ Knowledge",
+      "type": "Azure Cognitive Search",
+      "description": "Governed account index and FoundryIQ knowledge base with citation metadata.",
+      "groupId": "ai-data"
+    },
+    {
+      "name": "Microsoft Entra ID",
+      "type": "Microsoft Entra ID",
+      "description": "Seller sign-in and managed workload identity token issuance.",
+      "groupId": "security-ops"
+    },
+    {
+      "name": "Azure Key Vault",
+      "type": "Key Vault",
+      "description": "Secret references and RBAC-protected runtime configuration.",
+      "groupId": "security-ops"
+    },
+    {
+      "name": "Application Insights",
+      "type": "Application Insights",
+      "description": "Distributed traces, typed events, failures, latency, and KPI telemetry.",
+      "groupId": "security-ops"
+    },
+    {
+      "name": "Log Analytics",
+      "type": "Log Analytics",
+      "description": "Central workspace for correlated application and platform telemetry.",
+      "groupId": "security-ops"
+    }
+  ],
+  "connections": [
+    {
+      "from": "Reference Workbench",
+      "to": "Microsoft Entra ID",
+      "label": "Authenticate seller access",
+      "type": "sync"
+    },
+    {
+      "from": "Reference Workbench",
+      "to": "Scenario API",
+      "label": "Submit research request over HTTPS",
+      "type": "sync"
+    },
+    {
+      "from": "Application Images",
+      "to": "Scenario API",
+      "label": "Supply signed runtime image",
+      "type": "async"
+    },
+    {
+      "from": "Scenario API",
+      "to": "Microsoft Entra ID",
+      "label": "Acquire managed identity tokens",
+      "type": "sync"
+    },
+    {
+      "from": "Scenario API",
+      "to": "Microsoft Foundry",
+      "label": "Invoke supervisor and specialist agents",
+      "type": "sync"
+    },
+    {
+      "from": "Microsoft Foundry",
+      "to": "FoundryIQ Knowledge",
+      "label": "Retrieve grounded account evidence",
+      "type": "sync"
+    },
+    {
+      "from": "Scenario API",
+      "to": "Azure Key Vault",
+      "label": "Resolve protected configuration references",
+      "type": "sync"
+    },
+    {
+      "from": "Scenario API",
+      "to": "Application Insights",
+      "label": "Emit traces metrics and KPI events",
+      "type": "async"
+    },
+    {
+      "from": "Application Insights",
+      "to": "Log Analytics",
+      "label": "Store correlated operational telemetry",
+      "type": "async"
+    }
+  ],
+  "validation": {
+    "score": 79,
+    "totalFindings": 3,
+    "patternsDetected": [
+      "single-region",
+      "no-waf"
+    ],
+    "rulesApplied": {
+      "pattern": 2,
+      "service": 1
+    },
+    "findingsByPillar": {
+      "Reliability": {
+        "count": 2,
+        "findings": [
+          {
+            "severity": "high",
+            "category": "High Availability",
+            "issue": "Single-region deployment with no failover capability",
+            "recommendation": "Deploy across multiple Azure regions or availability zones. Use Azure Traffic Manager or Azure Front Door for global load balancing and automatic failover.",
+            "resources": [
+              "Reference Workbench",
+              "Scenario API",
+              "Application Images",
+              "Microsoft Foundry",
+              "FoundryIQ Knowledge",
+              "Microsoft Entra ID",
+              "Azure Key Vault",
+              "Application Insights",
+              "Log Analytics"
+            ]
+          },
+          {
+            "severity": "high",
+            "category": "Data Protection",
+            "issue": "Key Vault should have soft-delete and purge protection enabled",
+            "recommendation": "Enable soft-delete (90-day retention) and purge protection to prevent accidental deletion of secrets, keys, and certificates.",
+            "resources": [
+              "Azure Key Vault"
+            ]
+          }
+        ]
+      },
+      "Security": {
+        "count": 1,
+        "findings": [
+          {
+            "severity": "high",
+            "category": "Network Security",
+            "issue": "Public-facing application without Web Application Firewall (WAF)",
+            "recommendation": "Deploy Azure Front Door with WAF or Application Gateway with WAF to protect against OWASP Top 10 threats, DDoS, and bot attacks.",
+            "resources": [
+              "Reference Workbench"
+            ]
+          }
+        ]
+      },
+      "Cost Optimization": {
+        "count": 0,
+        "findings": []
+      },
+      "Operational Excellence": {
+        "count": 0,
+        "findings": []
+      },
+      "Performance Efficiency": {
+        "count": 0,
+        "findings": []
+      }
+    }
+  }
+}

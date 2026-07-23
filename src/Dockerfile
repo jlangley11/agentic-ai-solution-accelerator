@@ -14,10 +14,9 @@ COPY src ./src
 # enforces this invariant.
 COPY accelerator.yaml ./
 # docs/agent-specs/<foundry_name>.md hold the Instructions body for every
-# scenario.agents[] entry. src.bootstrap reads them at FastAPI startup to
-# create-or-update Foundry agents (replacing the previous postprovision azd
-# hook). scripts/accelerator-lint.py::dockerfile_copies_agent_specs enforces
-# this invariant.
+# scenario.agents[] entry. Bootstrap syncs managed agents; Harness loads the
+# same source at runtime. scripts/accelerator-lint.py::dockerfile_copies_agent_specs
+# enforces this invariant.
 COPY docs/agent-specs ./docs/agent-specs
 # data/ holds seed JSON files referenced by scenario.retrieval.indexes[].seed.
 # src.bootstrap uploads them at startup so the AI Search index is queryable

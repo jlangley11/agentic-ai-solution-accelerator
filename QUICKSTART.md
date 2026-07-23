@@ -4,7 +4,10 @@
 > detects the current lifecycle stage, blockers, required approvals, and next
 > command. The steps below remain the printable/manual reference.
 
-> **Recommended path:** Use the [partner walkthrough](docs/start/index.md) — *Get ready* (one-time) + *Deliver to a customer* (seven steps per engagement). This file is the printable cheat-sheet version of the per-customer steps; keep it open as a reference during an engagement.
+> **Recommended path:** Use the [partner walkthrough](docs/start/index.md) —
+> *Get ready* (one-time) + *Deliver to a customer* (seven steps per
+> engagement). This file is a compressed command cheat sheet and includes one
+> optional UI section beyond the seven-stage delivery motion.
 
 > **First time on this accelerator?** Do *Get ready* in the walkthrough first — [1. Get oriented](docs/start/ready/01-get-oriented.md) → [2. Set up your machine](docs/start/ready/02-set-up-your-machine.md) → [3. Rehearse in a sandbox](docs/start/ready/03-rehearse-in-a-sandbox.md) — **before** Step 1 below.
 
@@ -66,9 +69,11 @@ If source documents exist:
 accel intake add <prd> <security-doc> <workshop-file>
 accel intake list
 accel intake review <source-id>
+accel intake disclose <source-id> approved_for_model --apply
 ```
 
-Sources remain local-only until an explicit `approved_for_model` decision.
+Sources remain local-only until this explicit decision. Approval records local
+metadata; it does not transmit the document by itself.
 
 In Copilot Chat:
 
@@ -98,9 +103,10 @@ accel scaffold --scenario-id <scenario-id> --apply
 ```
 
 `accel design` explains why the requirements fit a prompt or Hosted agent,
-which orchestration pattern is needed, whether an application shell is
-required, and which deployment target follows. An override requires
-`--override-reason`.
+whether the implementation should use `managed-prompt`, `harness`, or
+`custom-workflow`, which orchestration pattern is needed, whether an
+application shell is required, and which deployment target follows. An
+override requires `--override-reason`.
 
 Then use `/define-grounding` and `/implement-workers` when the scaffold needs
 customer-specific worker instructions, transforms, validators, and tools.
@@ -234,7 +240,7 @@ Any red light blocks merge. Green = `azd deploy` against customer env.
 
 ---
 
-## Step 8 — Ship a UI
+## Optional — Ship a UI
 
 **Where:** VS Code — edit the React + Vite + TypeScript starter under `patterns/sales-research-frontend/` in the editor; run `npm install` / `npm run dev` / `swa deploy` from the integrated terminal.
 

@@ -11,7 +11,13 @@ A reference UI that wraps the accelerator API in a runnable browser experience.
 The sales scenario keeps its tailored form and briefing layouts. Other
 scenarios receive a schema-generated form and validated dynamic result panels
 from their request/response metadata. The workbench also shows the approved
-agent type, orchestration pattern, and application shell.
+agent type, implementation pattern, orchestration pattern, and application
+shell.
+
+If metadata cannot be loaded, the workbench fails visibly and offers Retry; it
+never silently opens the sales-specific interface. Saved runs are explicit,
+browser-local, suppress request values in navigation, and include a clear-all
+control. Do not use demo history for sensitive customer data.
 
 ## When to use it
 

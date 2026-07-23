@@ -17,11 +17,16 @@ def scenario_block(
     *,
     no_retrieval: bool,
     agent_type: str = "hosted-agent",
+    implementation_pattern: str = "custom-workflow",
     orchestration_pattern: str = "supervisor-routing",
     application_shell: str = "workbench",
 ) -> dict[str, Any]:
     leaf = scenario_id.replace("-", "_")
-    agent_id = "primary" if agent_type == "prompt-agent" else "supervisor"
+    agent_id = (
+        "primary"
+        if agent_type == "prompt-agent" or implementation_pattern == "harness"
+        else "supervisor"
+    )
     foundry_name = f"accel-{scenario_id}-{agent_id}"
     experience_kind = {
         "none": "api",
@@ -46,8 +51,24 @@ def scenario_block(
         },
         "implementation": {
             "agent_type": agent_type,
+            "implementation_pattern": implementation_pattern,
             "orchestration_pattern": orchestration_pattern,
             "application_shell": application_shell,
+        },
+        "architecture_diagram": {
+            "path": (
+                f"docs/assets/diagrams/{scenario_id}-architecture.svg"
+            ),
+            "provenance": (
+                f"docs/assets/diagrams/{scenario_id}-architecture.mcp.json"
+            ),
+            "generator": "azure-architecture-diagram-builder-mcp",
+            "version": "1.0.0",
+            "tools": [
+                "list_services",
+                "validate_architecture",
+                "render_diagram",
+            ],
         },
         "agents": [{"id": agent_id, "foundry_name": foundry_name}],
         "evals": {
@@ -55,7 +76,7 @@ def scenario_block(
             "redteam_dataset": "evals/redteam/cases.jsonl",
         },
     }
-    if not no_retrieval:
+    if not no_retrieval and implementation_pattern != "harness":
         block["agents"][0]["retrieval"] = {
             "mode": "foundry_tool",
             "index": leaf,

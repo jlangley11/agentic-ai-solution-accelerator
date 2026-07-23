@@ -21,6 +21,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from .serving.sse import (
+    INVALID_JSON_DETAIL,
     sse_response,
     validate_payload,
     validate_response_event,
@@ -29,10 +30,19 @@ from .workflow.registry import ScenarioBundle, load_scenario
 
 logger = logging.getLogger("accelerator")
 _azure_monitor_configured = False
+_INVALID_RESPONSE_INPUT = "Responses input does not match the scenario request schema."
 
 
 class DualHost(InvocationAgentServerHost, ResponsesAgentServerHost):
     """Public cooperative host exposing both preview protocols."""
+
+
+class _ResponseInputError(ValueError):
+    """A controlled validation message that is safe to return to the caller."""
+
+    def __init__(self, client_message: str) -> None:
+        super().__init__(client_message)
+        self.client_message = client_message
 
 
 def _configure_azure_monitor() -> None:
@@ -65,7 +75,7 @@ def _free_text_payload(text: str, schema: type[BaseModel]) -> dict[str, Any]:
     ]
     if len(required) != 1 or len(required_strings) != 1:
         names = ", ".join(name for name, _field in required) or "(none)"
-        raise ValueError(
+        raise _ResponseInputError(
             "Plain-text Responses input is supported only when the active "
             "request schema has exactly one required string field. Send a JSON "
             f"object for required fields: {names}."
@@ -76,7 +86,7 @@ def _free_text_payload(text: str, schema: type[BaseModel]) -> dict[str, Any]:
 def _response_payload(text: str, schema: type[BaseModel]) -> BaseModel:
     stripped = text.strip()
     if not stripped:
-        raise ValueError("Responses input text must not be empty.")
+        raise _ResponseInputError("Responses input text must not be empty.")
     try:
         decoded = json.loads(stripped)
     except json.JSONDecodeError:
@@ -158,8 +168,8 @@ def create_app(bundle: ScenarioBundle | None = None) -> DualHost:
     async def invoke(request: Request) -> Response:
         try:
             raw_payload: Any = await request.json()
-        except ValueError as exc:
-            return JSONResponse({"detail": str(exc)}, status_code=400)
+        except ValueError:
+            return JSONResponse({"detail": INVALID_JSON_DETAIL}, status_code=400)
         try:
             payload = validate_payload(raw_payload, scenario.request_schema)
         except ValidationError as exc:
@@ -192,8 +202,11 @@ def create_app(bundle: ScenarioBundle | None = None) -> DualHost:
                 await context.get_input_text(),
                 scenario.request_schema,
             )
-        except ValueError as exc:
-            yield events.emit_failed(message=str(exc))
+        except _ResponseInputError as exc:
+            yield events.emit_failed(message=exc.client_message)
+            return
+        except ValidationError:
+            yield events.emit_failed(message=_INVALID_RESPONSE_INPUT)
             return
         try:
             final_briefing: dict[str, Any] = {}

@@ -92,13 +92,14 @@ Link types: `implementation`, `quality_eval`, `redteam`, `telemetry`, `ux`, and 
 accel design
 accel design --approved-by <name> --apply
 accel design --agent-type hosted-agent `
+  --implementation-pattern custom-workflow `
   --orchestration-pattern supervisor-routing `
   --application-shell workbench `
   --deployment-target selfhost `
   --override-reason <reason> --approved-by <name> --apply
 ```
 
-Foundry Agent Service types are `prompt-agent` and `hosted-agent`; workflow is an orchestration pattern. Requirement changes invalidate the decision fingerprint and return `accel next` to design.
+Foundry Agent Service types are `prompt-agent` and `hosted-agent`; `managed-prompt`, `harness`, and `custom-workflow` are implementation patterns; workflow is an orchestration pattern. Requirement changes invalidate the decision fingerprint and return `accel next` to design.
 
 ## Scaffold and deployment
 

@@ -16,6 +16,8 @@ from src.workflow.base import BaseWorkflow
 from src.workflow.registry import ScenarioBundle
 
 DisconnectCheck = Callable[[], Awaitable[bool]]
+DEFAULT_CLIENT_ERROR = "The workflow could not complete the response."
+INVALID_JSON_DETAIL = "Request body must contain valid JSON."
 logger = logging.getLogger("accelerator")
 
 SSE_HEADERS = {
@@ -49,7 +51,7 @@ async def stream_sse(
     workflow: BaseWorkflow,
     payload: BaseModel,
     is_disconnected: DisconnectCheck,
-    client_error_message: str | None = None,
+    client_error_message: str = DEFAULT_CLIENT_ERROR,
     response_schema: type[BaseModel] | None = None,
 ) -> AsyncIterator[bytes]:
     """Encode workflow events using the accelerator's stable SSE contract."""
@@ -74,13 +76,12 @@ async def stream_sse(
                 if close is not None:
                     await close()
     except Exception as exc:
-        if client_error_message is not None:
-            logger.exception("SSE workflow failed")
+        logger.exception("SSE workflow failed")
         emit_event(
             Event(
                 name="response.returned",
                 ok=False,
-                error=str(exc),
+                error=type(exc).__name__,
                 value=round((monotonic() - stream_start) * 1000.0, 1),
                 unit="ms",
             )
@@ -88,7 +89,7 @@ async def stream_sse(
         seq += 1
         error = {
             "type": "error",
-            "message": client_error_message if client_error_message is not None else str(exc),
+            "message": client_error_message,
             "seq": seq,
         }
         yield f"data: {json.dumps(error)}\n\n".encode()
@@ -100,7 +101,7 @@ def sse_response(
     workflow: BaseWorkflow,
     payload: BaseModel,
     is_disconnected: DisconnectCheck,
-    client_error_message: str | None = None,
+    client_error_message: str = DEFAULT_CLIENT_ERROR,
     response_schema: type[BaseModel] | None = None,
 ) -> StreamingResponse:
     """Construct an SSE response for an already-validated payload."""
@@ -129,7 +130,7 @@ def make_fastapi_stream_endpoint(
         try:
             raw_payload: Any = await request.json()
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=INVALID_JSON_DETAIL) from exc
         try:
             payload = validate_payload(raw_payload, schema)
         except ValidationError as exc:

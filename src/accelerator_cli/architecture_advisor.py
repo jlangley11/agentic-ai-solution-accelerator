@@ -3,11 +3,17 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import html
 import json
 import pathlib
 import re
 from collections.abc import Iterable, Mapping
 from typing import Any
+
+from src.implementation_patterns import (
+    IMPLEMENTATION_PATTERNS,
+    implementation_pattern_for,
+)
 
 AGENT_TYPES = ("prompt-agent", "hosted-agent")
 ORCHESTRATION_PATTERNS = (
@@ -24,6 +30,10 @@ FOUNDRY_AGENT_OVERVIEW = (
 HOSTED_AGENT_GUIDANCE = (
     "https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents"
 )
+HARNESS_GUIDANCE = (
+    "https://devblogs.microsoft.com/agent-framework/"
+    "the-microsoft-agent-framework-harness-is-now-released/"
+)
 
 _UNRESOLVED = (
     "STATUS: TEMPLATE",
@@ -35,11 +45,15 @@ _UNRESOLVED = (
     "TBD",
     "TODO:",
 )
+_TRACEABILITY_REQUIREMENT = re.compile(
+    r"^`req-[^`]+`\s+(?:—|–|-)\s+(.+)$"
+)
 
 
 @dataclasses.dataclass(frozen=True)
 class ArchitectureRecommendation:
     agent_type: str
+    implementation_pattern: str
     orchestration_pattern: str
     application_shell: str
     deployment_target: str
@@ -76,7 +90,9 @@ def committed_requirement_context(
     """Use committed sanitized traceability when available for stable decisions."""
     traceability = root / "docs" / "discovery" / "requirements-traceability.md"
     if traceability.is_file():
-        return (traceability.read_text(encoding="utf-8"),)
+        return _traceability_requirement_statements(
+            traceability.read_text(encoding="utf-8"),
+        )
     return tuple(fallback_statements)
 
 
@@ -84,7 +100,7 @@ def recommend_architecture(
     brief: str,
     approved_requirements: Iterable[str] = (),
 ) -> ArchitectureRecommendation:
-    """Recommend agent type, orchestration, UX shell, and deployment target."""
+    """Recommend agent type, implementation, orchestration, UX, and target."""
     requirements = tuple(
         " ".join(statement.split())
         for statement in approved_requirements
@@ -135,14 +151,27 @@ def recommend_architecture(
         ),
         hosted=7,
     )
-    stateful = signal(
-        "Stateful or long-running runtime behavior",
+    durable_state = signal(
+        "Durable cross-request state or persistent files",
         (
             r"\bstateful\b",
             r"\bsession state\b",
             r"\bpersist(?:ent)? files?\b",
-            r"\blong-running\b",
             r"\bresume\b.*\bsession\b",
+        ),
+        hosted=6,
+    )
+    signal(
+        "Adaptive Agent Framework Harness behavior",
+        (
+            r"\bagent framework harness\b",
+            r"\blong-running\b",
+            r"\badaptive plan-and-execute\b",
+            r"\bplan(?:ning)? and execut(?:e|ion)\b",
+            r"\bpersistent todo(?:s| list)?\b",
+            r"\bcontext compaction\b",
+            r"\btool-calling loop\b",
+            r"\bcustom tools?\b",
         ),
         hosted=6,
     )
@@ -238,13 +267,24 @@ def recommend_architecture(
 
     if orchestration != "single-agent":
         hosted_score = max(hosted_score, prompt_score + 2)
-    if any((custom_framework, custom_protocol, stateful, side_effects, custom_logic)):
+    if any((
+        custom_framework,
+        custom_protocol,
+        durable_state,
+        side_effects,
+        custom_logic,
+    )):
         hosted_score = max(hosted_score, prompt_score + 2)
     if not signals:
         prompt_score = 1
         signals.append("No custom runtime requirement was detected")
 
     agent_type = "hosted-agent" if hosted_score > prompt_score else "prompt-agent"
+    implementation_pattern = implementation_pattern_for(
+        agent_type,
+        orchestration,
+        custom_framework=custom_framework or durable_state,
+    )
     application_shell = _recommend_application_shell(brief, text)
     deployment_target = _recommend_deployment_target(
         agent_type,
@@ -256,6 +296,7 @@ def recommend_architecture(
     confidence = "high" if margin >= 6 else "medium" if margin >= 3 else "low"
     rationale = _rationale(
         agent_type,
+        implementation_pattern,
         orchestration,
         application_shell,
         deployment_target,
@@ -263,12 +304,14 @@ def recommend_architecture(
     )
     alternatives = _alternatives(
         agent_type,
+        implementation_pattern,
         orchestration,
         application_shell,
         deployment_target,
     )
     return ArchitectureRecommendation(
         agent_type=agent_type,
+        implementation_pattern=implementation_pattern,
         orchestration_pattern=orchestration,
         application_shell=application_shell,
         deployment_target=deployment_target,
@@ -284,14 +327,23 @@ def recommend_architecture(
 def validate_selection(
     *,
     agent_type: str,
+    implementation_pattern: str | None = None,
     orchestration_pattern: str,
     application_shell: str,
     deployment_target: str,
 ) -> tuple[str, ...]:
     """Return invalid architecture-combination messages."""
     issues: list[str] = []
+    resolved_implementation = (
+        implementation_pattern
+        or implementation_pattern_for(agent_type, orchestration_pattern)
+    )
     if agent_type not in AGENT_TYPES:
         issues.append(f"Unsupported agent type: {agent_type!r}.")
+    if resolved_implementation not in IMPLEMENTATION_PATTERNS:
+        issues.append(
+            f"Unsupported implementation pattern: {resolved_implementation!r}."
+        )
     if orchestration_pattern not in ORCHESTRATION_PATTERNS:
         issues.append(f"Unsupported orchestration pattern: {orchestration_pattern!r}.")
     if application_shell not in APPLICATION_SHELLS:
@@ -305,6 +357,24 @@ def validate_selection(
         issues.append(
             "Prompt agents support the single-agent pattern only; custom workflow "
             "or supervisor orchestration requires a hosted agent."
+        )
+    if agent_type == "prompt-agent" and resolved_implementation != "managed-prompt":
+        issues.append("Prompt agents must use the managed-prompt implementation.")
+    if resolved_implementation == "managed-prompt" and agent_type != "prompt-agent":
+        issues.append("managed-prompt requires a prompt-agent decision.")
+    if resolved_implementation == "harness" and (
+        agent_type != "hosted-agent"
+        or orchestration_pattern != "single-agent"
+    ):
+        issues.append("Harness requires a hosted-agent single-agent decision.")
+    if resolved_implementation == "custom-workflow" and agent_type != "hosted-agent":
+        issues.append("custom-workflow requires a hosted-agent decision.")
+    if (
+        orchestration_pattern in {"deterministic-workflow", "supervisor-routing"}
+        and resolved_implementation != "custom-workflow"
+    ):
+        issues.append(
+            "Deterministic and supervisor orchestration require custom-workflow."
         )
     if deployment_target == "foundry-prompt" and agent_type != "prompt-agent":
         issues.append("foundry-prompt can deploy prompt-agent decisions only.")
@@ -328,6 +398,21 @@ def architecture_is_current(
 
 def has_unresolved_markers(brief: str) -> bool:
     return any(marker in brief for marker in _UNRESOLVED)
+
+
+def _traceability_requirement_statements(markdown: str) -> tuple[str, ...]:
+    statements: list[str] = []
+    for line in markdown.splitlines():
+        if not line.startswith("| `req-"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) != 5 or cells[2] != "approved":
+            continue
+        match = _TRACEABILITY_REQUIREMENT.match(cells[0])
+        if match is None:
+            continue
+        statements.append(html.unescape(match.group(1).strip()))
+    return tuple(sorted(statements))
 
 
 def _analysis_text(brief: str, requirements: tuple[str, ...]) -> str:
@@ -419,6 +504,7 @@ def _recommend_deployment_target(
 
 def _rationale(
     agent_type: str,
+    implementation_pattern: str,
     orchestration: str,
     application_shell: str,
     deployment_target: str,
@@ -436,6 +522,7 @@ def _rationale(
         )
     return (
         first,
+        f"The implementation pattern should use {implementation_pattern}.",
         f"Orchestration should use {orchestration}.",
         f"The user experience should use the {application_shell} application shell.",
         f"The recommended accelerator deployment target is {deployment_target}.",
@@ -445,6 +532,7 @@ def _rationale(
 
 def _alternatives(
     agent_type: str,
+    implementation_pattern: str,
     orchestration: str,
     application_shell: str,
     deployment_target: str,
@@ -459,9 +547,36 @@ def _alternatives(
         if agent_type == "hosted-agent"
         else "Not selected because it would add unnecessary runtime code and compute."
     )
+    implementation_reasons = {
+        "managed-prompt": (
+            "Selected for a declarative prompt-agent implementation."
+            if implementation_pattern == "managed-prompt"
+            else "Not selected because the solution needs hosted runtime code."
+        ),
+        "harness": (
+            "Selected for an adaptive hosted single-agent runtime with planning, "
+            "history, mode tracking, and telemetry."
+            if implementation_pattern == "harness"
+            else "Not selected because the solution is managed-prompt or needs "
+            "explicit workflow orchestration."
+        ),
+        "custom-workflow": (
+            "Selected for deterministic or supervisor-controlled orchestration."
+            if implementation_pattern == "custom-workflow"
+            else "Not selected because a managed prompt or Harness loop is sufficient."
+        ),
+    }
     return (
         {"dimension": "agent_type", "option": "prompt-agent", "reason": prompt_reason},
         {"dimension": "agent_type", "option": "hosted-agent", "reason": hosted_reason},
+        *(
+            {
+                "dimension": "implementation_pattern",
+                "option": option,
+                "reason": reason,
+            }
+            for option, reason in implementation_reasons.items()
+        ),
         {
             "dimension": "orchestration_pattern",
             "option": orchestration,

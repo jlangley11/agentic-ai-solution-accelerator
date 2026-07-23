@@ -21,6 +21,11 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 
+from src.implementation_patterns import (
+    IMPLEMENTATION_PATTERNS,
+    legacy_implementation_pattern_for,
+)
+
 from .base import BaseWorkflow
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -70,6 +75,7 @@ class ScenarioExperience:
 @dataclass(frozen=True)
 class ScenarioImplementation:
     agent_type: str
+    implementation_pattern: str
     orchestration_pattern: str
     application_shell: str
 
@@ -172,6 +178,7 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
             f"{path}: missing top-level 'scenario' block (required since D2). "
             "See docs/getting-started/setup-and-prereqs.md for the manifest shape."
         )
+    _validate_architecture(data, scenario, path)
 
     _require_keys(
         scenario,
@@ -331,6 +338,12 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
             raise ValueError("scenario.implementation must be a mapping")
         implementation = ScenarioImplementation(
             agent_type=str(implementation_raw.get("agent_type") or ""),
+            implementation_pattern=str(
+                implementation_raw.get("implementation_pattern")
+                or legacy_implementation_pattern_for(
+                    str(implementation_raw.get("agent_type") or "")
+                )
+            ),
             orchestration_pattern=str(
                 implementation_raw.get("orchestration_pattern") or ""
             ),
@@ -338,6 +351,23 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
                 implementation_raw.get("application_shell") or ""
             ),
         )
+        if implementation.implementation_pattern == "harness":
+            if len(agents) != 1:
+                raise ValueError(
+                    "Harness scenarios must declare exactly one primary agent"
+                )
+            if agents[0].id != "primary":
+                raise ValueError("Harness scenario agent id must be 'primary'")
+            retrieval = agents[0].retrieval
+            if retrieval is not None and retrieval.mode != "none":
+                raise ValueError(
+                    "Harness scenarios currently support retrieval mode 'none' only"
+                )
+            if indexes:
+                raise ValueError(
+                    "Harness scenarios must not declare retrieval indexes until "
+                    "the governed tool bridge is configured"
+                )
 
     ctx = ScenarioContext(
         id=scenario["id"],
@@ -375,6 +405,80 @@ def load_scenario(manifest_path: pathlib.Path | None = None) -> ScenarioBundle:
         experience=ctx.experience,
         implementation=ctx.implementation,
     )
+
+
+def _validate_architecture(
+    manifest: dict[str, Any],
+    scenario: dict[str, Any],
+    path: pathlib.Path,
+) -> None:
+    architecture = manifest.get("architecture")
+    if not isinstance(architecture, dict) or architecture.get("status") != "approved":
+        raise ValueError(
+            f"{path}: architecture decision must be present and approved before "
+            "runtime. Run `accel design`, then approve the decision with "
+            "`accel design --approved-by \"<partner architect>\" --apply`."
+        )
+    decision = architecture.get("decision")
+    implementation = scenario.get("implementation")
+    if not isinstance(decision, dict) or not isinstance(implementation, dict):
+        raise ValueError(
+            f"{path}: architecture.decision and scenario.implementation are "
+            "required. Run `accel design` and reconcile the approved architecture "
+            "before starting the runtime."
+        )
+    decision_pattern = (
+        decision.get("implementation_pattern")
+        or legacy_implementation_pattern_for(
+            str(decision.get("agent_type") or "")
+        )
+    )
+    implementation_pattern = (
+        implementation.get("implementation_pattern")
+        or legacy_implementation_pattern_for(
+            str(implementation.get("agent_type") or "")
+        )
+    )
+    for key in (
+        "agent_type",
+        "orchestration_pattern",
+        "application_shell",
+    ):
+        if decision.get(key) != implementation.get(key):
+            raise ValueError(
+                f"{path}: scenario.implementation.{key} must match "
+                f"architecture.decision.{key}. Run `accel design` and reconcile "
+                "the approved architecture before starting the runtime."
+            )
+    if decision_pattern != implementation_pattern:
+        raise ValueError(
+            f"{path}: scenario.implementation.implementation_pattern must match "
+            "architecture.decision.implementation_pattern. Run `accel design` "
+            "and reconcile the approved architecture before starting the runtime."
+        )
+    agent_type = implementation.get("agent_type")
+    orchestration = implementation.get("orchestration_pattern")
+    if implementation_pattern not in IMPLEMENTATION_PATTERNS:
+        raise ValueError(
+            f"{path}: unsupported implementation_pattern "
+            f"{implementation_pattern!r}"
+        )
+    if implementation_pattern == "harness" and (
+        agent_type != "hosted-agent" or orchestration != "single-agent"
+    ):
+        raise ValueError(f"{path}: Harness requires hosted-agent + single-agent.")
+    if implementation_pattern == "managed-prompt" and agent_type != "prompt-agent":
+        raise ValueError(f"{path}: managed-prompt requires prompt-agent.")
+    if implementation_pattern == "custom-workflow" and agent_type != "hosted-agent":
+        raise ValueError(f"{path}: custom-workflow requires hosted-agent.")
+    if (
+        orchestration in {"deterministic-workflow", "supervisor-routing"}
+        and implementation_pattern != "custom-workflow"
+    ):
+        raise ValueError(
+            f"{path}: deterministic and supervisor orchestration require "
+            "custom-workflow."
+        )
 
 
 def read_scenario_raw(
